@@ -124,7 +124,6 @@ cd client && npm run test  # Vitest
 - Sign up, log in and log out, with passwords saved as a salted hash (never plain text)
 - Profile page where users can add a photo (JPEG or PNG, up to 2 MB), a bio (up to 500 characters) and up to 10 skill tags
 - Create a project with a name, description, domain and Public or Private visibility. The creator becomes the Owner
-- Roles (Owner, Admin, Contributor, Viewer) checked on the server, so someone without permission gets a 403 error
 
 **Sprint 1 is done when**
 
