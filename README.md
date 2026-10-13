@@ -1,7 +1,6 @@
-
 # DevOrbit
 
-DevOrbit is a web app where student and developer teams can work on projects together. You can chat with your team, manage tasks, see your GitHub activity, and ask an AI assistant questions about your project. There is also a public side where people can post, vote, follow each other and find projects to join.
+DevOrbit is a web app where student and developer teams can work on projects together. You can chat with your team, manage tasks, see your GitHub activity, and ask an AI assistant questions about your project. There is also a public side where people can post, vote, follow each other and find projects to join or collaborate.
 
 This project is built for our Software Engineering course.
 
@@ -55,7 +54,6 @@ devorbit/
 ├── .env.example   # Example environment variables
 └── README.md
 ```
-
 ---
 
 ## Getting Started
