@@ -1,6 +1,6 @@
-
 import { Router } from 'express';
 import mongoose from 'mongoose';
+
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -8,23 +8,31 @@ import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
 
 const router = Router({ mergeParams: true });
 
+const TASK_STATUSES = ['To do', 'In progress', 'Done'];
+const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
+
 router.use(requireAuth);
 
 function validId(id) {
   return mongoose.isValidObjectId(id);
 }
 
+function isMember(project, userId) {
+  return (project.members || []).some(
+    (member) =>
+      member.user?._id?.toString() === userId ||
+      member.user?.toString() === userId
+  );
+}
+
 function memberRole(project, userId) {
-  const member = project.members.find(
-    (item) => item.user?._id?.toString() === userId ||
+  const member = (project.members || []).find(
+    (item) =>
+      item.user?._id?.toString() === userId ||
       item.user?.toString() === userId
   );
 
   return member?.role || null;
-}
-
-function isMember(project, userId) {
-  return Boolean(memberRole(project, userId));
 }
 
 async function loadProject(req, res) {
@@ -41,113 +49,167 @@ async function loadProject(req, res) {
   }
 
   const role = memberRole(project, req.user.id);
+  const member = Boolean(role);
 
-  if (project.visibility === 'Private' && !role) {
+  if (project.visibility === 'Private' && !member) {
     res.status(403).json({
       message: 'You do not have access to this project.',
     });
     return null;
   }
 
-  return { project, role };
+  return { project, role, member };
 }
 
-async function updateProgress(projectId) {
-  const total = await Task.countDocuments({ project: projectId });
-
-  const done = await Task.countDocuments({
-    project: projectId,
-    status: 'Done',
-  });
-
-  const progress = total === 0 ? 0 : Math.round((done / total) * 100);
-
-  await Project.findByIdAndUpdate(projectId, { progress });
-}
-
-async function validateAssignee(project, assigneeId) {
-  if (assigneeId === null || assigneeId === '') {
-    return { ok: true, assignee: null };
+async function validateAssignee(project, assignee) {
+  if (assignee === null || assignee === undefined || assignee === '') {
+    return { valid: true, value: null };
   }
 
-  if (!validId(assigneeId)) {
-    return { ok: false, message: 'Invalid assignee ID.' };
+  if (!validId(assignee)) {
+    return {
+      valid: false,
+      status: 400,
+      message: 'Invalid assignee ID.',
+    };
   }
 
-  const isProjectMember = project.members.some(
-    (member) => member.user?.toString() === assigneeId
+  const assignedMember = (project.members || []).some(
+    (member) =>
+      member.user?._id?.toString() === assignee ||
+      member.user?.toString() === assignee
   );
 
-  if (!isProjectMember) {
+  if (!assignedMember) {
     return {
-      ok: false,
+      valid: false,
+      status: 400,
       message: 'Assignee must be a member of this project.',
     };
   }
 
-  return { ok: true, assignee: assigneeId };
+  return { valid: true, value: assignee };
 }
 
+async function updateProgress(projectId) {
+  const totalTasks = await Task.countDocuments({
+    project: projectId,
+  });
+
+  if (totalTasks === 0) {
+    await Project.findByIdAndUpdate(projectId, {
+      progress: 0,
+    });
+
+    return 0;
+  }
+
+  const completedTasks = await Task.countDocuments({
+    project: projectId,
+    status: 'Done',
+  });
+
+  const progress = Math.round((completedTasks / totalTasks) * 100);
+
+  await Project.findByIdAndUpdate(projectId, {
+    progress,
+  });
+
+  return progress;
+}
+
+/*
+ * GET /api/projects/:id/tasks
+ *
+ * List tasks for a project.
+ *
+ * Optional filters:
+ *   ?status=Done
+ *   ?assignee=<userId>
+ *   ?assignee=me
+ *   ?assignee=none
+ *   ?assignee=unassigned
+ */
 router.get('/', async (req, res, next) => {
   try {
     const loaded = await loadProject(req, res);
-    if (!loaded) return;
 
-    const { project, role } = loaded;
-
-    if (!role && project.visibility !== 'Public') {
-      return res.status(403).json({
-        message: 'You do not have access to this project.',
-      });
+    if (!loaded) {
+      return;
     }
 
-    
-const filter = { project: project._id };
+    const { project, member } = loaded;
 
-if (req.query.status) {
-  filter.status = req.query.status;
-}
+    const filter = {
+      project: project._id,
+    };
 
-if (req.query.assignee === 'none') {
-  filter.assignee = null;
-} else if (req.query.assignee === 'me') {
-  filter.assignee = req.user.id;
-} else if (req.query.assignee) {
-  if (!validId(req.query.assignee)) {
-    return res.status(400).json({ message: 'Invalid assignee ID.' });
-  }
-  filter.assignee = req.query.assignee;
-}
+    if (req.query.status !== undefined) {
+      if (!TASK_STATUSES.includes(req.query.status)) {
+        return res.status(400).json({
+          message: 'Invalid task status.',
+        });
+      }
 
-const tasks = await Task.find(filter)
-  .populate('assignee', 'name username avatarUrl')
-  .populate('createdBy', 'name username')
-  .sort({ createdAt: -1 })
-  .lean();
+      filter.status = req.query.status;
+    }
 
+    if (req.query.assignee !== undefined) {
+      if (
+        req.query.assignee === 'none' ||
+        req.query.assignee === 'unassigned'
+      ) {
+        filter.assignee = null;
+      } else if (req.query.assignee === 'me') {
+        filter.assignee = req.user.id;
+      } else if (!validId(req.query.assignee)) {
+        return res.status(400).json({
+          message: 'Invalid assignee ID.',
+        });
+      } else {
+        filter.assignee = req.query.assignee;
+      }
+    }
 
-    return res.json({ tasks, membershipRole: role });
+    const tasks = await Task.find(filter)
+      .populate('assignee', 'name username email avatarUrl')
+      .populate('createdBy', 'name username email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      tasks,
+      membershipRole: member ? loaded.role : null,
+    });
   } catch (error) {
     return next(error);
   }
 });
 
+/*
+ * POST /api/projects/:id/tasks
+ *
+ * Create a task.
+ */
 router.post('/', async (req, res, next) => {
   try {
     const loaded = await loadProject(req, res);
-    if (!loaded) return;
 
-    const { project, role } = loaded;
+    if (!loaded) {
+      return;
+    }
 
-    if (!role) {
+    const { project, role, member } = loaded;
+
+    if (!member) {
       return res.status(403).json({
-        message: 'Only project members can create tasks.',
+        message: 'You must be a project member to create tasks.',
       });
     }
 
     if (!canWriteTasks(role)) {
       return res.status(403).json({
-        message: 'Your role cannot create tasks.',
+        message: 'You do not have permission to create tasks.',
       });
     }
 
@@ -155,7 +217,9 @@ router.post('/', async (req, res, next) => {
     const description = String(req.body.description || '').trim();
 
     if (!title) {
-      return res.status(400).json({ message: 'Task title is required.' });
+      return res.status(400).json({
+        message: 'Task title is required.',
+      });
     }
 
     if (title.length > 200) {
@@ -166,38 +230,55 @@ router.post('/', async (req, res, next) => {
 
     if (description.length > 2000) {
       return res.status(400).json({
-        message: 'Description must be 2,000 characters or fewer.',
+        message: 'Task description must be 2,000 characters or fewer.',
       });
     }
 
-    const priority = req.body.priority ?? 'Medium';
-    const status = req.body.status ?? 'To do';
+    const status =
+      req.body.status === undefined ? 'To do' : req.body.status;
 
-    if (!['Low', 'Medium', 'High'].includes(priority)) {
-      return res.status(400).json({ message: 'Invalid task priority.' });
+    if (!TASK_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: 'Invalid task status.',
+      });
     }
 
-    if (!['To do', 'In progress', 'Done'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid task status.' });
+    const priority =
+      req.body.priority === undefined ? 'Medium' : req.body.priority;
+
+    if (!TASK_PRIORITIES.includes(priority)) {
+      return res.status(400).json({
+        message: 'Invalid task priority.',
+      });
     }
 
     const assigneeResult = await validateAssignee(
       project,
-      req.body.assignee ?? null
+      req.body.assignee
     );
 
-    if (!assigneeResult.ok) {
-      return res.status(400).json({ message: assigneeResult.message });
+    if (!assigneeResult.valid) {
+      return res.status(assigneeResult.status).json({
+        message: assigneeResult.message,
+      });
     }
 
     let dueDate = null;
 
-    if (req.body.dueDate) {
-      dueDate = new Date(req.body.dueDate);
+    if (
+      req.body.dueDate !== undefined &&
+      req.body.dueDate !== null &&
+      req.body.dueDate !== ''
+    ) {
+      const parsedDate = new Date(req.body.dueDate);
 
-      if (Number.isNaN(dueDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid due date.' });
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({
+          message: 'Invalid due date.',
+        });
       }
+
+      dueDate = parsedDate;
     }
 
     const task = await Task.create({
@@ -206,40 +287,58 @@ router.post('/', async (req, res, next) => {
       description,
       status,
       priority,
-      assignee: assigneeResult.assignee,
+      assignee: assigneeResult.value,
       createdBy: req.user.id,
       dueDate,
+      completedAt: status === 'Done' ? new Date() : null,
     });
 
     await updateProgress(project._id);
 
-    return res.status(201).json({ task });
+    const populatedTask = await Task.findById(task._id)
+      .populate('assignee', 'name username email avatarUrl')
+      .populate('createdBy', 'name username email')
+      .lean();
+
+    return res.status(201).json({
+      task: populatedTask,
+    });
   } catch (error) {
     return next(error);
   }
 });
 
+/*
+ * PATCH /api/projects/:id/tasks/:taskId
+ *
+ * Update a task.
+ */
 router.patch('/:taskId', async (req, res, next) => {
   try {
     const loaded = await loadProject(req, res);
-    if (!loaded) return;
 
-    const { project, role } = loaded;
+    if (!loaded) {
+      return;
+    }
 
-    if (!role) {
+    const { project, role, member } = loaded;
+
+    if (!member) {
       return res.status(403).json({
-        message: 'Only project members can edit tasks.',
+        message: 'You must be a project member to edit tasks.',
       });
     }
 
     if (!canWriteTasks(role)) {
       return res.status(403).json({
-        message: 'Your role cannot edit tasks.',
+        message: 'You do not have permission to edit tasks.',
       });
     }
 
     if (!validId(req.params.taskId)) {
-      return res.status(400).json({ message: 'Invalid task ID.' });
+      return res.status(400).json({
+        message: 'Invalid task ID.',
+      });
     }
 
     const task = await Task.findOne({
@@ -248,7 +347,9 @@ router.patch('/:taskId', async (req, res, next) => {
     });
 
     if (!task) {
-      return res.status(404).json({ message: 'Task not found.' });
+      return res.status(404).json({
+        message: 'Task not found.',
+      });
     }
 
     const allowedFields = [
@@ -260,103 +361,148 @@ router.patch('/:taskId', async (req, res, next) => {
       'dueDate',
     ];
 
-    const fields = Object.keys(req.body);
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        if (field === 'title') {
+          const title = String(req.body.title).trim();
 
-    if (fields.length === 0 || fields.some((field) => !allowedFields.includes(field))) {
-      return res.status(400).json({ message: 'Invalid task fields.' });
-    }
+          if (!title) {
+            return res.status(400).json({
+              message: 'Task title is required.',
+            });
+          }
 
-    if (req.body.title !== undefined) {
-      const title = String(req.body.title).trim();
+          if (title.length > 200) {
+            return res.status(400).json({
+              message: 'Task title must be 200 characters or fewer.',
+            });
+          }
 
-      if (!title || title.length > 200) {
-        return res.status(400).json({
-          message: 'Task title is required and must be 200 characters or fewer.',
-        });
-      }
-
-      task.title = title;
-    }
-
-    if (req.body.description !== undefined) {
-      const description = String(req.body.description).trim();
-
-      if (description.length > 2000) {
-        return res.status(400).json({
-          message: 'Description must be 2,000 characters or fewer.',
-        });
-      }
-
-      task.description = description;
-    }
-
-    if (req.body.status !== undefined) {
-      if (!['To do', 'In progress', 'Done'].includes(req.body.status)) {
-        return res.status(400).json({ message: 'Invalid task status.' });
-      }
-
-      task.status = req.body.status;
-    }
-
-    if (req.body.priority !== undefined) {
-      if (!['Low', 'Medium', 'High'].includes(req.body.priority)) {
-        return res.status(400).json({ message: 'Invalid task priority.' });
-      }
-
-      task.priority = req.body.priority;
-    }
-
-    if (req.body.assignee !== undefined) {
-      const assigneeResult = await validateAssignee(
-        project,
-        req.body.assignee
-      );
-
-      if (!assigneeResult.ok) {
-        return res.status(400).json({ message: assigneeResult.message });
-      }
-
-      task.assignee = assigneeResult.assignee;
-    }
-
-    if (req.body.dueDate !== undefined) {
-      if (req.body.dueDate === null || req.body.dueDate === '') {
-        task.dueDate = null;
-      } else {
-        const dueDate = new Date(req.body.dueDate);
-
-        if (Number.isNaN(dueDate.getTime())) {
-          return res.status(400).json({ message: 'Invalid due date.' });
+          task.title = title;
         }
 
-        task.dueDate = dueDate;
+        if (field === 'description') {
+          const description = String(req.body.description || '').trim();
+
+          if (description.length > 2000) {
+            return res.status(400).json({
+              message: 'Task description must be 2,000 characters or fewer.',
+            });
+          }
+
+          task.description = description;
+        }
+
+        if (field === 'status') {
+          if (!TASK_STATUSES.includes(req.body.status)) {
+            return res.status(400).json({
+              message: 'Invalid task status.',
+            });
+          }
+
+          task.status = req.body.status;
+
+          /*
+           * completedAt logic:
+           *
+           * - When a task becomes Done, record the completion time.
+           * - When a Done task is reopened, clear completedAt.
+           */
+          if (req.body.status === 'Done') {
+            task.completedAt = new Date();
+          } else {
+            task.completedAt = null;
+          }
+        }
+
+        if (field === 'priority') {
+          if (!TASK_PRIORITIES.includes(req.body.priority)) {
+            return res.status(400).json({
+              message: 'Invalid task priority.',
+            });
+          }
+
+          task.priority = req.body.priority;
+        }
+
+        if (field === 'assignee') {
+          const assigneeResult = await validateAssignee(
+            project,
+            req.body.assignee
+          );
+
+          if (!assigneeResult.valid) {
+            return res.status(assigneeResult.status).json({
+              message: assigneeResult.message,
+            });
+          }
+
+          task.assignee = assigneeResult.value;
+        }
+
+        if (field === 'dueDate') {
+          if (
+            req.body.dueDate === null ||
+            req.body.dueDate === ''
+          ) {
+            task.dueDate = null;
+          } else {
+            const parsedDate = new Date(req.body.dueDate);
+
+            if (Number.isNaN(parsedDate.getTime())) {
+              return res.status(400).json({
+                message: 'Invalid due date.',
+              });
+            }
+
+            task.dueDate = parsedDate;
+          }
+        }
       }
     }
 
     await task.save();
+
     await updateProgress(project._id);
 
-    return res.json({ task });
+    const populatedTask = await Task.findById(task._id)
+      .populate('assignee', 'name username email avatarUrl')
+      .populate('createdBy', 'name username email')
+      .lean();
+
+    return res.json({
+      task: populatedTask,
+    });
   } catch (error) {
     return next(error);
   }
 });
 
+/*
+ * DELETE /api/projects/:id/tasks/:taskId
+ *
+ * Delete a task.
+ */
 router.delete('/:taskId', async (req, res, next) => {
   try {
     const loaded = await loadProject(req, res);
-    if (!loaded) return;
 
-    const { project, role } = loaded;
+    if (!loaded) {
+      return;
+    }
 
-    if (!role) {
+    const { project, role, member } = loaded;
+
+    if (!member) {
       return res.status(403).json({
-        message: 'Only project members can delete tasks.',
+        message: 'You must be a project member to delete tasks.',
       });
     }
 
     if (!validId(req.params.taskId)) {
-      return res.status(400).json({ message: 'Invalid task ID.' });
+      return res.status(400).json({
+        message: 'Invalid task ID.',
+      });
     }
 
     const task = await Task.findOne({
@@ -365,21 +511,28 @@ router.delete('/:taskId', async (req, res, next) => {
     });
 
     if (!task) {
-      return res.status(404).json({ message: 'Task not found.' });
-    }
-
-    const isCreator = task.createdBy.toString() === req.user.id;
-
-    if (!canDeleteTask(role, isCreator)) {
-      return res.status(403).json({
-        message: 'Your role cannot delete this task.',
+      return res.status(404).json({
+        message: 'Task not found.',
       });
     }
 
-    await task.deleteOne();
+    const isCreator = task.createdBy?.toString() === req.user.id;
+
+    if (!canDeleteTask(role, isCreator)) {
+      return res.status(403).json({
+        message: 'You do not have permission to delete this task.',
+      });
+    }
+
+    await Task.deleteOne({
+      _id: task._id,
+    });
+
     await updateProgress(project._id);
 
-    return res.json({ message: 'Task deleted successfully.' });
+    return res.json({
+      message: 'Task deleted successfully.',
+    });
   } catch (error) {
     return next(error);
   }

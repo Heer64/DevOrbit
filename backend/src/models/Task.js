@@ -44,6 +44,15 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    milestone: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Milestone',
+  default: null,
+},
+completedAt: {
+  type: Date,
+  default: null,
+},
   },
   { timestamps: true }
 );
