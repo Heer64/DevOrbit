@@ -101,11 +101,30 @@ router.get('/', async (req, res, next) => {
       });
     }
 
-    const tasks = await Task.find({ project: project._id })
-      .populate('assignee', 'name username avatarUrl')
-      .populate('createdBy', 'name username')
-      .sort({ createdAt: -1 })
-      .lean();
+    
+const filter = { project: project._id };
+
+if (req.query.status) {
+  filter.status = req.query.status;
+}
+
+if (req.query.assignee === 'none') {
+  filter.assignee = null;
+} else if (req.query.assignee === 'me') {
+  filter.assignee = req.user.id;
+} else if (req.query.assignee) {
+  if (!validId(req.query.assignee)) {
+    return res.status(400).json({ message: 'Invalid assignee ID.' });
+  }
+  filter.assignee = req.query.assignee;
+}
+
+const tasks = await Task.find(filter)
+  .populate('assignee', 'name username avatarUrl')
+  .populate('createdBy', 'name username')
+  .sort({ createdAt: -1 })
+  .lean();
+
 
     return res.json({ tasks, membershipRole: role });
   } catch (error) {
