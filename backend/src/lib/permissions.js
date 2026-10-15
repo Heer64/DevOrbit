@@ -76,3 +76,24 @@ export function checkRemoveMember(actorRole, targetRole, isSelf) {
   }
   return { ok: true };
 }
+// Who may create and edit tasks within a project.
+export function canWriteTasks(role) {
+  return (
+    role === 'Owner' ||
+    role === 'Admin' ||
+    role === 'Contributor'
+  );
+}
+
+// Who may delete a task.
+export function canDeleteTask(role, isCreator) {
+  if (role === 'Owner' || role === 'Admin') {
+    return true;
+  }
+
+  if (role === 'Contributor') {
+    return isCreator === true;
+  }
+
+  return false;
+}
