@@ -17,6 +17,15 @@ export function canActOnMember(actorRole, targetRole) {
 
 export const canManageMembers = (role) => role === 'Owner' || role === 'Admin';
 
+// Task rules (same as canWriteTasks / canDeleteTask in backend/src/lib/permissions.js).
+export const canWriteTasks = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
+
+export function canDeleteTask(role, isCreator) {
+  if (role === 'Owner' || role === 'Admin') return true;
+  if (role === 'Contributor') return isCreator === true;
+  return false;
+}
+
 export const ROLE_HELP = {
   Owner: 'Full control. One per project.',
   Admin: 'Edit the project and manage Contributors and Viewers.',

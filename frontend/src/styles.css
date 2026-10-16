@@ -287,3 +287,19 @@ textarea.field-input{resize:vertical;min-height:90px}
 .add-member input,.add-member select{border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);padding:10px;font-size:11px;min-width:0}
 .add-member input{flex:1}
 .team-panel .form-error,.team-panel .success-inline{margin:10px 0 0}
+/* Sprint 2 - Tasks panel (Pair B) */
+.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.task-toolbar{flex-wrap:wrap}.task-toolbar .task-search{min-width:160px}
+.task-state{display:flex;flex-direction:column;align-items:center;gap:10px;padding:30px 16px;color:var(--muted);font-size:11px;text-align:center}.task-state p{margin:0;line-height:1.6}.task-state b{color:var(--text)}.task-state.error{color:var(--danger)}.task-state .btn{margin-top:4px}
+.task-readonly{font-size:10px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0 4px}
+.task-action-error{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
+.task-label.priority-high{background:var(--danger-bg);color:var(--danger)}.task-label.priority-medium{background:var(--orange-bg);color:var(--orange)}.task-label.priority-low{background:var(--blue-bg);color:var(--blue)}
+.task-meta .overdue{color:var(--danger);font-weight:700}
+.task-row.busy{opacity:.6}
+.task-dot:disabled{cursor:default}.task-dot:disabled:hover{border-color:var(--muted)}.task-dot.done:disabled:hover{border-color:#35b58d}
+.task-more:disabled{opacity:.4;cursor:default}.task-more.danger:hover{color:var(--danger)}
+.task-assignee{display:inline-flex;flex:none}.avatar.unassigned{background:var(--panel2);color:var(--muted);border:1px dashed var(--line)}
+.task-empty .link{font-size:10px}
+.task-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.task-modal{max-height:calc(100vh - 36px);overflow:auto}
+@media (max-width:560px){.task-form-row{grid-template-columns:1fr}.task-toolbar .task-filter{flex:1}}
