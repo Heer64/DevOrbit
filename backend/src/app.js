@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import taskRoutes from './routes/tasks.js';
+import milestoneRoutes from './routes/milestones.js';
+import { projectActivityRoutes, myActivityRoutes } from './routes/activity.js';
 import profileRoutes from './routes/profile.js';
 import { uploadRoot } from './lib/avatar.js';
 
@@ -66,6 +68,9 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/projects', projectRoutes);
   app.use('/api/projects/:id/tasks', taskRoutes);
+  app.use('/api/projects/:id/milestones', milestoneRoutes);
+  app.use('/api/projects/:id/activity', projectActivityRoutes);
+  app.use('/api/activity', myActivityRoutes);
   app.use('/api/profile', profileRoutes);
 
   app.use((_req, res) => {

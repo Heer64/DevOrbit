@@ -4,6 +4,7 @@ import Project from '../models/Project.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember } from '../lib/permissions.js';
+import { logActivity, quote } from '../lib/activity.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -69,6 +70,13 @@ router.post('/', async (req, res, next) => {
       members: [{ user: req.user.id, role: 'Owner' }],
       tags: domain && domain !== 'General' ? [domain] : [],
     });
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: 'project.created',
+      summary: `created the project ${quote(project.name)}`,
+      targetLabel: project.name,
+    });
     return res.status(201).json({ project });
   } catch (error) {
     return next(error);
@@ -110,8 +118,20 @@ router.patch('/:id', async (req, res, next) => {
     if (update.tags !== undefined && (!Array.isArray(update.tags) || update.tags.length > 20)) return res.status(400).json({ message: 'Project tags must be a list of at most 20 items.' });
     if (update.progress !== undefined && (!Number.isFinite(Number(update.progress)) || Number(update.progress) < 0 || Number(update.progress) > 100)) return res.status(400).json({ message: 'Progress must be between 0 and 100.' });
 
+    // Fields that really changed, for the activity feed. Progress is left out: the task API recalculates it.
+    const changed = Object.keys(update).filter((key) => key !== 'progress' && JSON.stringify(project[key]) !== JSON.stringify(update[key]));
     for (const [key, value] of Object.entries(update)) project[key] = value;
     await project.save();
+    if (changed.length) {
+      await logActivity({
+        project: project._id,
+        actor: req.user.id,
+        type: 'project.updated',
+        summary: `updated the project ${changed.map((key) => (key === 'githubRepo' ? 'repository' : key)).join(', ')}`,
+        targetLabel: project.name,
+        meta: { fields: changed },
+      });
+    }
     return res.json({ project });
   } catch (error) {
     return next(error);
@@ -172,12 +192,22 @@ router.post('/:id/members', async (req, res, next) => {
 
     const identifier = String(req.body.identifier || '').trim().toLowerCase().replace(/^@/, '');
     if (!identifier) return res.status(400).json({ message: 'Enter the email or username of the person to add.' });
-    const person = await User.findOne(identifier.includes('@') ? { email: identifier } : { username: identifier }).select('_id');
+    const person = await User.findOne(identifier.includes('@') ? { email: identifier } : { username: identifier }).select('_id name');
     if (!person) return res.status(404).json({ message: 'No DevOrbit user matches that email or username.' });
     if (isMember(project, person._id.toString())) return res.status(409).json({ message: 'That person is already a member of this project.' });
 
     project.members.push({ user: person._id, role: newRole });
     await project.save();
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: 'member.added',
+      summary: `added ${person.name} as ${newRole}`,
+      targetType: 'member',
+      targetId: person._id,
+      targetLabel: person.name,
+      meta: { role: newRole },
+    });
     return res.status(201).json({ members: await loadMembers(project) });
   } catch (error) {
     return next(error);
@@ -202,6 +232,20 @@ router.patch('/:id/members/:userId', async (req, res, next) => {
     const member = project.members.find((item) => item.user.toString() === req.params.userId);
     member.role = req.body.role;
     await project.save();
+    if (targetRole !== req.body.role) {
+      const target = await User.findById(req.params.userId).select('name').lean();
+      const targetName = target?.name || 'a former user';
+      await logActivity({
+        project: project._id,
+        actor: req.user.id,
+        type: 'member.role_changed',
+        summary: `changed ${targetName}'s role from ${targetRole} to ${req.body.role}`,
+        targetType: 'member',
+        targetId: req.params.userId,
+        targetLabel: targetName,
+        meta: { from: targetRole, to: req.body.role },
+      });
+    }
     return res.json({ members: await loadMembers(project) });
   } catch (error) {
     return next(error);
@@ -226,6 +270,18 @@ router.delete('/:id/members/:userId', async (req, res, next) => {
 
     project.members = project.members.filter((item) => item.user.toString() !== req.params.userId);
     await project.save();
+    const target = await User.findById(req.params.userId).select('name').lean();
+    const targetName = target?.name || 'a former user';
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: isSelf ? 'member.left' : 'member.removed',
+      summary: isSelf ? 'left the project' : `removed ${targetName} from the project`,
+      targetType: 'member',
+      targetId: req.params.userId,
+      targetLabel: targetName,
+      meta: { role: targetRole },
+    });
     return res.json({ members: await loadMembers(project) });
   } catch (error) {
     return next(error);

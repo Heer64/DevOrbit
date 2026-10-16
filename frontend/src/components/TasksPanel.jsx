@@ -7,7 +7,7 @@ import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 export const TASK_STATUSES = ['To do', 'In progress', 'Done'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 const TITLE_MAX = 200;
-const EMPTY_FORM = { title: '', description: '', priority: 'Medium', status: 'To do', assignee: '', dueDate: '' };
+const EMPTY_FORM = { title: '', description: '', priority: 'Medium', status: 'To do', assignee: '', dueDate: '', milestone: '' };
 const STATUS_PILL = { Done: 'green', 'In progress': 'purple', 'To do': 'orange' };
 
 const idOf = (value) => String(value?._id || value?.id || value || '');
@@ -33,6 +33,7 @@ const formFromTask = (task) => ({
   status: task.status || 'To do',
   assignee: idOf(task.assignee),
   dueDate: toDateInput(task.dueDate),
+  milestone: idOf(task.milestone),
 });
 
 /**
@@ -48,8 +49,9 @@ const formFromTask = (task) => ({
  *   onTasksChange  (tasks) => void, so the page can show "Open tasks"
  *   onChanged      () => void after a create/edit/delete, so the page can refresh progress
  *   onNotice       (text) => void for the success toast
+ *   milestones     [{ _id, title }] for the milestone dropdown (Pair C); the dropdown is hidden when empty
  */
-export default function TasksPanel({ projectId, myRole, currentUserId, members = [], api = taskApi, addSignal = 0, onTasksChange, onChanged, onNotice }) {
+export default function TasksPanel({ projectId, myRole, currentUserId, members = [], api = taskApi, addSignal = 0, onTasksChange, onChanged, onNotice, milestones = [] }) {
   const [tasks, setTasks] = useState(null); // null while loading
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -151,6 +153,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       status: form.status,
       assignee: form.assignee || null,
       dueDate: form.dueDate || null,
+      milestone: form.milestone || null,
     };
 
     let payload = values;
@@ -313,6 +316,15 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
                 <input className="field-input" type="date" value={form.dueDate} onChange={setField('dueDate')} />
               </label>
             </div>
+            {(milestones.length > 0 || form.milestone) && (
+              <label>Milestone <span className="field-hint">optional</span>
+                <select className="field-input" value={form.milestone} onChange={setField('milestone')}>
+                  <option value="">No milestone</option>
+                  {milestones.map((m) => <option key={idOf(m)} value={idOf(m)}>{m.title}</option>)}
+                  {form.milestone && !milestones.some((m) => idOf(m) === form.milestone) && <option value={form.milestone}>Current milestone</option>}
+                </select>
+              </label>
+            )}
             {formError && <p className="form-error" role="alert">{formError}</p>}
             <button className="btn full" type="submit" disabled={saving}>
               {saving ? <><Loader2 size={16} className="spin" /> Saving…</> : editing === 'new' ? <>Create task <Plus size={16} /></> : <>Save changes <Check size={16} /></>}

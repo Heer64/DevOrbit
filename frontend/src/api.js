@@ -145,6 +145,28 @@ export const taskApi = {
   remove: (id, taskId) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`, { method: 'DELETE' }),
 };
 
+const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
+
+// Milestones of one project. Each milestone comes back with taskCount, doneCount, progress (0-100) and completed.
+export const milestoneApi = {
+  list: (id) => api(`${projectPath(id)}/milestones`),
+  create: (id, payload) => api(`${projectPath(id)}/milestones`, { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, milestoneId, payload) => api(`${projectPath(id)}/milestones/${encodeURIComponent(milestoneId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  remove: (id, milestoneId) => api(`${projectPath(id)}/milestones/${encodeURIComponent(milestoneId)}`, { method: 'DELETE' }),
+  // Tasks attached to one milestone (uses the task API's ?milestone= filter).
+  tasks: (id, milestoneId) => api(`${projectPath(id)}/tasks?milestone=${encodeURIComponent(milestoneId)}`),
+};
+
+// Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
+export const activityApi = {
+  project: (id, { limit = 30, before } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return api(`${projectPath(id)}/activity?${params}`);
+  },
+  mine: (limit = 10) => api(`/activity/me?limit=${encodeURIComponent(limit)}`),
+};
+
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
 };
