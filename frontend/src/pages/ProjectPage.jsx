@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Bell, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { assetUrl, projectApi, taskApi, toWorkspaceProject } from '../api';
+import { assetUrl, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
 import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
 import TeamPanel from '../components/TeamPanel';
 import TasksPanel from '../components/TasksPanel';
 import { MOCK_MEMBERS, MOCK_USER_ID, mockTaskApi } from '../taskMock';
 import { canWriteTasks } from '../roles';
+import MilestonesPanel from '../components/MilestonesPanel';
+import ActivityPanel from '../components/ActivityPanel';
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -79,8 +81,21 @@ export default function ProjectPage() {
   }, [notice]);
 
   // The server recalculates project.progress after every task change, so fetch the project again to show it.
+  // Bumped after every task change so the Milestones and Activity tabs reload fresh numbers.
+  const [workVersion, setWorkVersion] = useState(0);
+  // Milestone choices for the task form. Reloaded when tasks or milestones change.
+  const [milestoneOptions, setMilestoneOptions] = useState([]);
+  useEffect(() => {
+    let active = true;
+    if (!isLive) { setMilestoneOptions([]); return () => { active = false; }; }
+    milestoneApi.list(id)
+      .then((result) => { if (active) setMilestoneOptions(result.milestones || []); })
+      .catch(() => { if (active) setMilestoneOptions([]); });
+    return () => { active = false; };
+  }, [id, isLive, workVersion]);
   const refreshProgress = useCallback(() => {
     if (!isLive) return;
+    setWorkVersion((n) => n + 1);
     projectApi.get(id)
       .then((result) => setLiveProject(toWorkspaceProject(result.project || result, user)))
       .catch(() => {});
@@ -150,16 +165,26 @@ export default function ProjectPage() {
               onTasksChange={setTaskList}
               onChanged={refreshProgress}
               onNotice={setNotice}
+              milestones={milestoneOptions}
             />
           </div>
-          {activeTab === 'Milestones' && (
+          {activeTab === 'Milestones' && isLive && (
+            <MilestonesPanel projectId={id} myRole={membershipRole} refreshKey={workVersion} onChange={() => setWorkVersion((n) => n + 1)} />
+          )}
+          {activeTab === 'Milestones' && !isLive && (
             <div className="milestone-list">
               <Milestone title="Project foundation" detail="Repository, auth and project setup" progress={100} tone="green" />
               <Milestone title="Collaboration core" detail="Tasks, messages and team workflow" progress={65} tone="violet" />
               <Milestone title="Public launch" detail="Discovery, profiles and community feed" progress={25} tone="orange" />
             </div>
           )}
-          {activeTab === 'Activity' && (
+          {activeTab === 'Activity' && isLive && membershipRole && (
+            <ActivityPanel projectId={id} refreshKey={workVersion} />
+          )}
+          {activeTab === 'Activity' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>Project activity is visible to members only.</p></div>
+          )}
+          {activeTab === 'Activity' && !isLive && (
             <div>
               {commitGroups.map((g) => (
                 <div className="event" key={g.title}>

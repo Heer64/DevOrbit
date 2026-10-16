@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Clock3, Code2, Compass, FolderKanban, GitPull
 import { useAuth } from '../context/AuthContext';
 import { projectApi, toProjectCard } from '../api';
 import { AVATAR_TONES, Avatar, Btn, Heading, tone } from '../components/ui';
+import ProjectPulse from '../components/ProjectPulse';
 
 const baseProjects = [
   { id: 'orbit-dashboard', name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', tag: 'Product', color: 'violet', progress: 72, members: 5, due: 'Oct 18', initials: ['AM', 'RK', 'JS', '+2'] },
@@ -112,17 +113,7 @@ export default function DashboardPage() {
         )}
 
       <div className="lower-grid">
-        <section className="panel">
-          <div className="panel-head"><div><h2>Project pulse</h2><p>The latest from your workspace.</p></div><MoreHorizontal size={18} /></div>
-          {activities.map((a, i) => (
-            <div className="event" key={a.title + i}>
-              <span className={`event-icon ${a.color}`}><a.icon size={16} /></span>
-              <div><b>{a.title}</b><p>{a.detail}</p><small>{a.project} · {a.time}</small></div>
-            </div>
-          ))}
-          {!user?.isDemo && <p className="preview-note">Preview activity — live activity will appear when task and GitHub integrations are connected.</p>}
-          <button className="link" onClick={() => navigate(`/project/${firstProjectId}`)}>Open project activity <ArrowRight size={14} /></button>
-        </section>
+        <ProjectPulse user={user} demoActivities={activities} fallbackProjectId={firstProjectId} />
         <section className="panel focus-panel">
           <div className="panel-head"><div><h2>Your next step</h2><p>One clear push at a time.</p></div><Zap size={18} /></div>
           <h3>Ship the small things.</h3>

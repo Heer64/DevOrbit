@@ -3,6 +3,9 @@ import mongoose from 'mongoose';
 
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
+import Milestone from '../models/Milestone.js';
+import User from '../models/User.js';
+import { logActivity, quote } from '../lib/activity.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
 
@@ -91,6 +94,35 @@ async function validateAssignee(project, assignee) {
   return { valid: true, value: assignee };
 }
 
+// A task may only point at a milestone of its own project.
+async function validateMilestone(project, milestone) {
+  if (milestone === null || milestone === undefined || milestone === '') {
+    return { valid: true, value: null };
+  }
+
+  if (!validId(milestone)) {
+    return { valid: false, status: 400, message: 'Invalid milestone ID.' };
+  }
+
+  const exists = await Milestone.exists({ _id: milestone, project: project._id });
+
+  if (!exists) {
+    return {
+      valid: false,
+      status: 400,
+      message: 'Milestone must belong to this project.',
+    };
+  }
+
+  return { valid: true, value: milestone };
+}
+
+async function userName(userId) {
+  if (!userId) return null;
+  const user = await User.findById(userId).select('name').lean();
+  return user?.name || 'a former member';
+}
+
 async function updateProgress(projectId) {
   const totalTasks = await Task.countDocuments({
     project: projectId,
@@ -119,6 +151,61 @@ async function updateProgress(projectId) {
 }
 
 /*
+ * Writes one activity event for a task edit.
+ * A status change wins (it is what the team cares about most), then a new assignee,
+ * then a general "updated" event listing the fields. Nothing is logged when nothing changed.
+ */
+async function logTaskChanges(req, project, task, before) {
+  const base = {
+    project: project._id,
+    actor: req.user.id,
+    targetType: 'task',
+    targetId: task._id,
+    targetLabel: task.title,
+  };
+
+  if (task.status !== before.status) {
+    return logActivity({
+      ...base,
+      type: 'task.status_changed',
+      summary: `moved ${quote(task.title)} from ${before.status} to ${task.status}`,
+      meta: { from: before.status, to: task.status },
+    });
+  }
+
+  const assignee = task.assignee ? task.assignee.toString() : null;
+
+  if (assignee !== before.assignee) {
+    const summary = assignee
+      ? `assigned ${quote(task.title)} to ${assignee === req.user.id ? 'themselves' : await userName(assignee)}`
+      : `unassigned ${quote(task.title)}`;
+
+    return logActivity({
+      ...base,
+      type: 'task.assigned',
+      summary,
+      meta: { from: before.assignee, to: assignee },
+    });
+  }
+
+  const changed = [];
+  if (task.title !== before.title) changed.push('title');
+  if (task.description !== before.description) changed.push('description');
+  if (task.priority !== before.priority) changed.push('priority');
+  if ((task.dueDate ? task.dueDate.getTime() : null) !== before.dueDate) changed.push('due date');
+  if ((task.milestone ? task.milestone.toString() : null) !== before.milestone) changed.push('milestone');
+
+  if (changed.length === 0) return null;
+
+  return logActivity({
+    ...base,
+    type: 'task.updated',
+    summary: `updated the ${changed.join(', ')} of ${quote(task.title)}`,
+    meta: { fields: changed },
+  });
+}
+
+/*
  * GET /api/projects/:id/tasks
  *
  * List tasks for a project.
@@ -129,6 +216,8 @@ async function updateProgress(projectId) {
  *   ?assignee=me
  *   ?assignee=none
  *   ?assignee=unassigned
+ *   ?milestone=<milestoneId>
+ *   ?milestone=none
  */
 router.get('/', async (req, res, next) => {
   try {
@@ -168,6 +257,18 @@ router.get('/', async (req, res, next) => {
         });
       } else {
         filter.assignee = req.query.assignee;
+      }
+    }
+
+    if (req.query.milestone !== undefined) {
+      if (req.query.milestone === 'none') {
+        filter.milestone = null;
+      } else if (!validId(req.query.milestone)) {
+        return res.status(400).json({
+          message: 'Invalid milestone ID.',
+        });
+      } else {
+        filter.milestone = req.query.milestone;
       }
     }
 
@@ -263,6 +364,17 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    const milestoneResult = await validateMilestone(
+      project,
+      req.body.milestone
+    );
+
+    if (!milestoneResult.valid) {
+      return res.status(milestoneResult.status).json({
+        message: milestoneResult.message,
+      });
+    }
+
     let dueDate = null;
 
     if (
@@ -290,10 +402,22 @@ router.post('/', async (req, res, next) => {
       assignee: assigneeResult.value,
       createdBy: req.user.id,
       dueDate,
+      milestone: milestoneResult.value,
       completedAt: status === 'Done' ? new Date() : null,
     });
 
     await updateProgress(project._id);
+
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: 'task.created',
+      summary: `created task ${quote(task.title)}`,
+      targetType: 'task',
+      targetId: task._id,
+      targetLabel: task.title,
+      meta: { status: task.status },
+    });
 
     const populatedTask = await Task.findById(task._id)
       .populate('assignee', 'name username email avatarUrl')
@@ -352,6 +476,16 @@ router.patch('/:taskId', async (req, res, next) => {
       });
     }
 
+    const before = {
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      assignee: task.assignee ? task.assignee.toString() : null,
+      dueDate: task.dueDate ? task.dueDate.getTime() : null,
+      milestone: task.milestone ? task.milestone.toString() : null,
+    };
+
     const allowedFields = [
       'title',
       'description',
@@ -359,6 +493,7 @@ router.patch('/:taskId', async (req, res, next) => {
       'priority',
       'assignee',
       'dueDate',
+      'milestone',
     ];
 
     for (const field of allowedFields) {
@@ -458,12 +593,29 @@ router.patch('/:taskId', async (req, res, next) => {
             task.dueDate = parsedDate;
           }
         }
+
+        if (field === 'milestone') {
+          const milestoneResult = await validateMilestone(
+            project,
+            req.body.milestone
+          );
+
+          if (!milestoneResult.valid) {
+            return res.status(milestoneResult.status).json({
+              message: milestoneResult.message,
+            });
+          }
+
+          task.milestone = milestoneResult.value;
+        }
       }
     }
 
     await task.save();
 
     await updateProgress(project._id);
+
+    await logTaskChanges(req, project, task, before);
 
     const populatedTask = await Task.findById(task._id)
       .populate('assignee', 'name username email avatarUrl')
@@ -529,6 +681,16 @@ router.delete('/:taskId', async (req, res, next) => {
     });
 
     await updateProgress(project._id);
+
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: 'task.deleted',
+      summary: `deleted task ${quote(task.title)}`,
+      targetType: 'task',
+      targetId: task._id,
+      targetLabel: task.title,
+    });
 
     return res.json({
       message: 'Task deleted successfully.',
