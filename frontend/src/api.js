@@ -129,6 +129,22 @@ export const projectApi = {
   removeMember: (id, userId) => api(`/projects/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
 };
 
+// Tasks inside one project. Contract: backend/src/routes/tasks.js
+//   list   -> { tasks, membershipRole }     (filters: status, assignee = <userId> | 'me' | 'none')
+//   create -> { task }   update -> { task }   remove -> { message }
+// Each task has assignee and createdBy populated as { _id, name, username, ... } or null.
+const projectTasksPath = (id) => `/projects/${encodeURIComponent(id)}/tasks`;
+
+export const taskApi = {
+  list: (id, params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')).toString();
+    return api(`${projectTasksPath(id)}${query ? `?${query}` : ''}`);
+  },
+  create: (id, payload) => api(projectTasksPath(id), { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, taskId, payload) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  remove: (id, taskId) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`, { method: 'DELETE' }),
+};
+
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
 };
