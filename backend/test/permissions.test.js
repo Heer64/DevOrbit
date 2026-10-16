@@ -101,3 +101,12 @@ test('unknown roles cannot write or delete tasks', () => {
   assert.equal(canWriteTasks('Superuser'), false);
   assert.equal(canDeleteTask('Superuser', true), false);
 });
+
+test('only Owner and Admin can manage milestones', async () => {
+  const { canManageMilestones } = await import('../src/lib/permissions.js');
+  assert.equal(canManageMilestones('Owner'), true);
+  assert.equal(canManageMilestones('Admin'), true);
+  assert.equal(canManageMilestones('Contributor'), false);
+  assert.equal(canManageMilestones('Viewer'), false);
+  assert.equal(canManageMilestones(null), false);
+});

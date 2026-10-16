@@ -97,3 +97,9 @@ export function canDeleteTask(role, isCreator) {
 
   return false;
 }
+
+// Who may create, rename, re-date and delete milestones.
+// Contributors can still attach their tasks to a milestone through the task API.
+export function canManageMilestones(role) {
+  return role === 'Owner' || role === 'Admin';
+}

@@ -128,3 +128,27 @@ cd client && npm run test  # Vitest
 - A new user can register, log in, edit their profile and create a project
 - Role rules work (for example, a Viewer can't change roles)
 - Tests pass and the setup steps work on a fresh clone
+
+---
+
+## Sprint 2 — Milestones and activity (Pair C)
+
+**Milestones** (`/api/projects/:id/milestones`)
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /` | Members, and visitors of a Public project | Each milestone has `taskCount`, `doneCount`, `progress` (0–100) and `completed`, worked out from its tasks |
+| `POST /` | Owner, Admin | `{ title, description?, dueDate? }` |
+| `PATCH /:milestoneId` | Owner, Admin | any of the fields above; `dueDate: null` clears it |
+| `DELETE /:milestoneId` | Owner, Admin | tasks are kept and detached |
+
+Tasks take an optional `milestone` (an ID from the same project) on create and edit, and `GET /api/projects/:id/tasks?milestone=<id>|none` filters by it.
+
+**Activity**
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /api/projects/:id/activity?limit=30&before=<date>` | Members only | newest first; pass `nextBefore` back as `before` for older events |
+| `GET /api/activity/me?limit=10` | Signed-in user | latest events across all of your projects, with `project { name, color }` |
+
+Events are written by `logActivity()` in `backend/src/lib/activity.js` for project create/update, member add/role change/remove/leave, task create/status/assign/edit/delete, and milestone create/edit/delete. Logging never breaks the main request.

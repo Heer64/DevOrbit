@@ -32,3 +32,6 @@ export const ROLE_HELP = {
   Contributor: 'Work on the project. Cannot change settings or roles.',
   Viewer: 'Read only.',
 };
+
+// Mirrors canManageMilestones in backend/src/lib/permissions.js.
+export const canManageMilestones = (role) => role === 'Owner' || role === 'Admin';
