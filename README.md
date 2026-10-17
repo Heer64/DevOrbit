@@ -152,3 +152,28 @@ Tasks take an optional `milestone` (an ID from the same project) on create and e
 | `GET /api/activity/me?limit=10` | Signed-in user | latest events across all of your projects, with `project { name, color }` |
 
 Events are written by `logActivity()` in `backend/src/lib/activity.js` for project create/update, member add/role change/remove/leave, task create/status/assign/edit/delete, and milestone create/edit/delete. Logging never breaks the main request.
+
+## Sprint 2 — Kanban board (Pair D: US-27, US-28)
+
+The Tasks tab has a **List / Board** switch. The board has four columns: **To Do, In Progress, Blocked, Done**. You can drag a card, or use its "Move to" menu, to change the status. Moves show up right away and are put back if the server refuses them. Clicking a card opens it (for now in the task edit modal, which is read-only for Viewers).
+
+**Statuses:** `To do`, `In progress`, `Blocked`, `Done` (`Blocked` added for FR-7b).
+
+**Versions:** every task has a `version` number. It starts at 0 and goes up by 1 on every saved change. Clients send the version they loaded, and a mismatch returns **409** so nothing is silently overwritten (NFR-5a).
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /api/projects/:id/tasks/:taskId` | Members, and visitors of a Public project | `{ task }` |
+| `PATCH /api/projects/:id/tasks/:taskId/status` | Owner, Admin, Contributor | body `{ status, version }` → `{ task }`; **409** `{ message: "This task was changed by someone else.", task: <latest> }`; 403 for Viewers and non-members |
+| `PATCH /api/projects/:id/tasks/:taskId` | Owner, Admin, Contributor | unchanged, but now bumps `version` on every real change and accepts an optional `version` (409 when stale) |
+
+**Live updates (Socket.IO, same port as the API):**
+
+- Connect with `io(<API origin>, { auth: { token: <access token> } })`.
+- Emit `project:join { projectId }`. The ack is `{ ok, role }`. Joining is allowed for members of any project and anyone for a Public project.
+- Listen for `task:updated { projectId, task }`. It is sent after every saved status change or edit. Clients ignore events whose `task.version` is not newer than what they already have.
+- The server code is in `backend/src/lib/realtime.js`. Add future real-time events (e.g. chat) there rather than starting a second Socket.IO server.
+
+**Demo without a backend:** sample projects use `frontend/src/taskMock.js`. In the browser console, run `localStorage.setItem('devorbit_mock_move', 'reject')` to see a failed move roll back, or `'conflict'` to see the 409 message. Run `localStorage.removeItem('devorbit_mock_move')` to go back to normal.
+
+**Tests:** `npm --prefix backend test` (includes `kanban.test.js`, `realtime.test.js`) and `npm --prefix frontend test` (Vitest).

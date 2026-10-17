@@ -11,6 +11,15 @@ export function setAccessToken(token) {
 
 export function clearAccessToken() {
   currentAccessToken = null;
+  // [Pair D] Drop the live-updates socket so the next user does not reuse it.
+  realtimeModule?.then((module) => module.disconnectRealtime()).catch(() => {});
+}
+
+// [Pair D] The Socket.IO client is only downloaded once a task list subscribes to live updates.
+let realtimeModule = null;
+function loadRealtime() {
+  if (!realtimeModule) realtimeModule = import('./realtime.js');
+  return realtimeModule;
 }
 
 function dispatchSessionExpired() {
@@ -143,6 +152,33 @@ export const taskApi = {
   create: (id, payload) => api(projectTasksPath(id), { method: 'POST', body: JSON.stringify(payload) }),
   update: (id, taskId, payload) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   remove: (id, taskId) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`, { method: 'DELETE' }),
+
+  // [Pair D] Kanban (US-27/28).
+  // get          -> { task }
+  // updateStatus -> { task } | throws error with status 409 and error.response.data = { message, task }
+  get: (id, taskId) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}`),
+  updateStatus: (id, taskId, { status, version }) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}/status`, { method: 'PATCH', body: JSON.stringify({ status, version }) }),
+
+  // Live updates: calls onTaskUpdated(task) for every task:updated event of this project.
+  // Returns an unsubscribe function. Server side: backend/src/lib/realtime.js.
+  subscribe: (id, onTaskUpdated) => {
+    let stop = null;
+    let cancelled = false;
+    loadRealtime()
+      .then((module) => {
+        if (cancelled) return;
+        stop = module.subscribeToProjectTasks(
+          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          id,
+          onTaskUpdated
+        );
+      })
+      .catch(() => {}); // Live updates are a bonus; the board still works without them.
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  },
 };
 
 const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
