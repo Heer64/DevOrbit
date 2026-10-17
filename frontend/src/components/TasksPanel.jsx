@@ -1,14 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, CheckCircle2, Circle, Clock3, ListTodo, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Ban, Check, CheckCircle2, Circle, Clock3, Columns3, List, ListTodo, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { assetUrl, taskApi } from '../api';
 import { canDeleteTask, canWriteTasks } from '../roles';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
+import KanbanBoard from './KanbanBoard';
+import { CONFLICT_MESSAGE, mergeTask, versionOf } from './kanbanLogic';
 
-export const TASK_STATUSES = ['To do', 'In progress', 'Done'];
+// [Pair D] 'Blocked' added (FR-7b); same order as the Kanban columns.
+export const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 const TITLE_MAX = 200;
 const EMPTY_FORM = { title: '', description: '', priority: 'Medium', status: 'To do', assignee: '', dueDate: '', milestone: '' };
-const STATUS_PILL = { Done: 'green', 'In progress': 'purple', 'To do': 'orange' };
+const STATUS_PILL = { Done: 'green', 'In progress': 'purple', Blocked: 'red', 'To do': 'orange' };
+const VIEW_KEY = 'devorbit_task_view';
+
+function savedView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'list'; } catch { return 'list'; }
+}
 
 const idOf = (value) => String(value?._id || value?.id || value || '');
 const nextStatus = (status) => TASK_STATUSES[(TASK_STATUSES.indexOf(status) + 1) % TASK_STATUSES.length];
@@ -50,6 +58,9 @@ const formFromTask = (task) => ({
  *   onChanged      () => void after a create/edit/delete, so the page can refresh progress
  *   onNotice       (text) => void for the success toast
  *   milestones     [{ _id, title }] for the milestone dropdown (Pair C); the dropdown is hidden when empty
+ *
+ * [Pair D] The panel has a List / Board switch. The board (KanbanBoard) shares this panel's task
+ * list, so moves, edits and live task:updated events show up in both views.
  */
 export default function TasksPanel({ projectId, myRole, currentUserId, members = [], api = taskApi, addSignal = 0, onTasksChange, onChanged, onNotice, milestones = [] }) {
   const [tasks, setTasks] = useState(null); // null while loading
@@ -67,8 +78,26 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [view, setView] = useState(savedView); // [Pair D] 'list' | 'board'
+
   const canWrite = canWriteTasks(myRole);
   const notify = (text) => onNotice?.(text);
+
+  const chooseView = (next) => {
+    setView(next);
+    try { localStorage.setItem(VIEW_KEY, next); } catch { /* storage unavailable: keep it for this visit only */ }
+  };
+
+  // [Pair D] Board updates go through the full list, never just the filtered one.
+  const updateTasks = useCallback((updater) => setTasks((old) => updater(old || [])), []);
+
+  // [Pair D] Live updates (task:updated). Older or repeated events are ignored by mergeTask.
+  useEffect(() => {
+    if (!api.subscribe) return undefined;
+    return api.subscribe(projectId, (task) => {
+      setTasks((old) => (old ? mergeTask(old, task, 'remote') : old));
+    });
+  }, [api, projectId]);
 
   useEffect(() => {
     let active = true;
@@ -106,6 +135,9 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     setEditing('new'); setForm(EMPTY_FORM); setFormError('');
   }
   const openEdit = (task) => { setEditing(task); setForm(formFromTask(task)); setFormError(''); };
+  // [Pair D] Card click on the board. Temporary stand-in for a task drawer: the edit modal,
+  // read-only for people who cannot write tasks. Replace with the drawer when it exists.
+  const openTask = useCallback((task) => { setEditing(task); setForm(formFromTask(task)); setFormError(''); }, []);
   const closeModal = () => { if (!saving) setEditing(null); };
   const setField = (field) => (event) => setForm((old) => ({ ...old, [field]: event.target.value }));
 
@@ -115,13 +147,19 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     setBusyId(idOf(task)); setActionError('');
     replaceTask({ ...task, status }); // show the change right away, undo it if the server says no
     try {
-      const result = await api.update(projectId, idOf(task), { status });
+      // [Pair D] Send the loaded version so a newer change by someone else is not overwritten.
+      const result = await api.update(projectId, idOf(task), { status, version: versionOf(task) });
       replaceTask(result.task);
       onChanged?.();
       notify(`Task moved to ${status}.`);
     } catch (error) {
-      replaceTask(task);
-      setActionError(error.message || 'Could not update the task status.');
+      if (error.status === 409 && error.response?.data?.task) {
+        replaceTask(error.response.data.task);
+        setActionError(CONFLICT_MESSAGE);
+      } else {
+        replaceTask(task);
+        setActionError(error.message || 'Could not update the task status.');
+      }
     } finally {
       setBusyId('');
     }
@@ -144,6 +182,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
 
   const save = async (event) => {
     event.preventDefault();
+    if (!canWrite) return; // [Pair D] the modal is read-only for Viewers
     const title = form.title.trim();
     if (!title) { setFormError('Task title is required.'); return; }
     const values = {
@@ -162,6 +201,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       const before = formFromTask(editing);
       payload = Object.fromEntries(Object.entries(values).filter(([key, value]) => (value ?? '') !== (key === 'title' || key === 'description' ? before[key].trim() : before[key])));
       if (!Object.keys(payload).length) { setEditing(null); return; }
+      payload.version = versionOf(editing); // [Pair D] 409 instead of silently overwriting a newer change
     }
 
     setSaving(true); setFormError('');
@@ -178,7 +218,15 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       onChanged?.();
       setEditing(null);
     } catch (error) {
-      setFormError(error.message || 'Could not save the task.');
+      if (error.status === 409 && error.response?.data?.task) {
+        // [Pair D] Keep what the user typed, but show that the task changed and save against the latest version next time.
+        const latest = error.response.data.task;
+        replaceTask(latest);
+        setEditing(latest);
+        setFormError(`${CONFLICT_MESSAGE} The latest version has been loaded; check it, then save again to keep your changes.`);
+      } else {
+        setFormError(error.message || 'Could not save the task.');
+      }
     } finally {
       setSaving(false);
     }
@@ -197,16 +245,22 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     <>
       <div className="task-toolbar">
         <label className="task-search"><Search size={14} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a task..." aria-label="Search tasks" /></label>
-        <select className="task-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
-          <option value="All">All statuses</option>
-          {TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}
-        </select>
+        {view === 'list' && (
+          <select className="task-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+            <option value="All">All statuses</option>
+            {TASK_STATUSES.map((status) => <option key={status}>{status}</option>)}
+          </select>
+        )}
         <select className="task-filter" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filter by assignee">
           <option value="All">Everyone</option>
           <option value="me">Assigned to me</option>
           <option value="none">Unassigned</option>
           {members.map((member) => <option key={member.userId} value={idOf(member.userId)}>{member.name}</option>)}
         </select>
+        <div className="view-toggle" role="group" aria-label="Task view">
+          <button type="button" className={view === 'list' ? 'active' : ''} aria-pressed={view === 'list'} onClick={() => chooseView('list')} title="List view"><List size={14} /><span>List</span></button>
+          <button type="button" className={view === 'board' ? 'active' : ''} aria-pressed={view === 'board'} onClick={() => chooseView('board')} title="Board view"><Columns3 size={14} /><span>Board</span></button>
+        </div>
         {canWrite && <button className="iconbtn" title="Add task" aria-label="Add task" onClick={openNew}><Plus size={16} /></button>}
       </div>
 
@@ -233,7 +287,20 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
         </div>
       )}
 
-      {tasks && tasks.length > 0 && (
+      {tasks && tasks.length > 0 && view === 'board' && (
+        <KanbanBoard
+          projectId={projectId}
+          tasks={filtered}
+          api={api}
+          canMove={canWrite}
+          onUpdateTasks={updateTasks}
+          onOpenTask={openTask}
+          onMoved={onChanged}
+          members={members}
+        />
+      )}
+
+      {tasks && tasks.length > 0 && view === 'list' && (
         <div>
           {filtered.map((task) => {
             const id = idOf(task);
@@ -244,13 +311,13 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
             return (
               <article className={`task-row ${busy ? 'busy' : ''}`} key={id}>
                 <button
-                  className={`task-dot ${done ? 'done' : task.status === 'In progress' ? 'working' : ''}`}
+                  className={`task-dot ${done ? 'done' : task.status === 'In progress' ? 'working' : task.status === 'Blocked' ? 'blocked' : ''}`}
                   onClick={() => cycleStatus(task)}
                   disabled={!canWrite || Boolean(busyId)}
                   title={canWrite ? `${task.status}. Click to move to ${nextStatus(task.status)}.` : task.status}
                   aria-label={canWrite ? `Status ${task.status}. Move to ${nextStatus(task.status)}` : `Status ${task.status}`}
                 >
-                  {done ? <Check size={12} /> : task.status === 'In progress' ? <span /> : null}
+                  {done ? <Check size={12} /> : task.status === 'In progress' ? <span /> : task.status === 'Blocked' ? <Ban size={11} /> : null}
                 </button>
                 <div className="task-main">
                   <b className={done ? 'crossed' : ''}>{task.title}</b>
@@ -282,8 +349,9 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
         <div className="modal-back" onClick={closeModal}>
           <form className="modal task-modal" onSubmit={save} onClick={(e) => e.stopPropagation()}>
             <div className="modal-top"><span className="modal-icon"><CheckCircle2 size={19} /></span><button type="button" className="iconbtn" aria-label="Close" onClick={closeModal}><X size={17} /></button></div>
-            <h2>{editing === 'new' ? 'Add a task' : 'Edit task'}</h2>
-            <p>Keep the next step small and clear.</p>
+            <h2>{editing === 'new' ? 'Add a task' : canWrite ? 'Edit task' : 'Task details'}</h2>
+            <p>{canWrite ? 'Keep the next step small and clear.' : 'You can view this task but not change it.'}</p>
+            <fieldset className="task-fieldset" disabled={!canWrite}>
             <label>Task title
               <input className="field-input" autoFocus value={form.title} onChange={setField('title')} placeholder="What needs to get done?" required maxLength={TITLE_MAX} />
               <span className="char-count">{form.title.length}/{TITLE_MAX}</span>
@@ -325,10 +393,13 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
                 </select>
               </label>
             )}
+            </fieldset>
             {formError && <p className="form-error" role="alert">{formError}</p>}
-            <button className="btn full" type="submit" disabled={saving}>
-              {saving ? <><Loader2 size={16} className="spin" /> Saving…</> : editing === 'new' ? <>Create task <Plus size={16} /></> : <>Save changes <Check size={16} /></>}
-            </button>
+            {canWrite && (
+              <button className="btn full" type="submit" disabled={saving}>
+                {saving ? <><Loader2 size={16} className="spin" /> Saving…</> : editing === 'new' ? <>Create task <Plus size={16} /></> : <>Save changes <Check size={16} /></>}
+              </button>
+            )}
           </form>
         </div>
       )}

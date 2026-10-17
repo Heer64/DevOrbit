@@ -8,10 +8,12 @@ import User from '../models/User.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
+import { emitTaskUpdated } from '../lib/realtime.js';
 
 const router = Router({ mergeParams: true });
 
-const TASK_STATUSES = ['To do', 'In progress', 'Done'];
+// Board column order (Sprint 2 Pair D added 'Blocked', see FR-7b).
+const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
 const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 
 router.use(requireAuth);
@@ -150,6 +152,52 @@ async function updateProgress(projectId) {
   return progress;
 }
 
+/* ---- Sprint 2 Pair D: version-checked status changes (US-28) ---- */
+
+const CONFLICT_MESSAGE = 'This task was changed by someone else.';
+
+// Tasks saved before the version field existed have none stored; they count as 0.
+function versionOf(task) {
+  return Number.isInteger(task?.version) ? task.version : 0;
+}
+
+// Query filter that matches the task only while it still has the version the client loaded.
+function versionFilter(version) {
+  return version === 0
+    ? { $or: [{ version: 0 }, { version: { $exists: false } }] }
+    : { version };
+}
+
+async function findPopulatedTask(taskId) {
+  const task = await Task.findById(taskId)
+    .populate('assignee', 'name username email avatarUrl')
+    .populate('createdBy', 'name username email')
+    .lean();
+
+  if (task) task.version = versionOf(task);
+  return task;
+}
+
+// Same shape logTaskChanges() expects for "before".
+function snapshot(task) {
+  return {
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    assignee: task.assignee ? task.assignee.toString() : null,
+    dueDate: task.dueDate ? task.dueDate.getTime() : null,
+    milestone: task.milestone ? task.milestone.toString() : null,
+  };
+}
+
+async function sendConflict(res, taskId) {
+  return res.status(409).json({
+    message: CONFLICT_MESSAGE,
+    task: await findPopulatedTask(taskId),
+  });
+}
+
 /*
  * Writes one activity event for a task edit.
  * A status change wins (it is what the team cares about most), then a new assignee,
@@ -281,6 +329,154 @@ router.get('/', async (req, res, next) => {
     return res.json({
       tasks,
       membershipRole: member ? loaded.role : null,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/*
+ * GET /api/projects/:id/tasks/:taskId
+ *
+ * One task, populated like the list. Readable by anyone who can read the project's tasks.
+ * The Kanban board uses it to fetch the latest state after a conflict.
+ */
+router.get('/:taskId', async (req, res, next) => {
+  try {
+    const loaded = await loadProject(req, res);
+
+    if (!loaded) {
+      return;
+    }
+
+    if (!validId(req.params.taskId)) {
+      return res.status(400).json({
+        message: 'Invalid task ID.',
+      });
+    }
+
+    const exists = await Task.exists({
+      _id: req.params.taskId,
+      project: loaded.project._id,
+    });
+
+    if (!exists) {
+      return res.status(404).json({
+        message: 'Task not found.',
+      });
+    }
+
+    return res.json({
+      task: await findPopulatedTask(req.params.taskId),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/*
+ * PATCH /api/projects/:id/tasks/:taskId/status
+ *
+ * Move a task to another status (Kanban drag and drop).
+ * Body: { status, version }   version = the task's version when the client loaded it
+ *
+ * 200 { task }             saved; task.version is the new version
+ * 400 { message }          invalid status, version or task ID
+ * 403 { message }          not a member, or a Viewer
+ * 404 { message }          no such task in this project
+ * 409 { message, task }    someone changed the task first; task is the latest saved state
+ */
+router.patch('/:taskId/status', async (req, res, next) => {
+  try {
+    const loaded = await loadProject(req, res);
+
+    if (!loaded) {
+      return;
+    }
+
+    const { project, role, member } = loaded;
+
+    if (!member) {
+      return res.status(403).json({
+        message: 'You must be a project member to change task status.',
+      });
+    }
+
+    if (!canWriteTasks(role)) {
+      return res.status(403).json({
+        message: 'You do not have permission to change task status.',
+      });
+    }
+
+    if (!validId(req.params.taskId)) {
+      return res.status(400).json({
+        message: 'Invalid task ID.',
+      });
+    }
+
+    const { status, version } = req.body;
+
+    if (!TASK_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: 'Invalid task status.',
+      });
+    }
+
+    if (!Number.isInteger(version) || version < 0) {
+      return res.status(400).json({
+        message: 'Task version is required.',
+      });
+    }
+
+    const current = await Task.findOne({
+      _id: req.params.taskId,
+      project: project._id,
+    });
+
+    if (!current) {
+      return res.status(404).json({
+        message: 'Task not found.',
+      });
+    }
+
+    if (versionOf(current) !== version) {
+      return sendConflict(res, current._id);
+    }
+
+    // Dropped back into its own column: nothing to save.
+    if (current.status === status) {
+      return res.json({
+        task: await findPopulatedTask(current._id),
+      });
+    }
+
+    // Check-and-set in one step, so two simultaneous moves cannot both succeed.
+    const updated = await Task.findOneAndUpdate(
+      { _id: current._id, project: project._id, ...versionFilter(version) },
+      {
+        $set: {
+          status,
+          completedAt: status === 'Done' ? new Date() : null,
+        },
+        $inc: { version: 1 },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return sendConflict(res, current._id);
+    }
+
+    await updateProgress(project._id);
+
+    await logTaskChanges(req, project, updated, snapshot(current));
+
+    const populatedTask = await findPopulatedTask(updated._id);
+
+    emitTaskUpdated(populatedTask);
+
+    return res.json({
+      task: populatedTask,
     });
   } catch (error) {
     return next(error);
@@ -486,6 +682,22 @@ router.patch('/:taskId', async (req, res, next) => {
       milestone: task.milestone ? task.milestone.toString() : null,
     };
 
+    // [Pair D] Optional conflict check: a client that sends the version it loaded
+    // gets 409 instead of overwriting a newer change. Clients that omit it keep working.
+    const loadedVersion = versionOf(task);
+
+    if (req.body.version !== undefined) {
+      if (!Number.isInteger(req.body.version) || req.body.version < 0) {
+        return res.status(400).json({
+          message: 'Invalid task version.',
+        });
+      }
+
+      if (req.body.version !== loadedVersion) {
+        return sendConflict(res, task._id);
+      }
+    }
+
     const allowedFields = [
       'title',
       'description',
@@ -611,16 +823,34 @@ router.patch('/:taskId', async (req, res, next) => {
       }
     }
 
-    await task.save();
+    // [Pair D] Every real change bumps the version, so Kanban boards holding the old
+    // version get a 409 instead of silently overwriting this edit. The save only matches
+    // while the stored version is still the one loaded above (atomic check-and-set).
+    const changed = task.isModified();
+
+    if (changed) {
+      task.$where = versionFilter(loadedVersion);
+      task.version = loadedVersion + 1;
+    }
+
+    try {
+      await task.save();
+    } catch (error) {
+      if (error.name === 'DocumentNotFoundError') {
+        return sendConflict(res, task._id);
+      }
+      throw error;
+    }
 
     await updateProgress(project._id);
 
     await logTaskChanges(req, project, task, before);
 
-    const populatedTask = await Task.findById(task._id)
-      .populate('assignee', 'name username email avatarUrl')
-      .populate('createdBy', 'name username email')
-      .lean();
+    const populatedTask = await findPopulatedTask(task._id);
+
+    if (changed) {
+      emitTaskUpdated(populatedTask);
+    }
 
     return res.json({
       task: populatedTask,

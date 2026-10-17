@@ -22,8 +22,17 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['To do', 'In progress', 'Done'],
+      enum: ['To do', 'In progress', 'Blocked', 'Done'],
       default: 'To do',
+    },
+    // Optimistic-concurrency counter (Sprint 2 Pair D, US-28).
+    // Every successful change to the task increases it by 1. Clients send the version
+    // they loaded; a mismatch means someone else changed the task first (HTTP 409).
+    // Tasks created before this field existed have no value stored and count as 0.
+    version: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     priority: {
       type: String,
