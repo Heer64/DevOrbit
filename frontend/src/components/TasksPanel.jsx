@@ -10,7 +10,8 @@ import { CONFLICT_MESSAGE, mergeTask, versionOf } from './kanbanLogic';
 export const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
 const TITLE_MAX = 200;
-const EMPTY_FORM = { title: '', description: '', priority: 'Medium', status: 'To do', assignee: '', dueDate: '', milestone: '' };
+export const LABEL_MAX = 30; // same limit as the API (US-21)
+const EMPTY_FORM = { title: '', description: '', label: '', priority: 'Medium', status: 'To do', assignee: '', dueDate: '', milestone: '' };
 const STATUS_PILL = { Done: 'green', 'In progress': 'purple', Blocked: 'red', 'To do': 'orange' };
 const VIEW_KEY = 'devorbit_task_view';
 
@@ -37,6 +38,7 @@ function isOverdue(task) {
 const formFromTask = (task) => ({
   title: task.title || '',
   description: task.description || '',
+  label: task.label || '',
   priority: task.priority || 'Medium',
   status: task.status || 'To do',
   assignee: idOf(task.assignee),
@@ -188,6 +190,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     const values = {
       title,
       description: form.description.trim(),
+      label: form.label.trim(),
       priority: form.priority,
       status: form.status,
       assignee: form.assignee || null,
@@ -199,7 +202,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     if (editing !== 'new') {
       // Only send what changed, so an old assignee who has left the project does not block other edits.
       const before = formFromTask(editing);
-      payload = Object.fromEntries(Object.entries(values).filter(([key, value]) => (value ?? '') !== (key === 'title' || key === 'description' ? before[key].trim() : before[key])));
+      payload = Object.fromEntries(Object.entries(values).filter(([key, value]) => (value ?? '') !== (['title', 'description', 'label'].includes(key) ? before[key].trim() : before[key])));
       if (!Object.keys(payload).length) { setEditing(null); return; }
       payload.version = versionOf(editing); // [Pair D] 409 instead of silently overwriting a newer change
     }
@@ -323,6 +326,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
                   <b className={done ? 'crossed' : ''}>{task.title}</b>
                   <div className="task-meta">
                     <span className={`task-label priority-${(task.priority || 'Medium').toLowerCase()}`}>{task.priority}</span>
+                    {task.label && <span className="task-label custom-label" title="Label">{task.label}</span>}
                     <span className={isOverdue(task) ? 'overdue' : ''}><Clock3 size={11} />{formatDue(task.dueDate)}{isOverdue(task) ? ' · overdue' : ''}</span>
                   </div>
                 </div>
@@ -358,6 +362,10 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
             </label>
             <label>Description <span className="field-hint">optional</span>
               <textarea className="field-input" rows={3} value={form.description} onChange={setField('description')} maxLength={2000} placeholder="Any detail that helps whoever picks this up" />
+            </label>
+            <label>Label <span className="field-hint">optional</span>
+              <input className="field-input" value={form.label} onChange={setField('label')} placeholder="e.g. Frontend, Bug, Docs" maxLength={LABEL_MAX} />
+              <span className="char-count">{form.label.length}/{LABEL_MAX}</span>
             </label>
             <div className="task-form-row">
               <label>Priority

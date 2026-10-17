@@ -4,12 +4,13 @@
   "private": true,
   "description": "DevOrbit React frontend and Express/MongoDB API",
   "scripts": {
-    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install && npm --prefix e2e install",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "start:backend": "npm --prefix backend start",
-    "test": "npm --prefix backend test",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "test:e2e": "npm --prefix e2e test",
     "ci": "npm --prefix backend ci && npm --prefix frontend ci && npm test && npm run build:frontend"
   }
 }

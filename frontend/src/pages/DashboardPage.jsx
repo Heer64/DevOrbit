@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Code2, Compass, FolderKanban, GitPullRequest, MoreHorizontal, Plus, Sparkles, Users, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Code2, Compass, FolderKanban, GitPullRequest, ListTodo, MoreHorizontal, Plus, Sparkles, Users, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { projectApi, toProjectCard } from '../api';
 import { AVATAR_TONES, Avatar, Btn, Heading, tone } from '../components/ui';
 import ProjectPulse from '../components/ProjectPulse';
+import { MyTasks, UpcomingDeadlines, useTaskStats } from '../components/DashboardTasks';
 
 const baseProjects = [
   { id: 'orbit-dashboard', name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', tag: 'Product', color: 'violet', progress: 72, members: 5, due: 'Oct 18', initials: ['AM', 'RK', 'JS', '+2'] },
@@ -16,6 +17,18 @@ const activities = [
   { icon: CheckCircle2, color: 'green', title: 'Task completed', detail: 'Riya finished “Add empty state”', time: '48 min ago', project: 'Orbit dashboard' },
   { icon: Users, color: 'blue', title: 'New collaborator', detail: 'Karan joined the Pulse API project', time: '2 hours ago', project: 'Pulse API' },
   { icon: Code2, color: 'orange', title: '3 commits pushed', detail: 'API validation and error handling', time: 'Yesterday', project: 'Pulse API' },
+];
+
+// Sample tasks for the demo workspace only (real users load theirs from /api/tasks).
+const demoDay = (days) => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() + days)).toISOString(); };
+const demoUpcoming = [
+  { _id: 'demo-up-1', title: 'Add loading and empty states', status: 'To do', dueDate: demoDay(1), project: { _id: 'orbit-dashboard', name: 'Orbit dashboard', color: 'violet' } },
+  { _id: 'demo-up-2', title: 'Connect activity feed endpoint', status: 'In progress', dueDate: demoDay(3), project: { _id: 'pulse-api', name: 'Pulse API', color: 'orange' } },
+  { _id: 'demo-up-3', title: 'Run responsive layout checks', status: 'To do', dueDate: demoDay(6), project: { _id: 'greenlight', name: 'Greenlight', color: 'teal' } },
+];
+const demoMine = [
+  { _id: 'demo-me-1', title: 'Build project overview cards', status: 'In progress', dueDate: demoDay(2), project: { _id: 'orbit-dashboard', name: 'Orbit dashboard', color: 'violet' } },
+  { _id: 'demo-me-2', title: 'Write API validation tests', status: 'To do', dueDate: null, project: { _id: 'pulse-api', name: 'Pulse API', color: 'orange' } },
 ];
 
 function greeting() {
@@ -65,6 +78,8 @@ export default function DashboardPage() {
   const first = user?.name?.split(' ')[0] || 'Aarav';
   const firstProjectId = projects[0]?.id || 'orbit-dashboard';
   const activeCount = projects.filter((p) => !['Completed', 'Archived'].includes(p.status)).length;
+  const taskStats = useTaskStats(user);
+  const statValue = (key) => (taskStats ? String(taskStats[key]) : '—');
 
   return (
     <>
@@ -87,9 +102,11 @@ export default function DashboardPage() {
 
       <section className="stat-grid">
         <StatCard icon={FolderKanban} title="Active projects" value={user?.isDemo ? '8' : String(activeCount)} trend={user?.isDemo ? '2 this month' : 'in your workspace'} tint="purple" />
-        <StatCard icon={CheckCircle2} title="Tasks completed" value={user?.isDemo ? '24' : '—'} trend={user?.isDemo ? '↑ 18% this week' : 'Task tracking not connected yet'} tint="green" />
+        <StatCard icon={CheckCircle2} title="Tasks completed" value={user?.isDemo ? '24' : statValue('completedLast7Days')} trend={user?.isDemo ? '↑ 18% this week' : 'in the last 7 days'} tint="green" />
         <StatCard icon={Users} title="Collaborators" value={user?.isDemo ? '12' : String(new Set(projects.flatMap((p) => p.initials || [])).size)} trend={user?.isDemo ? '3 new connections' : 'across your projects'} tint="blue" />
-        <StatCard icon={Zap} title="Your momentum" value={user?.isDemo ? '86%' : '—'} trend={user?.isDemo ? "You're on a roll" : 'Calculated when task data is connected'} tint="orange" />
+        {user?.isDemo
+          ? <StatCard icon={Zap} title="Your momentum" value="86%" trend="You're on a roll" tint="orange" />
+          : <StatCard icon={ListTodo} title="Assigned to me" value={statValue('openAssignedToMe')} trend="open tasks" tint="orange" />}
       </section>
 
       <div className="section-head">
@@ -111,6 +128,11 @@ export default function DashboardPage() {
         ) : (
           <section className="panel placeholder"><span><FolderKanban size={25} /></span><h2>Your first project starts here</h2><p>No projects yet. Create your first project to get started, or discover what the community is building.</p><div className="modal-actions"><Btn onClick={openCreate} icon={Plus}>Create a project</Btn><Btn secondary onClick={() => navigate('/discover')} icon={Compass}>Discover projects</Btn></div></section>
         )}
+
+      <div className="lower-grid dash-task-grid">
+        <UpcomingDeadlines user={user} demoTasks={demoUpcoming} />
+        <MyTasks user={user} demoTasks={demoMine} />
+      </div>
 
       <div className="lower-grid">
         <ProjectPulse user={user} demoActivities={activities} fallbackProjectId={firstProjectId} />

@@ -90,6 +90,10 @@ function readInput(body, creating) {
     if (values.title.length > 200) fail(400, 'Task title must be 200 characters or fewer.');
   }
   if (body.description !== undefined) values.description = String(body.description || '').trim();
+  if (body.label !== undefined) {
+    values.label = String(body.label || '').trim();
+    if (values.label.length > 30) fail(400, 'Task label must be 30 characters or fewer.');
+  }
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) fail(400, 'Invalid task status.');
     values.status = body.status;
@@ -135,6 +139,7 @@ export const mockTaskApi = {
       _id: `mock-${projectId}-new-${(counter += 1)}`,
       project: projectId,
       description: '',
+      label: '',
       priority: 'Medium',
       assignee: null,
       dueDate: null,

@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Backend tests and frontend build (Node ${{ matrix.node }})
+    name: Backend tests, frontend tests and build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -52,5 +52,73 @@ jobs:
       - name: Backend tests
         run: npm test --prefix backend
 
+      - name: Frontend tests
+        run: npm test --prefix frontend
+
       - name: Frontend build
         run: npm run build --prefix frontend
+
+  # End-to-end: the real API + the built frontend in a real browser (Playwright).
+  # Runs only after the unit tests pass. Tests live in e2e/tests/.
+  e2e:
+    name: End-to-end tests (Playwright)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      E2E_MONGODB_URI: mongodb://127.0.0.1:27017/devorbit_e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      # Uses e2e/package-lock.json when it is committed (recommended), otherwise installs fresh.
+      - name: Install E2E dependencies
+        run: |
+          if [ -f e2e/package-lock.json ]; then npm ci --prefix e2e; else npm install --prefix e2e; fi
+
+      - name: Install Chromium for Playwright
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # Playwright starts the API and the frontend itself (see e2e/playwright.config.js).
+      - name: End-to-end tests
+        working-directory: e2e
+        run: npm test
+
+      - name: Upload Playwright report (screenshots, videos, traces)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7

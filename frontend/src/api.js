@@ -203,6 +203,17 @@ export const activityApi = {
   mine: (limit = 10) => api(`/activity/me?limit=${encodeURIComponent(limit)}`),
 };
 
+// Personal task views for the dashboard (Sprint 2 leftovers). Contract: backend/src/routes/myTasks.js
+//   upcoming -> { tasks, days }   open tasks due from today to `days` ahead, soonest first (US-23)
+//   mine     -> { tasks, total }  open tasks assigned to me
+//   stats    -> { completedLast7Days, openAssignedToMe }
+// Each task has project { _id, name, color } and assignee populated.
+export const myTaskApi = {
+  upcoming: (days = 7, limit = 6) => api(`/tasks/upcoming?days=${encodeURIComponent(days)}&limit=${encodeURIComponent(limit)}`),
+  mine: (limit = 6) => api(`/tasks/mine?limit=${encodeURIComponent(limit)}`),
+  stats: () => api('/tasks/stats'),
+};
+
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
 };

@@ -15,6 +15,16 @@ const router = Router({ mergeParams: true });
 // Board column order (Sprint 2 Pair D added 'Blocked', see FR-7b).
 const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
 const TASK_PRIORITIES = ['Low', 'Medium', 'High'];
+const LABEL_MAX = 30;
+
+// Optional task label (US-21). Returns { valid, value } like the other validators.
+function readLabel(raw) {
+  const value = raw === null || raw === undefined ? '' : String(raw).trim();
+  if (value.length > LABEL_MAX) {
+    return { valid: false, message: `Task label must be ${LABEL_MAX} characters or fewer.` };
+  }
+  return { valid: true, value };
+}
 
 router.use(requireAuth);
 
@@ -185,6 +195,7 @@ function snapshot(task) {
     description: task.description,
     status: task.status,
     priority: task.priority,
+    label: task.label || '',
     assignee: task.assignee ? task.assignee.toString() : null,
     dueDate: task.dueDate ? task.dueDate.getTime() : null,
     milestone: task.milestone ? task.milestone.toString() : null,
@@ -240,6 +251,7 @@ async function logTaskChanges(req, project, task, before) {
   if (task.title !== before.title) changed.push('title');
   if (task.description !== before.description) changed.push('description');
   if (task.priority !== before.priority) changed.push('priority');
+  if ((task.label || '') !== (before.label || '')) changed.push('label');
   if ((task.dueDate ? task.dueDate.getTime() : null) !== before.dueDate) changed.push('due date');
   if ((task.milestone ? task.milestone.toString() : null) !== before.milestone) changed.push('milestone');
 
@@ -549,6 +561,14 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    const labelResult = readLabel(req.body.label);
+
+    if (!labelResult.valid) {
+      return res.status(400).json({
+        message: labelResult.message,
+      });
+    }
+
     const assigneeResult = await validateAssignee(
       project,
       req.body.assignee
@@ -595,6 +615,7 @@ router.post('/', async (req, res, next) => {
       description,
       status,
       priority,
+      label: labelResult.value,
       assignee: assigneeResult.value,
       createdBy: req.user.id,
       dueDate,
@@ -677,6 +698,7 @@ router.patch('/:taskId', async (req, res, next) => {
       description: task.description,
       status: task.status,
       priority: task.priority,
+      label: task.label || '',
       assignee: task.assignee ? task.assignee.toString() : null,
       dueDate: task.dueDate ? task.dueDate.getTime() : null,
       milestone: task.milestone ? task.milestone.toString() : null,
@@ -703,6 +725,7 @@ router.patch('/:taskId', async (req, res, next) => {
       'description',
       'status',
       'priority',
+      'label',
       'assignee',
       'dueDate',
       'milestone',
@@ -770,6 +793,18 @@ router.patch('/:taskId', async (req, res, next) => {
           }
 
           task.priority = req.body.priority;
+        }
+
+        if (field === 'label') {
+          const labelResult = readLabel(req.body.label);
+
+          if (!labelResult.valid) {
+            return res.status(400).json({
+              message: labelResult.message,
+            });
+          }
+
+          task.label = labelResult.value;
         }
 
         if (field === 'assignee') {

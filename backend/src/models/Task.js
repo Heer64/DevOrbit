@@ -39,6 +39,13 @@ const taskSchema = new mongoose.Schema(
       enum: ['Low', 'Medium', 'High'],
       default: 'Medium',
     },
+    // Optional free-text tag such as "Frontend" or "Bug" (US-21).
+    label: {
+      type: String,
+      trim: true,
+      maxlength: 30,
+      default: '',
+    },
     assignee: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
