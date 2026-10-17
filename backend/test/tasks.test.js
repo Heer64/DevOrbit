@@ -320,3 +320,75 @@ test('A task cannot be edited or deleted through another project URL', async () 
     (task) => task._id === taskId && task.title === 'Task belongs to first project'
   ));
 });
+
+/* ---- Sprint 2 leftovers: task label (US-21) ---- */
+
+test('US-21 a task can be created with an optional label', async () => {
+  const withLabel = await as(contributor)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Labelled task', label: '  Frontend  ' });
+
+  assert.equal(withLabel.status, 201, JSON.stringify(withLabel.body));
+  assert.equal(withLabel.body.task.label, 'Frontend');
+  assert.equal(withLabel.body.task.status, 'To do');
+
+  const withoutLabel = await as(contributor)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Unlabelled task' });
+
+  assert.equal(withoutLabel.status, 201, JSON.stringify(withoutLabel.body));
+  assert.equal(withoutLabel.body.task.label, '');
+
+  const listed = await as(viewer).get(`/api/projects/${projectId}/tasks`);
+  const found = listed.body.tasks.find((task) => task._id === withLabel.body.task._id);
+  assert.equal(found.label, 'Frontend');
+});
+
+test('US-21 the label can be edited and cleared', async () => {
+  const created = await as(owner)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Edit my label', label: 'Bug' });
+  const id = created.body.task._id;
+
+  const edited = await as(owner)
+    .patch(`/api/projects/${projectId}/tasks/${id}`)
+    .send({ label: 'Backend' });
+
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal(edited.body.task.label, 'Backend');
+  assert.equal(edited.body.task.version, 1);
+
+  const cleared = await as(owner)
+    .patch(`/api/projects/${projectId}/tasks/${id}`)
+    .send({ label: '' });
+
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.body));
+  assert.equal(cleared.body.task.label, '');
+
+  const activity = await as(owner).get(`/api/projects/${projectId}/activity`);
+  assert.ok(
+    activity.body.activity.some((event) => event.type === 'task.updated' && (event.meta?.fields || []).includes('label')),
+    'editing the label is logged in the activity feed'
+  );
+});
+
+test('US-21 a label over 30 characters is rejected with 400', async () => {
+  const tooLong = 'x'.repeat(31);
+
+  const created = await as(owner)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Long label', label: tooLong });
+
+  assert.equal(created.status, 400, JSON.stringify(created.body));
+  assert.match(created.body.message, /30 characters/);
+
+  const ok = await as(owner)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Exactly 30', label: 'y'.repeat(30) });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+
+  const edited = await as(owner)
+    .patch(`/api/projects/${projectId}/tasks/${ok.body.task._id}`)
+    .send({ label: tooLong });
+  assert.equal(edited.status, 400, JSON.stringify(edited.body));
+});

@@ -202,6 +202,7 @@ function Card({ task, canMove, busy, members, onOpen, onMove }) {
       </div>
       <div className="task-meta">
         <span className={`task-label priority-${(task.priority || 'Medium').toLowerCase()}`}>{task.priority || 'Medium'}</span>
+        {task.label && <span className="task-label custom-label" title="Label">{task.label}</span>}
         <span className={overdue ? 'overdue' : ''}><Clock3 size={11} />{formatDue(task.dueDate)}{overdue ? ' · overdue' : ''}</span>
       </div>
       <div className="kanban-card-foot">

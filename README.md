@@ -177,3 +177,27 @@ The Tasks tab has a **List / Board** switch. The board has four columns: **To Do
 **Demo without a backend:** sample projects use `frontend/src/taskMock.js`. In the browser console, run `localStorage.setItem('devorbit_mock_move', 'reject')` to see a failed move roll back, or `'conflict'` to see the 409 message. Run `localStorage.removeItem('devorbit_mock_move')` to go back to normal.
 
 **Tests:** `npm --prefix backend test` (includes `kanban.test.js`, `realtime.test.js`) and `npm --prefix frontend test` (Vitest).
+
+## Sprint 2 — leftovers
+
+These finish the parts of Sprint 2 that were still missing after Pairs A–D merged.
+
+**Task label (US-21).** Tasks have an optional `label` (free text, trimmed, up to 30 characters, default `''`) next to the existing Priority. It is accepted by `POST` and `PATCH /api/projects/:id/tasks` (a longer label returns **400**), returned with every task, shown on list rows and Kanban cards, and edited in the task form. Changing it is logged as a `task.updated` activity.
+
+**Dashboard task views** (`/api/tasks`, signed-in user, only projects you are a member of)
+
+| Call | Returns | Notes |
+|------|---------|-------|
+| `GET /api/tasks/upcoming?days=7&limit=20` | `{ tasks, days }` | Open (not Done) tasks due from today up to `days` ahead (1–30, default 7), soonest first. Overdue tasks are not included. (US-23) |
+| `GET /api/tasks/mine?limit=8` | `{ tasks, total }` | Open tasks assigned to you; dated tasks first, undated last |
+| `GET /api/tasks/stats` | `{ completedLast7Days, openAssignedToMe }` | Used by the dashboard stat cards |
+
+Each task includes `project { _id, name, color }` and `assignee`. The dashboard now shows **Upcoming deadlines** and **My tasks** panels, and the "Tasks completed" and "Assigned to me" cards use these numbers. Demo users still see sample data.
+
+**Discover on real data.** For signed-in users the Discover page loads `GET /api/projects/discover?q=` (Public projects only) and `GET /api/profile/people?q=` (people with `profileDiscoverable` on, never yourself). Search is debounced (300 ms) and done by the API; the domain filter is built from the loaded projects; sort is "Recently active" or "Alphabetical". Follow and Save stay demo-only until those features have an API. Demo users keep the sample cards.
+
+**CI** now runs the frontend tests (`npm test --prefix frontend`) before the frontend build.
+
+**End-to-end tests** (`e2e/`, Playwright) run the real API, a real MongoDB and the built frontend in Chromium, and click through the main journeys: sign up and log in, a labelled task on the Kanban board, dashboard deadlines and stats, and Discover with two users. They run in CI as a second job after the unit tests pass, and locally with `npm run test:e2e` (no MongoDB install needed). See `e2e/README.md` for how to run them and how to add 1–2 tests per sprint.
+
+**Tests:** `backend/test/tasks.test.js` (label), `backend/test/myTasks.test.js`, `backend/test/discover.test.js`; `frontend/src/components/TasksPanel.label.test.jsx`, `frontend/src/components/DashboardTasks.test.jsx`, `frontend/src/pages/DashboardPage.test.jsx`, `frontend/src/pages/DiscoverPage.test.jsx`.
