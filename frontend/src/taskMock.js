@@ -209,7 +209,8 @@ export const mockTaskApi = {
   },
 
   // [Pair D] Same contract as taskApi.subscribe (task:updated events).
-  subscribe(projectId, onTaskUpdated) {
+  // [Sprint 2 final] Accepts onTaskDeleted like the real API; the mock has one user, so it is never called.
+  subscribe(projectId, onTaskUpdated, onTaskDeleted) { // eslint-disable-line no-unused-vars
     if (!listeners.has(projectId)) listeners.set(projectId, new Set());
     listeners.get(projectId).add(onTaskUpdated);
     return () => listeners.get(projectId)?.delete(onTaskUpdated);

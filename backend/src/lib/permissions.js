@@ -103,3 +103,14 @@ export function canDeleteTask(role, isCreator) {
 export function canManageMilestones(role) {
   return role === 'Owner' || role === 'Admin';
 }
+
+// [Sprint 2 final] Project channels (US-16).
+// Every member can read channels; Viewers cannot post (they get 403 but can still read).
+export function canPostMessages(role) {
+  return role === 'Owner' || role === 'Admin' || role === 'Contributor';
+}
+
+// Who may create new channels. #general exists for everyone automatically.
+export function canManageChannels(role) {
+  return role === 'Owner' || role === 'Admin';
+}

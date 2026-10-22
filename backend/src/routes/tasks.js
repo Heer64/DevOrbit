@@ -8,7 +8,7 @@ import User from '../models/User.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
-import { emitTaskUpdated } from '../lib/realtime.js';
+import { emitTaskCreated, emitTaskDeleted, emitTaskUpdated } from '../lib/realtime.js';
 
 const router = Router({ mergeParams: true });
 
@@ -636,10 +636,9 @@ router.post('/', async (req, res, next) => {
       meta: { status: task.status },
     });
 
-    const populatedTask = await Task.findById(task._id)
-      .populate('assignee', 'name username email avatarUrl')
-      .populate('createdBy', 'name username email')
-      .lean();
+    const populatedTask = await findPopulatedTask(task._id);
+
+    emitTaskCreated(populatedTask); // [Sprint 2 final] live for other members
 
     return res.status(201).json({
       task: populatedTask,
@@ -956,6 +955,8 @@ router.delete('/:taskId', async (req, res, next) => {
       targetId: task._id,
       targetLabel: task.title,
     });
+
+    emitTaskDeleted(project._id, task._id); // [Sprint 2 final] live for other members
 
     return res.json({
       message: 'Task deleted successfully.',

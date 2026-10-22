@@ -7,6 +7,7 @@ const PROJECT = 'p1';
 
 function fakeApi(initial) {
   let listener = null;
+  let deleteListener = null;
   return {
     list: vi.fn(() => Promise.resolve({ tasks: initial.map((t) => ({ ...t })), membershipRole: 'Owner' })),
     create: vi.fn(),
@@ -14,8 +15,13 @@ function fakeApi(initial) {
     remove: vi.fn(),
     get: vi.fn(),
     updateStatus: vi.fn(() => new Promise(() => {})),
-    subscribe: vi.fn((projectId, callback) => { listener = callback; return () => { listener = null; }; }),
+    subscribe: vi.fn((projectId, callback, onDeleted) => {
+      listener = callback;
+      deleteListener = onDeleted;
+      return () => { listener = null; deleteListener = null; };
+    }),
     push: (task) => act(() => { listener?.(task); }),
+    pushDeleted: (taskId) => act(() => { deleteListener?.(taskId); }),
   };
 }
 
@@ -51,7 +57,7 @@ describe('TasksPanel board view', () => {
 
   it('subscribes to live updates for this project and moves the card on task:updated', async () => {
     const api = await renderBoard();
-    expect(api.subscribe).toHaveBeenCalledWith(PROJECT, expect.any(Function));
+    expect(api.subscribe).toHaveBeenCalledWith(PROJECT, expect.any(Function), expect.any(Function));
 
     api.push({ ...seed[0], status: 'Done', version: 4 });
     expect(columnOf('Draft schema')).toBe('Done');
@@ -63,6 +69,29 @@ describe('TasksPanel board view', () => {
     expect(columnOf('Draft schema')).toBe('To Do');
     api.push({ ...seed[0], status: 'Done', version: 2 });
     expect(columnOf('Draft schema')).toBe('To Do');
+  });
+
+  // [Sprint 2 final] task:created / task:deleted from other members.
+  it('adds a task created by someone else, once', async () => {
+    const api = await renderBoard();
+    const fresh = { _id: 'c', title: 'Made elsewhere', status: 'In progress', priority: 'Medium', version: 0, assignee: null, createdBy: { _id: 'other' } };
+    api.push(fresh);
+    api.push(fresh);
+    expect(screen.getAllByText('Made elsewhere')).toHaveLength(1);
+    expect(columnOf('Made elsewhere')).toBe('In Progress');
+  });
+
+  it('removes a task deleted by someone else and closes it if it is open', async () => {
+    const onNotice = vi.fn();
+    const api = await renderBoard({ onNotice });
+    fireEvent.click(screen.getByText('Waiting on design'));
+    expect(screen.getByRole('heading', { name: 'Edit task' })).toBeTruthy();
+
+    api.pushDeleted('b');
+    expect(screen.queryByText('Waiting on design')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Edit task' })).toBeNull();
+    expect(onNotice).toHaveBeenCalledWith('That task was deleted by another member.');
+    expect(screen.getByText('Draft schema')).toBeTruthy();
   });
 
   it('clicking a card opens the task in the edit modal (temporary drawer)', async () => {

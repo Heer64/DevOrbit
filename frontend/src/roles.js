@@ -35,3 +35,7 @@ export const ROLE_HELP = {
 
 // Mirrors canManageMilestones in backend/src/lib/permissions.js.
 export const canManageMilestones = (role) => role === 'Owner' || role === 'Admin';
+
+// [Sprint 2 final] Mirrors canPostMessages / canManageChannels in backend/src/lib/permissions.js.
+export const canPostMessages = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
+export const canManageChannels = (role) => role === 'Owner' || role === 'Admin';

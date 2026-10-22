@@ -161,7 +161,8 @@ export const taskApi = {
 
   // Live updates: calls onTaskUpdated(task) for every task:updated event of this project.
   // Returns an unsubscribe function. Server side: backend/src/lib/realtime.js.
-  subscribe: (id, onTaskUpdated) => {
+  // [Sprint 2 final] onTaskDeleted(taskId) is optional; created tasks arrive through onTaskUpdated.
+  subscribe: (id, onTaskUpdated, onTaskDeleted) => {
     let stop = null;
     let cancelled = false;
     loadRealtime()
@@ -170,7 +171,8 @@ export const taskApi = {
         stop = module.subscribeToProjectTasks(
           { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
           id,
-          onTaskUpdated
+          onTaskUpdated,
+          onTaskDeleted
         );
       })
       .catch(() => {}); // Live updates are a bonus; the board still works without them.
@@ -182,6 +184,48 @@ export const taskApi = {
 };
 
 const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
+
+// [Sprint 2 final] Generic live updates for one project. Calls handler(payload) for each
+// `eventName` event ('message:created', ...). Returns an unsubscribe function.
+export const liveApi = {
+  onProject: (id, eventName, handler) => {
+    let stop = null;
+    let cancelled = false;
+    loadRealtime()
+      .then((module) => {
+        if (cancelled) return;
+        stop = module.subscribeToProjectEvent(
+          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          id,
+          eventName,
+          handler
+        );
+      })
+      .catch(() => {}); // Live updates are a bonus; the page still works by reloading.
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  },
+};
+
+// [Sprint 2 final] Project channels (US-16). Contract: backend/src/routes/channels.js
+//   list     -> { channels, membershipRole }
+//   create   -> { channel }
+//   messages -> { messages (oldest first), nextBefore }   pass nextBefore back as `before` for older ones
+//   send     -> { message }
+const channelPath = (id, channelId = '') => `${projectPath(id)}/channels${channelId ? `/${encodeURIComponent(channelId)}` : ''}`;
+export const channelApi = {
+  list: (id) => api(channelPath(id)),
+  create: (id, payload) => api(channelPath(id), { method: 'POST', body: JSON.stringify(payload) }),
+  messages: (id, channelId, { before, limit = 50 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return api(`${channelPath(id, channelId)}/messages?${params}`);
+  },
+  send: (id, channelId, body) => api(`${channelPath(id, channelId)}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  onMessage: (id, handler) => liveApi.onProject(id, 'message:created', handler),
+};
 
 // Milestones of one project. Each milestone comes back with taskCount, doneCount, progress (0-100) and completed.
 export const milestoneApi = {
