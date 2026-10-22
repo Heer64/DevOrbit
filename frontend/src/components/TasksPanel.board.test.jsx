@@ -81,6 +81,24 @@ describe('TasksPanel board view', () => {
     expect(columnOf('Made elsewhere')).toBe('In Progress');
   });
 
+  it('a task I create shows once even when its live event arrives before the save returns', async () => {
+    const api = fakeApi(seed);
+    const mine = { _id: 'n', title: 'My new task', status: 'To do', priority: 'Medium', version: 0, assignee: null, createdBy: { _id: 'me' } };
+    api.create = vi.fn(async () => {
+      api.push(mine); // the socket event wins the race
+      return { task: mine };
+    });
+    localStorage.setItem('devorbit_task_view', 'list');
+    render(<TasksPanel projectId={PROJECT} myRole="Owner" currentUserId="me" members={[]} api={api} addSignal={1} />);
+    await screen.findByText('Draft schema');
+
+    fireEvent.change(screen.getByPlaceholderText(/what needs to get done/i), { target: { value: 'My new task' } });
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }));
+
+    await screen.findByText('My new task');
+    expect(screen.getAllByText('My new task')).toHaveLength(1);
+  });
+
   it('removes a task deleted by someone else and closes it if it is open', async () => {
     const onNotice = vi.fn();
     const api = await renderBoard({ onNotice });

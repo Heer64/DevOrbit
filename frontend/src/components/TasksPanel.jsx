@@ -250,7 +250,9 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     try {
       if (editing === 'new') {
         const result = await api.create(projectId, payload);
-        setTasks((old) => [result.task, ...(old || [])]);
+        // [Sprint 2 final] The live task:created event can arrive before this response,
+        // so add by ID (mergeTask) instead of prepending; otherwise the task shows twice.
+        setTasks((old) => mergeTask(old || [], result.task, 'server'));
         notify('Task created.');
       } else {
         const result = await api.update(projectId, idOf(editing), payload);
