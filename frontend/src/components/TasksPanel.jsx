@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Ban, Check, CheckCircle2, Circle, Clock3, Columns3, List, ListTodo, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { assetUrl, taskApi } from '../api';
 import { canDeleteTask, canWriteTasks } from '../roles';
@@ -60,11 +60,14 @@ const formFromTask = (task) => ({
  *   onChanged      () => void after a create/edit/delete, so the page can refresh progress
  *   onNotice       (text) => void for the success toast
  *   milestones     [{ _id, title }] for the milestone dropdown (Pair C); the dropdown is hidden when empty
+ *   openTaskId     [Sprint 2 final] task to open as soon as tasks are loaded (from a link such as
+ *                  /project/<id>?tab=tasks&task=<taskId>); fetched with api.get when not in the list
+ *   onCloseTask    [Sprint 2 final] () => void when the task window closes, so the page can clear the link
  *
  * [Pair D] The panel has a List / Board switch. The board (KanbanBoard) shares this panel's task
  * list, so moves, edits and live task:updated events show up in both views.
  */
-export default function TasksPanel({ projectId, myRole, currentUserId, members = [], api = taskApi, addSignal = 0, onTasksChange, onChanged, onNotice, milestones = [] }) {
+export default function TasksPanel({ projectId, myRole, currentUserId, members = [], api = taskApi, addSignal = 0, onTasksChange, onChanged, onNotice, milestones = [], openTaskId = '', onCloseTask }) {
   const [tasks, setTasks] = useState(null); // null while loading
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -94,12 +97,28 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
   const updateTasks = useCallback((updater) => setTasks((old) => updater(old || [])), []);
 
   // [Pair D] Live updates (task:updated). Older or repeated events are ignored by mergeTask.
+  // [Sprint 2 final] New tasks (task:created) are added by the same mergeTask call, and tasks
+  // deleted by someone else (task:deleted) are removed; if that task is open, its window closes.
+  const editingRef = useRef(null);
+  editingRef.current = editing;
   useEffect(() => {
     if (!api.subscribe) return undefined;
-    return api.subscribe(projectId, (task) => {
-      setTasks((old) => (old ? mergeTask(old, task, 'remote') : old));
-    });
-  }, [api, projectId]);
+    return api.subscribe(
+      projectId,
+      (task) => {
+        setTasks((old) => (old ? mergeTask(old, task, 'remote') : old));
+      },
+      (taskId) => {
+        setTasks((old) => (old ? old.filter((task) => idOf(task) !== taskId) : old));
+        const open = editingRef.current;
+        if (open && open !== 'new' && idOf(open) === taskId) {
+          setEditing(null);
+          onCloseTask?.();
+          onNotice?.('That task was deleted by another member.');
+        }
+      }
+    );
+  }, [api, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let active = true;
@@ -140,7 +159,27 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
   // [Pair D] Card click on the board. Temporary stand-in for a task drawer: the edit modal,
   // read-only for people who cannot write tasks. Replace with the drawer when it exists.
   const openTask = useCallback((task) => { setEditing(task); setForm(formFromTask(task)); setFormError(''); }, []);
-  const closeModal = () => { if (!saving) setEditing(null); };
+  // [Sprint 2 final] Open the task named in the link once, after the list has loaded.
+  const openedFromLink = useRef('');
+  const [linkError, setLinkError] = useState('');
+  useEffect(() => {
+    if (!openTaskId || !tasks || openedFromLink.current === openTaskId) return;
+    openedFromLink.current = openTaskId;
+    setLinkError('');
+    const found = tasks.find((task) => idOf(task) === openTaskId);
+    if (found) { openTask(found); return; }
+    if (!api.get) { setLinkError('That task no longer exists.'); return; }
+    api.get(projectId, openTaskId)
+      .then((result) => { if (result.task) openTask(result.task); })
+      .catch(() => setLinkError('That task no longer exists or you cannot open it.'));
+  }, [openTaskId, tasks, api, projectId, openTask]);
+  useEffect(() => { if (!openTaskId) openedFromLink.current = ''; }, [openTaskId]);
+
+  const closeModal = () => {
+    if (saving) return;
+    setEditing(null);
+    onCloseTask?.(); // [Sprint 2 final]
+  };
   const setField = (field) => (event) => setForm((old) => ({ ...old, [field]: event.target.value }));
 
   const cycleStatus = async (task) => {
@@ -203,7 +242,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       // Only send what changed, so an old assignee who has left the project does not block other edits.
       const before = formFromTask(editing);
       payload = Object.fromEntries(Object.entries(values).filter(([key, value]) => (value ?? '') !== (['title', 'description', 'label'].includes(key) ? before[key].trim() : before[key])));
-      if (!Object.keys(payload).length) { setEditing(null); return; }
+      if (!Object.keys(payload).length) { setEditing(null); onCloseTask?.(); return; }
       payload.version = versionOf(editing); // [Pair D] 409 instead of silently overwriting a newer change
     }
 
@@ -211,7 +250,9 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
     try {
       if (editing === 'new') {
         const result = await api.create(projectId, payload);
-        setTasks((old) => [result.task, ...(old || [])]);
+        // [Sprint 2 final] The live task:created event can arrive before this response,
+        // so add by ID (mergeTask) instead of prepending; otherwise the task shows twice.
+        setTasks((old) => mergeTask(old || [], result.task, 'server'));
         notify('Task created.');
       } else {
         const result = await api.update(projectId, idOf(editing), payload);
@@ -220,6 +261,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       }
       onChanged?.();
       setEditing(null);
+      onCloseTask?.(); // [Sprint 2 final] clear ?task= from the link
     } catch (error) {
       if (error.status === 409 && error.response?.data?.task) {
         // [Pair D] Keep what the user typed, but show that the task changed and save against the latest version next time.
@@ -268,6 +310,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
       </div>
 
       {!canWrite && tasks && <p className="task-readonly">{myRole === 'Viewer' ? 'You are a Viewer on this project, so tasks are read-only.' : 'Join this project to add or change tasks.'}</p>}
+      {linkError && <div className="form-error task-action-error" role="alert">{linkError}<button className="task-more" onClick={() => setLinkError('')} aria-label="Dismiss"><X size={13} /></button></div>}
       {actionError && <div className="form-error task-action-error" role="alert">{actionError}<button className="task-more" onClick={() => setActionError('')} aria-label="Dismiss"><X size={13} /></button></div>}
 
       {tasks === null && !loadError && (

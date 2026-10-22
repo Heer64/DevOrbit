@@ -162,3 +162,48 @@ test('After leaving the room, no more events arrive', async () => {
     .send({ status: 'Done', version: 0 });
   await silence;
 });
+
+// [Sprint 2 final] Tasks created or deleted by someone else appear/disappear without a reload.
+test('Creating a task broadcasts task:created to members', async () => {
+  const socket = open(viewer.token);
+  await connected(socket);
+  await join(socket, projectId);
+
+  const event = nextEvent(socket, 'task:created');
+  const created = await as(owner).post(`/api/projects/${projectId}/tasks`).send({ title: 'Brand new' });
+  assert.equal(created.status, 201);
+
+  const payload = await event;
+  assert.equal(payload.projectId, projectId);
+  assert.equal(payload.task._id, created.body.task._id);
+  assert.equal(payload.task.title, 'Brand new');
+  assert.equal(payload.task.version, 0);
+  assert.equal(typeof payload.task.createdBy.name, 'string');
+});
+
+test('Deleting a task broadcasts task:deleted; a refused delete broadcasts nothing', async () => {
+  const socket = open(viewer.token);
+  await connected(socket);
+  await join(socket, projectId);
+
+  const created = await as(owner).post(`/api/projects/${projectId}/tasks`).send({ title: 'Delete me' });
+  const taskId = created.body.task._id;
+
+  const silence = noEvent(socket, 'task:deleted');
+  assert.equal((await as(viewer).delete(`/api/projects/${projectId}/tasks/${taskId}`)).status, 403);
+  await silence;
+
+  const event = nextEvent(socket, 'task:deleted');
+  assert.equal((await as(owner).delete(`/api/projects/${projectId}/tasks/${taskId}`)).status, 200);
+  assert.deepEqual(await event, { projectId, taskId });
+});
+
+test('Non-members never receive task:created', async () => {
+  const socket = open(outsider.token);
+  await connected(socket);
+  await join(socket, projectId); // refused: private project
+
+  const silence = noEvent(socket, 'task:created');
+  await as(owner).post(`/api/projects/${projectId}/tasks`).send({ title: 'Secret' });
+  await silence;
+});

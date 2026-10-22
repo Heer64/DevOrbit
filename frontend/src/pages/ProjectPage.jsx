@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Bell, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { assetUrl, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
@@ -10,6 +10,7 @@ import { MOCK_MEMBERS, MOCK_USER_ID, mockTaskApi } from '../taskMock';
 import { canWriteTasks } from '../roles';
 import MilestonesPanel from '../components/MilestonesPanel';
 import ActivityPanel from '../components/ActivityPanel';
+import ChatPanel from '../components/ChatPanel'; // [Sprint 2 final] US-16
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -33,6 +34,14 @@ const commitGroups = [
   { range: 'COMMITS 4–1 · OCT 07', title: 'Repository setup', count: 4, color: 'orange', dot: 'c3', text: 'Starter structure, lint rules, environment example, and CI checks were added to make local development predictable.', tags: ['Setup', 'CI'], author: 'Team' },
 ];
 const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: 'orange' };
+
+// [Sprint 2 final] Workspace tabs. The open tab (and what is open inside it) lives in the URL,
+// e.g. /project/<id>?tab=tasks&task=<taskId> or ?tab=chat&channel=<channelId>&message=<messageId>,
+// so notifications, the activity feed and decisions can link straight to a task or a message.
+export const PROJECT_TABS = ['Tasks', 'Chat', 'Milestones', 'Activity'];
+export function tabFromParam(value) {
+  return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
+}
 
 export default function ProjectPage() {
   const { id } = useParams();
@@ -70,7 +79,17 @@ export default function ProjectPage() {
   const taskRole = isLive ? membershipRole : 'Owner';
   const [taskList, setTaskList] = useState([]);
   const [addTaskSignal, setAddTaskSignal] = useState(0);
-  const [activeTab, setActiveTab] = useState('Tasks');
+  // [Sprint 2 final] Tab and deep-link targets come from the URL (see PROJECT_TABS above).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = tabFromParam(searchParams.get('tab'));
+  const openTaskId = searchParams.get('task') || '';
+  const openChannelId = searchParams.get('channel') || '';
+  const openMessageId = searchParams.get('message') || '';
+  const setActiveTab = useCallback((tab, extra = {}) => {
+    const next = new URLSearchParams({ tab: tab.toLowerCase() });
+    for (const [key, value] of Object.entries(extra)) if (value) next.set(key, value);
+    setSearchParams(next, { replace: true });
+  }, [setSearchParams]);
   const [showAllCommits, setShowAllCommits] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -151,7 +170,7 @@ export default function ProjectPage() {
         <section className="panel work-panel">
           <div className="panel-head"><div><h2>Project workspace</h2><p>Make it happen.</p></div><MoreHorizontal size={18} /></div>
           <div className="project-tabs">
-            {['Tasks', 'Milestones', 'Activity'].map((t) => <button key={t} className={activeTab === t ? 'active' : ''} onClick={() => setActiveTab(t)}>{t}</button>)}
+            {PROJECT_TABS.map((t) => <button key={t} className={activeTab === t ? 'active' : ''} aria-pressed={activeTab === t} onClick={() => setActiveTab(t)}>{t}</button>)}
           </div>
           {/* Kept mounted (just hidden) so tasks are not re-fetched on every tab switch. */}
           <div hidden={activeTab !== 'Tasks'}>
@@ -166,8 +185,26 @@ export default function ProjectPage() {
               onChanged={refreshProgress}
               onNotice={setNotice}
               milestones={milestoneOptions}
+              openTaskId={activeTab === 'Tasks' ? openTaskId : ''}
+              onCloseTask={() => { if (openTaskId) setActiveTab('Tasks'); }}
             />
           </div>
+          {/* [Sprint 2 final] Project channels (US-16). Members only. */}
+          {activeTab === 'Chat' && isLive && membershipRole && (
+            <ChatPanel
+              projectId={id}
+              myRole={membershipRole}
+              channelId={openChannelId}
+              highlightMessageId={openMessageId}
+              onChannelChange={(channelId) => setActiveTab('Chat', { channel: channelId })}
+            />
+          )}
+          {activeTab === 'Chat' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>Project channels are visible to members only.</p></div>
+          )}
+          {activeTab === 'Chat' && !isLive && (
+            <div className="task-empty"><Circle size={20} /><p>Channels are available in real projects. Sign in and open one of your projects to chat with your team.</p></div>
+          )}
           {activeTab === 'Milestones' && isLive && (
             <MilestonesPanel projectId={id} myRole={membershipRole} refreshKey={workVersion} onChange={() => setWorkVersion((n) => n + 1)} />
           )}

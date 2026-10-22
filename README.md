@@ -201,3 +201,24 @@ Each task includes `project { _id, name, color }` and `assignee`. The dashboard 
 **End-to-end tests** (`e2e/`, Playwright) run the real API, a real MongoDB and the built frontend in Chromium, and click through the main journeys: sign up and log in, a labelled task on the Kanban board, dashboard deadlines and stats, and Discover with two users. They run in CI as a second job after the unit tests pass, and locally with `npm run test:e2e` (no MongoDB install needed). See `e2e/README.md` for how to run them and how to add 1–2 tests per sprint.
 
 **Tests:** `backend/test/tasks.test.js` (label), `backend/test/myTasks.test.js`, `backend/test/discover.test.js`; `frontend/src/components/TasksPanel.label.test.jsx`, `frontend/src/components/DashboardTasks.test.jsx`, `frontend/src/pages/DashboardPage.test.jsx`, `frontend/src/pages/DiscoverPage.test.jsx`.
+
+## Sprint 2 — final (channels and live task list)
+
+This closes Sprint 2. It adds the project channels that Sprint 3 builds on (threads, mentions, feed, decisions).
+
+**Project channels (US-16, FR-5)** (`/api/projects/:id/channels`, members only, even for a Public project)
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /` | Members | `{ channels, membershipRole }`; `#general` is created the first time |
+| `POST /` | Owner, Admin | `{ name, description? }` → 201 `{ channel }`; names are lowercase and unique per project |
+| `GET /:channelId/messages?limit=50&before=<date>` | Members | `{ messages (oldest first), nextBefore }` |
+| `POST /:channelId/messages` | Owner, Admin, Contributor | `{ body }` → 201 `{ message }`; Viewers get **403** but can still read |
+
+The project page has a **Chat** tab. New messages are pushed live as `message:created { projectId, channelId, message }` to a members-only room. Visitors who are watching a Public project's board never receive messages.
+
+**Links into the project:** `/project/<id>?tab=tasks&task=<taskId>` opens a task. `/project/<id>?tab=chat&channel=<channelId>` opens a channel.
+
+**Live task list:** besides `task:updated`, the server now sends `task:created { projectId, task }` and `task:deleted { projectId, taskId }`. Tasks created or deleted by someone else appear or disappear without a reload. If the deleted task is open, its window closes with a notice.
+
+**Tests:** `backend/test/channels.test.js`, `backend/test/realtime.test.js` (create/delete events), `frontend/src/components/ChatPanel.test.jsx`, `frontend/src/components/TasksPanel.board.test.jsx`.

@@ -13,6 +13,9 @@ import { memberRole, validId } from './projectAccess.js';
  *   emit       'project:join'  { projectId }  ack -> { ok: true, role } | { ok: false, message }
  *   emit       'project:leave' { projectId }
  *   listen     'task:updated'  { projectId, task }   task = populated task, same shape as the REST API
+ *   listen     'task:created'  { projectId, task }     [Sprint 2 final]
+ *   listen     'task:deleted'  { projectId, taskId }   [Sprint 2 final]
+ *   listen     'message:created' { projectId, channelId, message }   [Sprint 2 final] members only
  *
  * Who may join a project room: the same people who may read its tasks
  * (members of any project, and anyone for a Public project). Only reading happens here;
@@ -25,6 +28,9 @@ import { memberRole, validId } from './projectAccess.js';
 let io = null;
 
 export const projectRoom = (projectId) => `project:${projectId}`;
+// [Sprint 2 final] Members-only room. Chat messages go here, because visitors of a Public
+// project may watch its task board (projectRoom) but must not read the team's channels.
+export const memberRoom = (projectId) => `project:${projectId}:members`;
 
 // Same checks as middleware/auth.js requireAuth: a valid JWT and a live, unrevoked session.
 async function userIdFromToken(token) {
@@ -75,6 +81,8 @@ export function initRealtime(httpServer, { origins = [] } = {}) {
         }
 
         await socket.join(projectRoom(projectId));
+        // [Sprint 2 final] Only real members also join the members-only room (chat).
+        if (role) await socket.join(memberRoom(projectId));
         return reply({ ok: true, role });
       } catch {
         return reply({ ok: false, message: 'Could not join the project.' });
@@ -83,7 +91,10 @@ export function initRealtime(httpServer, { origins = [] } = {}) {
 
     socket.on('project:leave', (payload) => {
       const projectId = String(payload?.projectId || '');
-      if (validId(projectId)) socket.leave(projectRoom(projectId));
+      if (validId(projectId)) {
+        socket.leave(projectRoom(projectId));
+        socket.leave(memberRoom(projectId)); // [Sprint 2 final]
+      }
     });
   });
 
@@ -99,6 +110,36 @@ export function emitTaskUpdated(task) {
   const projectId = String(task.project?._id || task.project || '');
   if (!projectId) return;
   io.to(projectRoom(projectId)).emit('task:updated', { projectId, task });
+}
+
+/*
+ * [Sprint 2 final] A task was created or deleted. Same room and rules as task:updated,
+ * so a board open in another browser shows new tasks and drops deleted ones without a reload.
+ *   'task:created' { projectId, task }      task = populated, same shape as the REST API
+ *   'task:deleted' { projectId, taskId }
+ */
+export function emitTaskCreated(task) {
+  if (!io || !task) return;
+  const projectId = String(task.project?._id || task.project || '');
+  if (!projectId) return;
+  io.to(projectRoom(projectId)).emit('task:created', { projectId, task });
+}
+
+export function emitTaskDeleted(projectId, taskId) {
+  if (!io || !projectId || !taskId) return;
+  io.to(projectRoom(String(projectId))).emit('task:deleted', { projectId: String(projectId), taskId: String(taskId) });
+}
+
+/*
+ * [Sprint 2 final] A new channel message (US-16). Sent to project members only.
+ * Payload: { projectId, channelId, message }   message = populated, same shape as the REST API.
+ */
+export function emitMessageCreated(message) {
+  if (!io || !message) return;
+  const projectId = String(message.project?._id || message.project || '');
+  const channelId = String(message.channel?._id || message.channel || '');
+  if (!projectId || !channelId) return;
+  io.to(memberRoom(projectId)).emit('message:created', { projectId, channelId, message });
 }
 
 export async function closeRealtime() {

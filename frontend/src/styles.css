@@ -354,3 +354,35 @@ textarea.field-input{resize:vertical;min-height:90px}
 .dash-task-due{font-size:9px;color:var(--muted);white-space:nowrap}
 .dash-task-due.overdue{color:var(--danger);font-weight:700}
 @media (max-width:820px){.dash-task-grid{grid-template-columns:1fr}}
+
+/* ===== Sprint 2 final: project channels (US-16) ===== */
+.chat{display:grid;grid-template-columns:170px minmax(0,1fr);gap:12px;min-height:420px}
+.chat-channels{display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--line);padding-right:10px}
+.chat-channels button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--muted);font-size:11px;padding:8px 9px;border-radius:8px;text-align:left}
+.chat-channels button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-channels button:hover{background:var(--panel2);color:var(--text)}
+.chat-channels button.active{background:var(--soft);color:var(--accent);font-weight:700}
+.chat-channels .chat-new{color:var(--accent)}
+.chat-new-form{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chat-new-form input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:7px;font-size:11px}
+.chat-new-form .form-error{flex-basis:100%}
+.chat-room{display:flex;flex-direction:column;min-width:0;gap:8px}
+.chat-room-head{display:flex;align-items:baseline;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.chat-room-head b{display:flex;align-items:center;gap:4px;font-size:13px}
+.chat-room-head small{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-messages{flex:1;min-height:260px;max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px}
+.chat-older{align-self:center;margin:4px 0 8px;font-size:10px;border:0;background:transparent;color:var(--accent)}
+.chat-message{display:flex;gap:9px;padding:7px 6px;border-radius:9px}
+.chat-message:hover{background:var(--panel2)}
+.chat-message.highlight{background:var(--soft);box-shadow:inset 3px 0 0 var(--accent)}
+.chat-message>div{min-width:0;flex:1}
+.chat-message-head{display:flex;align-items:baseline;gap:7px}
+.chat-message-head b{font-size:11px}
+.chat-message-head time{font-size:9px;color:var(--muted)}
+.chat-message p{margin:3px 0 0;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-composer{display:flex;gap:8px;align-items:flex-end}
+.chat-composer textarea{flex:1;min-width:0;resize:none;max-height:140px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);padding:10px 12px;font-size:12px;line-height:1.4}
+.chat-composer textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px #8065ef1f}
+.chat-composer .btn{height:40px}
+.chat-readonly{margin:0}
+@media (max-width:820px){.chat{grid-template-columns:1fr}.chat-channels{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:0 0 8px}.chat-channels button{flex:none}.chat-new-form{flex:none;min-width:220px}}

@@ -7,6 +7,7 @@ const PROJECT = 'p1';
 
 function fakeApi(initial) {
   let listener = null;
+  let deleteListener = null;
   return {
     list: vi.fn(() => Promise.resolve({ tasks: initial.map((t) => ({ ...t })), membershipRole: 'Owner' })),
     create: vi.fn(),
@@ -14,8 +15,13 @@ function fakeApi(initial) {
     remove: vi.fn(),
     get: vi.fn(),
     updateStatus: vi.fn(() => new Promise(() => {})),
-    subscribe: vi.fn((projectId, callback) => { listener = callback; return () => { listener = null; }; }),
+    subscribe: vi.fn((projectId, callback, onDeleted) => {
+      listener = callback;
+      deleteListener = onDeleted;
+      return () => { listener = null; deleteListener = null; };
+    }),
     push: (task) => act(() => { listener?.(task); }),
+    pushDeleted: (taskId) => act(() => { deleteListener?.(taskId); }),
   };
 }
 
@@ -51,7 +57,7 @@ describe('TasksPanel board view', () => {
 
   it('subscribes to live updates for this project and moves the card on task:updated', async () => {
     const api = await renderBoard();
-    expect(api.subscribe).toHaveBeenCalledWith(PROJECT, expect.any(Function));
+    expect(api.subscribe).toHaveBeenCalledWith(PROJECT, expect.any(Function), expect.any(Function));
 
     api.push({ ...seed[0], status: 'Done', version: 4 });
     expect(columnOf('Draft schema')).toBe('Done');
@@ -63,6 +69,47 @@ describe('TasksPanel board view', () => {
     expect(columnOf('Draft schema')).toBe('To Do');
     api.push({ ...seed[0], status: 'Done', version: 2 });
     expect(columnOf('Draft schema')).toBe('To Do');
+  });
+
+  // [Sprint 2 final] task:created / task:deleted from other members.
+  it('adds a task created by someone else, once', async () => {
+    const api = await renderBoard();
+    const fresh = { _id: 'c', title: 'Made elsewhere', status: 'In progress', priority: 'Medium', version: 0, assignee: null, createdBy: { _id: 'other' } };
+    api.push(fresh);
+    api.push(fresh);
+    expect(screen.getAllByText('Made elsewhere')).toHaveLength(1);
+    expect(columnOf('Made elsewhere')).toBe('In Progress');
+  });
+
+  it('a task I create shows once even when its live event arrives before the save returns', async () => {
+    const api = fakeApi(seed);
+    const mine = { _id: 'n', title: 'My new task', status: 'To do', priority: 'Medium', version: 0, assignee: null, createdBy: { _id: 'me' } };
+    api.create = vi.fn(async () => {
+      api.push(mine); // the socket event wins the race
+      return { task: mine };
+    });
+    localStorage.setItem('devorbit_task_view', 'list');
+    render(<TasksPanel projectId={PROJECT} myRole="Owner" currentUserId="me" members={[]} api={api} addSignal={1} />);
+    await screen.findByText('Draft schema');
+
+    fireEvent.change(screen.getByPlaceholderText(/what needs to get done/i), { target: { value: 'My new task' } });
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }));
+
+    await screen.findByText('My new task');
+    expect(screen.getAllByText('My new task')).toHaveLength(1);
+  });
+
+  it('removes a task deleted by someone else and closes it if it is open', async () => {
+    const onNotice = vi.fn();
+    const api = await renderBoard({ onNotice });
+    fireEvent.click(screen.getByText('Waiting on design'));
+    expect(screen.getByRole('heading', { name: 'Edit task' })).toBeTruthy();
+
+    api.pushDeleted('b');
+    expect(screen.queryByText('Waiting on design')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Edit task' })).toBeNull();
+    expect(onNotice).toHaveBeenCalledWith('That task was deleted by another member.');
+    expect(screen.getByText('Draft schema')).toBeTruthy();
   });
 
   it('clicking a card opens the task in the edit modal (temporary drawer)', async () => {
