@@ -207,3 +207,37 @@ test('Non-members never receive task:created', async () => {
   await as(owner).post(`/api/projects/${projectId}/tasks`).send({ title: 'Secret' });
   await silence;
 });
+test('New activity is broadcast to project members only', async () => {
+  const member = open(viewer.token);
+  await connected(member);
+
+  assert.deepEqual(await join(member, projectId), {
+    ok: true,
+    role: 'Viewer',
+  });
+
+  const visitor = open(outsider.token);
+  await connected(visitor);
+
+  const visitorJoin = await join(visitor, projectId);
+  assert.equal(visitorJoin.ok, false);
+
+  const activityEvent = nextEvent(member, 'activity:created');
+  const noVisitorEvent = noEvent(visitor, 'activity:created', 400);
+
+  const created = await as(owner)
+    .post(`/api/projects/${projectId}/tasks`)
+    .send({ title: 'Live activity test' });
+
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const payload = await activityEvent;
+
+  assert.equal(payload.projectId, projectId);
+  assert.equal(payload.activity.type, 'task.created');
+  assert.equal(payload.activity.targetLabel, 'Live activity test');
+  assert.equal(payload.activity.actor.name, 'Rae Owner');
+  assert.ok(payload.activity.createdAt);
+
+  await noVisitorEvent;
+});

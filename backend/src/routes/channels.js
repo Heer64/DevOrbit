@@ -7,6 +7,7 @@ import { loadProjectForMember, validId } from '../lib/projectAccess.js';
 import { canManageChannels, canPostMessages } from '../lib/permissions.js';
 import { ensureDefaultChannel, normalizeChannelName } from '../lib/channels.js';
 import { emitMessageCreated } from '../lib/realtime.js';
+import { logActivity, quote } from '../lib/activity.js'; // [US-29]
 
 /*
  * Project channels and messages (US-16, FR-5). Mounted at /api/projects/:id/channels
@@ -169,6 +170,18 @@ router.post('/:channelId/messages', async (req, res, next) => {
 
     const message = await findPopulatedMessage(created._id);
     emitMessageCreated(message);
+
+    // [US-29] Chat messages appear in the project Activity Feed.
+    await logActivity({
+      project: loaded.project._id,
+      actor: req.user.id,
+      type: 'message.posted',
+      summary: `posted in #${channel.name}: ${quote(body, 80)}`,
+      targetType: 'message',
+      targetId: created._id,
+      targetLabel: `#${channel.name}`,
+      meta: { channelId: String(channel._id) },
+    });
 
     return res.status(201).json({ message });
   } catch (error) {

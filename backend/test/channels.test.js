@@ -17,6 +17,7 @@ const sockets = [];
 const as = (account) => authed(app, account.token);
 const channels = () => `/api/projects/${projectId}/channels`;
 const messages = (channelId) => `${channels()}/${channelId}/messages`;
+const activityFeed = () => `/api/projects/${projectId}/activity`; // [US-29]
 
 function open(token) {
   const socket = connect(baseUrl, { auth: { token }, transports: ['websocket'], reconnection: false, forceNew: true });
@@ -156,11 +157,123 @@ test('Members watching the project get the message live (< 1 s); visitors of a P
   await notForVisitor; // ...but never receives chat messages
 });
 
+// [US-29] Chat messages in the Activity Feed.
+test('US-29: sent messages appear in the activity feed', async () => {
+  const sent = await as(contributor)
+    .post(messages(generalId))
+    .send({ body: 'Feed check message' });
+
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+
+  const res = await as(viewer).get(activityFeed());
+
+  assert.equal(res.status, 200);
+
+  const event = res.body.activity.find(
+    (item) => String(item.targetId) === String(sent.body.message._id)
+  );
+
+  assert.ok(event, 'Expected the sent message to have an activity event');
+  assert.equal(event.type, 'message.posted');
+  assert.equal(event.actor.name, 'Chat Contributor');
+  assert.ok(event.createdAt);
+  assert.equal(event.targetType, 'message');
+  assert.equal(String(event.targetId), String(sent.body.message._id));
+  assert.equal(event.targetLabel, '#general');
+  assert.equal(
+    event.summary,
+    'posted in #general: "Feed check message"'
+  );
+});
+
+test('US-29: long message summaries are shortened', async () => {
+  const long = 'x'.repeat(500);
+
+  const sent = await as(contributor)
+    .post(messages(generalId))
+    .send({ body: long });
+
+  assert.equal(sent.status, 201);
+  assert.equal(sent.body.message.body.length, 500);
+
+  const res = await as(owner).get(activityFeed());
+
+  const event = res.body.activity.find(
+    (item) => String(item.targetId) === String(sent.body.message._id)
+  );
+
+  assert.ok(event, 'Expected the long message to have an activity event');
+  assert.equal(event.type, 'message.posted');
+  assert.ok(event.summary.length < 120);
+  assert.match(event.summary, /…"$/);
+});
+
+test('US-29: rejected messages do not create feed events', async () => {
+  const before = await as(owner).get(`${activityFeed()}?limit=100`);
+
+  assert.equal(before.status, 200);
+
+  const countBefore = before.body.activity.filter(
+    (event) => event.type === 'message.posted'
+  ).length;
+
+  assert.equal(
+    (await as(viewer).post(messages(generalId)).send({ body: 'Viewer try' })).status,
+    403
+  );
+
+  assert.equal(
+    (await as(contributor).post(messages(generalId)).send({ body: '   ' })).status,
+    400
+  );
+
+  assert.equal(
+    (await as(outsider).post(messages(generalId)).send({ body: 'Outsider try' })).status,
+    403
+  );
+
+  const after = await as(owner).get(`${activityFeed()}?limit=100`);
+
+  assert.equal(after.status, 200);
+
+  const countAfter = after.body.activity.filter(
+    (event) => event.type === 'message.posted'
+  ).length;
+
+  assert.equal(countAfter, countBefore);
+});
+
+test('US-29: outsiders cannot read the activity feed', async () => {
+  const res = await as(outsider).get(activityFeed());
+
+  assert.equal(res.status, 403);
+});
+
+test('US-29: live activity reaches members but not visitors of a Public project', async () => {
+  const member = await open(viewer.token);
+  const visitor = await open(outsider.token);
+  assert.equal((await join(member, projectId)).ok, true);
+  assert.equal((await join(visitor, projectId)).ok, true); // Public: visitors may watch the board
+
+  const received = nextEvent(member, 'activity:created');
+  const silent = noEvent(visitor, 'activity:created', 400);
+
+  await as(contributor).post(messages(generalId)).send({ body: 'Live feed check' });
+
+  const payload = await received;
+  assert.equal(payload.projectId, projectId);
+  assert.equal(payload.activity.type, 'message.posted');
+  assert.equal(payload.activity.actor.name, 'Chat Contributor');
+  await silent; // ...but never receives feed events
+});
+
 /*
  * ---------------------------------------------------------------------------
  * [Sprint 2 final] What this file tests
  * US-16 acceptance criteria: messages are saved and reach viewers of the
  * channel live within 1 second; Viewers get 403 on send but can read; channels
  * are members-only; #general is automatic; Owner/Admin channel creation.
+ * [US-29] Messages create feed events (shortened summary, rejected sends not logged),
+ * the feed is members-only, and live feed events never reach Public-project visitors.
  * ---------------------------------------------------------------------------
  */

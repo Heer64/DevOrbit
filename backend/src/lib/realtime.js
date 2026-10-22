@@ -16,6 +16,7 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'task:created'  { projectId, task }     [Sprint 2 final]
  *   listen     'task:deleted'  { projectId, taskId }   [Sprint 2 final]
  *   listen     'message:created' { projectId, channelId, message }   [Sprint 2 final] members only
+ *   listen     'activity:created' { projectId, activity }   [US-29] members only, activity = populated feed event
  *
  * Who may join a project room: the same people who may read its tasks
  * (members of any project, and anyone for a Public project). Only reading happens here;
@@ -140,6 +141,18 @@ export function emitMessageCreated(message) {
   const channelId = String(message.channel?._id || message.channel || '');
   if (!projectId || !channelId) return;
   io.to(memberRoom(projectId)).emit('message:created', { projectId, channelId, message });
+}
+
+/*
+ * [US-29] A new Activity Feed event, sent by lib/activity.js logActivity().
+ * Members only, like chat: the feed names people, so Public-project visitors do not get it.
+ * Payload: { projectId, activity }   activity = same shape as GET /api/projects/:id/activity
+ */
+export function emitActivityCreated(activity) {
+  if (!io || !activity) return;
+  const projectId = String(activity.project?._id || activity.project || '');
+  if (!projectId) return;
+  io.to(memberRoom(projectId)).emit('activity:created', { projectId, activity });
 }
 
 export async function closeRealtime() {
