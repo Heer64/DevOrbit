@@ -16,9 +16,28 @@ export const ACTIVITY_TYPES = [
   'milestone.created',
   'milestone.updated',
   'milestone.deleted',
+  // [US-29] Sprint 3 events (logged by the members who build these features)
+  'message.posted',
+  'invite.sent',
+  'invite.accepted',
+  'invite.declined',
+  'join_request.created',
+  'join_request.approved',
+  'join_request.rejected',
+  'comment.created',
+  'decision.created',
+  'decision.updated',
+  // [US-29] Sprint 4 GitHub events (US-34)
+  'github.commit',
+  'github.issue',
+  'github.pull_request',
 ];
 
-export const TARGET_TYPES = ['project', 'member', 'task', 'milestone'];
+export const TARGET_TYPES = [
+  'project', 'member', 'task', 'milestone',
+  // [US-29]
+  'message', 'invite', 'join_request', 'comment', 'decision', 'github',
+];
 
 const activitySchema = new mongoose.Schema(
   {
@@ -27,11 +46,15 @@ const activitySchema = new mongoose.Schema(
       ref: 'Project',
       required: true,
     },
-    // Who did it.
+    // Who did it. [US-29] GitHub webhook events may have no FORGE user;
+    // for those the GitHub username goes in meta.author instead.
     actor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required() {
+        return !String(this.type).startsWith('github.');
+      },
+      default: null,
     },
     type: {
       type: String,

@@ -386,3 +386,6 @@ textarea.field-input{resize:vertical;min-height:90px}
 .chat-composer .btn{height:40px}
 .chat-readonly{margin:0}
 @media (max-width:820px){.chat{grid-template-columns:1fr}.chat-channels{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:0 0 8px}.chat-channels button{flex:none}.chat-new-form{flex:none;min-width:220px}}
+
+/* [US-29] Activity tab type filter */
+.activity-filter { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; }

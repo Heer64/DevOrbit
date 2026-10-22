@@ -1,4 +1,7 @@
-import { CheckCircle2, Flag, FolderPlus, ListTodo, Pencil, ShieldCheck, Trash2, UserMinus, UserPlus, UserRoundCheck } from 'lucide-react';
+import {
+  CheckCircle2, CircleDot, Flag, FolderPlus, Gavel, GitCommitHorizontal, GitPullRequest, ListTodo, Mail,
+  MessageCircle, MessageSquare, Pencil, ShieldCheck, Trash2, UserMinus, UserPlus, UserRoundCheck,
+} from 'lucide-react';
 
 // Icon and colour for each activity type sent by the API (backend/src/models/Activity.js).
 const LOOK = {
@@ -16,7 +19,24 @@ const LOOK = {
   'milestone.created': { icon: Flag, tone: 'purple', title: 'Milestone created' },
   'milestone.updated': { icon: Flag, tone: 'blue', title: 'Milestone updated' },
   'milestone.deleted': { icon: Trash2, tone: 'orange', title: 'Milestone deleted' },
+  // [US-29]
+  'message.posted': { icon: MessageSquare, tone: 'blue', title: 'New message' },
+  'invite.sent': { icon: Mail, tone: 'purple', title: 'Invite sent' },
+  'invite.accepted': { icon: UserRoundCheck, tone: 'green', title: 'Invite accepted' },
+  'invite.declined': { icon: Mail, tone: 'orange', title: 'Invite declined' },
+  'join_request.created': { icon: UserPlus, tone: 'blue', title: 'Join request submitted' },
+  'join_request.approved': { icon: UserRoundCheck, tone: 'green', title: 'Join request approved' },
+  'join_request.rejected': { icon: UserMinus, tone: 'orange', title: 'Join request rejected' },
+  'comment.created': { icon: MessageCircle, tone: 'blue', title: 'Comment added' },
+  'decision.created': { icon: Gavel, tone: 'purple', title: 'Decision recorded' },
+  'decision.updated': { icon: Gavel, tone: 'blue', title: 'Decision updated' },
+  'github.commit': { icon: GitCommitHorizontal, tone: 'green', title: 'Commit pushed' },
+  'github.issue': { icon: CircleDot, tone: 'blue', title: 'GitHub issue updated' },
+  'github.pull_request': { icon: GitPullRequest, tone: 'purple', title: 'Pull request updated' },
 };
+
+// [US-29] Every type the feed knows, in display order. Used by the Activity tab's type filter.
+export const ACTIVITY_TYPE_KEYS = Object.keys(LOOK);
 
 export function activityLook(event) {
   const look = LOOK[event?.type] || { icon: Pencil, tone: 'blue', title: 'Update' };
@@ -27,7 +47,8 @@ export function activityLook(event) {
 
 // "Riya Kapoor created task "Login page"".
 export function activitySentence(event) {
-  const who = event?.actor?.name || 'Someone';
+  // [US-29] GitHub events may have no FORGE user, so fall back to the GitHub username.
+  const who = event?.actor?.name || event?.meta?.author || 'Someone';
   return `${who} ${event?.summary || ''}`.trim();
 }
 

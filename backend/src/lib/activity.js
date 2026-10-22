@@ -1,4 +1,5 @@
 import Activity from '../models/Activity.js';
+import { emitActivityCreated } from './realtime.js'; // [US-29]
 
 // Keeps quoted names short so one long title cannot fill the feed.
 export function quote(text, max = 80) {
@@ -23,6 +24,8 @@ export function quote(text, max = 80) {
  *
  * It never throws: the feed is a side effect, so a failed write is logged
  * and the main request (creating the task, adding the member, ...) still succeeds.
+ *
+ * [US-29] After saving, the event is pushed live to project members as 'activity:created'.
  */
 export async function logActivity({
   project,
@@ -34,8 +37,9 @@ export async function logActivity({
   targetLabel = '',
   meta = {},
 }) {
+  let saved;
   try {
-    return await Activity.create({
+    saved = await Activity.create({
       project,
       actor,
       type,
@@ -51,4 +55,16 @@ export async function logActivity({
     }
     return null;
   }
+
+  // [US-29] Push it live with the actor's name, same shape as the feed API.
+  try {
+    const event = await Activity.findById(saved._id).populate('actor', 'name username avatarUrl').lean();
+    emitActivityCreated(event || saved.toObject());
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Could not broadcast activity:', error.message);
+    }
+  }
+
+  return saved;
 }
