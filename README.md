@@ -241,3 +241,25 @@ Storage and read access for in-app notifications. Creating them automatically (m
 Only projects you are a member of **right now** count: if you are removed from a project or leave it, its notifications disappear from the list and from `unreadCount` (and marking one read answers **404**). The rows are kept, so they show again if you are added back.
 
 **Tests:** `backend/test/notifications.test.js`.
+
+## Sprint 3 — M2: join requests (US-12, US-47)
+
+A signed-in non-member can ask to join a **Public** project; the project's Owner or an Admin approves or rejects it.
+
+**Model** (`backend/src/models/JoinRequest.js`): `project`, `user` (who asked), `message` (optional, ≤ 500), `status` (`Pending` | `Approved` | `Rejected`, default `Pending`), `role` (set on approval), `decidedBy`, `decidedAt`, `createdAt` / `updatedAt`. A unique index allows only one pending request per person per project.
+
+**API** (`/api/projects/:id/join-requests`, signed in)
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `POST /` | Non-member of a Public project | `{ message? }` → 201 `{ joinRequest }`. **409** if already a member, already pending, or rejected less than 7 days ago (then also `canRequestAgainAt`); **403** for a Private project; **400** message over 500 characters |
+| `GET /me` | Anyone who can see the project | `{ joinRequest (latest or null), canRequestAgainAt, isMember }` |
+| `GET /?status=Pending` | Owner, Admin | `{ joinRequests }`, oldest first; `status` = `Pending` (default), `Approved`, `Rejected` or `all` |
+| `POST /:requestId/approve` | Owner, Admin | `{ role? }` (default `Contributor`; Owner may give Admin/Contributor/Viewer, Admin may give Contributor/Viewer) → `{ joinRequest }`; the person becomes a member |
+| `POST /:requestId/reject` | Owner, Admin | → `{ joinRequest }`; the person cannot ask again for 7 days |
+
+Approve/reject answer **409** if the request was already decided (only one decision wins, even if two managers click at once) and **404** if it belongs to another project. Each step is logged in the Activity Feed (`join_request.created`, `.approved`, `.rejected`).
+
+**UI:** a visitor of a Public project sees a **Request to join** card (optional message, then "Request sent", or the date they can ask again after a rejection). Owners and Admins see a **Join requests** panel under Team & roles with a role picker, Approve and Reject; the team list reloads after an approval. A logged-out user who opens a project link is sent to log in and then returned to that page.
+
+**Tests:** `backend/test/joinRequests.test.js`, `frontend/src/components/JoinRequests.test.jsx`, `frontend/src/pages/LoginPage.test.jsx`.

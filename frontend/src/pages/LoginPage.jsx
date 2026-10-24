@@ -1,12 +1,21 @@
 import { useState } from 'react';
 import { ArrowRight, LockKeyhole, Mail, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 import { useAuth } from '../context/AuthContext';
+
+// [Sprint 3 · M2] Where to go after logging in: the page that sent the user here, or the dashboard.
+// Only in-app paths are used, never another site.
+export function returnPath(from) {
+  const path = from?.pathname;
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path === '/login' || path === '/signup') return '/dashboard';
+  return `${path}${from.search || ''}`;
+}
 
 export default function LoginPage() {
   const { login, exploreDemo } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,7 +23,7 @@ export default function LoginPage() {
 
   const onSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { await login(email, password); navigate('/dashboard'); }
+    try { await login(email, password); navigate(returnPath(location.state?.from), { replace: true }); }
     catch (err) { setError(err?.message || 'Could not connect to the DevOrbit API. Start the backend or explore the demo.'); }
     finally { setLoading(false); }
   };
