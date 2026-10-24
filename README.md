@@ -222,3 +222,22 @@ The project page has a **Chat** tab. New messages are pushed live as `message:cr
 **Live task list:** besides `task:updated`, the server now sends `task:created { projectId, task }` and `task:deleted { projectId, taskId }`. Tasks created or deleted by someone else appear or disappear without a reload. If the deleted task is open, its window closes with a notice.
 
 **Tests:** `backend/test/channels.test.js`, `backend/test/realtime.test.js` (create/delete events), `frontend/src/components/ChatPanel.test.jsx`, `frontend/src/components/TasksPanel.board.test.jsx`.
+
+## Sprint 3 — M7 Part 1: notification storage (US-30)
+
+Storage and read access for in-app notifications. Creating them automatically (mentions, assignments, deadlines), pushing them live and the notification list UI come in M7 Part 2.
+
+**Model** (`backend/src/models/Notification.js`): `recipient` (User), `type` (`mention` | `assignment` | `deadline`, shown as Mention / Assignment / Deadline), `project`, `actor` (User or `null` for system notifications such as Deadline), `summary` (≤ 300), `targetType` (`task` | `message` | `comment`), `targetId`, `targetLabel` (≤ 200), `link` (in-app path starting with one `/`), `read` (default `false`), `readAt` (default `null`), optional `dedupeKey`, `createdAt` / `updatedAt`.
+
+**Storing one:** `createNotification({...})` in `backend/src/lib/notifications.js`. It only notifies current project members, skips the actor's own actions, never throws, and with a `dedupeKey` (e.g. `deadline:<taskId>:<dueDate>`) never stores the same notification twice for one user. `taskLink()` and `messageLink()` build the deep links ProjectPage already opens.
+
+**API** (`/api/notifications`, signed-in user, own notifications only)
+
+| Call | Response | Notes |
+|------|----------|-------|
+| `GET /api/notifications?limit=20&before=<date>&unread=true` | `{ notifications, nextBefore, unreadCount }` | newest first; `limit` 1–50; pass `nextBefore` back as `before`; each has `actor { name, username, avatarUrl }` and `project { name, color }` |
+| `PATCH /api/notifications/:notificationId/read` | `{ notification, unreadCount }` | safe to repeat (keeps the first `readAt`); another user's notification answers **404** |
+
+Only projects you are a member of **right now** count: if you are removed from a project or leave it, its notifications disappear from the list and from `unreadCount` (and marking one read answers **404**). The rows are kept, so they show again if you are added back.
+
+**Tests:** `backend/test/notifications.test.js`.

@@ -10,6 +10,7 @@ import milestoneRoutes from './routes/milestones.js';
 import { projectActivityRoutes, myActivityRoutes } from './routes/activity.js';
 import profileRoutes from './routes/profile.js';
 import channelRoutes from './routes/channels.js'; // [Sprint 2 final] US-16
+import notificationRoutes from './routes/notifications.js'; // [Sprint 3 · M7 Part 1] US-30
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -76,6 +77,7 @@ export function createApp() {
   app.use('/api/activity', myActivityRoutes);
   app.use('/api/profile', profileRoutes);
   app.use('/api/projects/:id/channels', channelRoutes); // [Sprint 2 final] US-16
+  app.use('/api/notifications', notificationRoutes); // [Sprint 3 · M7 Part 1] US-30
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });
