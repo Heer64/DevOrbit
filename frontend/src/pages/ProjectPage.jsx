@@ -7,10 +7,12 @@ import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
 import TeamPanel from '../components/TeamPanel';
 import TasksPanel from '../components/TasksPanel';
 import { MOCK_MEMBERS, MOCK_USER_ID, mockTaskApi } from '../taskMock';
-import { canWriteTasks } from '../roles';
+import { canManageMembers, canWriteTasks } from '../roles';
 import MilestonesPanel from '../components/MilestonesPanel';
 import ActivityPanel from '../components/ActivityPanel';
 import ChatPanel from '../components/ChatPanel'; // [Sprint 2 final] US-16
+import JoinRequestCard from '../components/JoinRequestCard'; // [Sprint 3 · M2] US-47
+import JoinRequestsPanel from '../components/JoinRequestsPanel'; // [Sprint 3 · M2] US-12
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -51,6 +53,8 @@ export default function ProjectPage() {
   const [projectLoadError, setProjectLoadError] = useState('');
   const [membershipRole, setMembershipRole] = useState(null);
   const [team, setTeam] = useState(null);
+  // [Sprint 3 · M2] Bumped after a join request is approved so the team list reloads.
+  const [teamVersion, setTeamVersion] = useState(0);
   let localProjects = [];
   try { localProjects = JSON.parse(localStorage.getItem('devorbit_local_projects') || '[]'); } catch { localProjects = []; }
   const localProject = localProjects.find((p) => p.id === id);
@@ -234,8 +238,16 @@ export default function ProjectPage() {
         </section>
 
         <aside className="stack-right">
+          {/* [Sprint 3 · M2] Visitors of a Public project can ask to join (US-47). */}
+          {liveProject && !membershipRole && liveProject.visibility === 'Public' && (
+            <JoinRequestCard projectId={id} />
+          )}
           {liveProject && membershipRole && (
-            <TeamPanel projectId={id} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
+            <TeamPanel key={teamVersion} projectId={id} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
+          )}
+          {/* [Sprint 3 · M2] Owners and Admins review join requests (US-12). */}
+          {liveProject && canManageMembers(membershipRole) && (
+            <JoinRequestsPanel projectId={id} myRole={membershipRole} onApproved={() => setTeamVersion((n) => n + 1)} />
           )}
           <section className="panel">
             <div className="panel-head"><div><div className="eyebrow">DEVELOPMENT</div><h2 className="with-icon" style={{ marginTop: 6 }}><Code2 size={17} /> Code &amp; files</h2></div><button className="iconbtn" onClick={() => setNotice('Repository actions are demo-only until GitHub OAuth is configured.')} aria-label="Repository actions"><MoreHorizontal size={17} /></button></div>

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import AppShell from './components/AppShell';
 import LoginPage from './pages/LoginPage';
@@ -10,10 +10,13 @@ import ProjectPage from './pages/ProjectPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return <div className="boot"><div className="auth-card"><div className="card-title"><div><h2>Opening your orbit…</h2><p>Restoring your DevOrbit session.</p></div></div></div></div>;
   }
-  return user ? children : <Navigate to="/login" replace />;
+  // [Sprint 3 · M2] Remember the page, so after logging in the user comes back to it
+  // (US-47: a logged-out visitor who opens a project is asked to log in first, then can request to join).
+  return user ? children : <Navigate to="/login" replace state={{ from: location }} />;
 }
 
 export default function App() {
