@@ -389,3 +389,21 @@ textarea.field-input{resize:vertical;min-height:90px}
 
 /* [US-29] Activity tab type filter */
 .activity-filter { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; }
+
+/* [Sprint 3 · M2] Join requests (US-12, US-47) */
+.join-card .team-note,.join-requests-panel .team-note{font-size:10px;color:var(--muted);line-height:1.6;margin:0 0 12px}
+.join-form{display:flex;flex-direction:column;gap:8px}
+.join-form textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:70px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);padding:10px 12px;font-size:11px;line-height:1.5}
+.join-form textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px #8065ef1f}
+.join-count{align-self:flex-end;font-size:9px;color:var(--muted)}
+.join-status{display:flex;gap:9px;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px;color:var(--muted)}
+.join-status svg{flex:none;margin-top:1px;color:var(--accent)}
+.join-status p{margin:0;font-size:11px;line-height:1.6;color:var(--text)}
+.join-status q{color:var(--muted)}
+.join-request{padding:4px 0 12px;border-bottom:1px solid var(--line)}
+.join-request:last-of-type{border-bottom:0}
+.join-request .member-row{border-bottom:0;padding-bottom:6px}
+.join-message{margin:0 0 8px 40px;font-size:11px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.join-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:40px}
+.join-actions select{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:6px 8px;font-size:10px}
+.join-card .form-error,.join-requests-panel .form-error,.join-requests-panel .success-inline{margin:10px 0 0}

@@ -258,6 +258,21 @@ export const myTaskApi = {
   stats: () => api('/tasks/stats'),
 };
 
+// [Sprint 3 · M2] Join requests (US-12, US-47). Contract: backend/src/routes/joinRequests.js
+//   mine    -> { joinRequest (my latest or null), canRequestAgainAt, isMember }
+//   create  -> { joinRequest }   409 when already a member, already pending, or blocked (with canRequestAgainAt)
+//   list    -> { joinRequests }  Owner/Admin only, oldest first (status: Pending by default)
+//   approve -> { joinRequest }   role: 'Admin' | 'Contributor' | 'Viewer' (default Contributor)
+//   reject  -> { joinRequest }
+const joinRequestPath = (id, rest = '') => `${projectPath(id)}/join-requests${rest}`;
+export const joinRequestApi = {
+  mine: (id) => api(joinRequestPath(id, '/me')),
+  create: (id, message = '') => api(joinRequestPath(id), { method: 'POST', body: JSON.stringify({ message }) }),
+  list: (id, status = 'Pending') => api(`${joinRequestPath(id)}?status=${encodeURIComponent(status)}`),
+  approve: (id, requestId, role = 'Contributor') => api(joinRequestPath(id, `/${encodeURIComponent(requestId)}/approve`), { method: 'POST', body: JSON.stringify({ role }) }),
+  reject: (id, requestId) => api(joinRequestPath(id, `/${encodeURIComponent(requestId)}/reject`), { method: 'POST', body: JSON.stringify({}) }),
+};
+
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
 };
