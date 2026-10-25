@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Bell, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { assetUrl, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
+import { assetUrl, liveApi, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
 import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
 import TeamPanel from '../components/TeamPanel';
 import TasksPanel from '../components/TasksPanel';
@@ -53,6 +53,8 @@ export default function ProjectPage() {
   const [projectLoadError, setProjectLoadError] = useState('');
   const [membershipRole, setMembershipRole] = useState(null);
   const [team, setTeam] = useState(null);
+  // [Sprint 3 · M3] Bumped when the server says I was removed from (or left) this project, to reload it.
+  const [accessVersion, setAccessVersion] = useState(0);
   // [Sprint 3 · M2] Bumped after a join request is approved so the team list reloads.
   const [teamVersion, setTeamVersion] = useState(0);
   let localProjects = [];
@@ -72,7 +74,7 @@ export default function ProjectPage() {
       .then((result) => { if (active) { setLiveProject(toWorkspaceProject(result.project || result, user)); setMembershipRole(result.membershipRole || null); setTeam(null); setProjectLoadError(''); } })
       .catch((error) => { if (active) { setLiveProject(null); setMembershipRole(null); setProjectLoadError(error.message || 'Could not load project details.'); } });
     return () => { active = false; };
-  }, [id, user]);
+  }, [id, user, accessVersion]);
 
   const project = liveProject || projects[id] || (localProject
     ? { ...localProject, domain: localProject.domain || 'Developer tools', repo: localProject.repo || 'your-team/new-repo', members: ['AM'], health: 'Just getting started', goal: 'Bring your project idea to life.' }
@@ -96,6 +98,17 @@ export default function ProjectPage() {
   }, [setSearchParams]);
   const [showAllCommits, setShowAllCommits] = useState(false);
   const [notice, setNotice] = useState('');
+
+  // [Sprint 3 · M3] US-13: if an Owner/Admin removes me while this page is open, say so and reload the
+  // project at once (a Private project then shows "no access", a Public one the visitor view).
+  useEffect(() => {
+    if (!isLive || !membershipRole) return undefined;
+    return liveApi.onProject(id, 'project:access-removed', (payload) => {
+      setNotice(payload?.reason === 'left' ? 'You left this project.' : 'You were removed from this project.');
+      window.dispatchEvent(new Event('devorbit:projects-updated'));
+      setAccessVersion((n) => n + 1);
+    });
+  }, [id, isLive, membershipRole]);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -243,7 +256,7 @@ export default function ProjectPage() {
             <JoinRequestCard projectId={id} />
           )}
           {liveProject && membershipRole && (
-            <TeamPanel key={teamVersion} projectId={id} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
+            <TeamPanel key={teamVersion} projectId={id} projectName={liveProject.name} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
           )}
           {/* [Sprint 3 · M2] Owners and Admins review join requests (US-12). */}
           {liveProject && canManageMembers(membershipRole) && (

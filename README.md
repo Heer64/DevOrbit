@@ -242,6 +242,18 @@ Only projects you are a member of **right now** count: if you are removed from a
 
 **Tests:** `backend/test/notifications.test.js`.
 
+## Sprint 3 — M3: remove a member and leave a project (US-13, US-14)
+
+Builds on the existing `DELETE /api/projects/:id/members/:userId` (US-09), which already removed members, let members leave, protected the Owner and logged `member.removed` / `member.left`.
+
+**What M3 adds**
+
+- **Access ends at once, also live.** After a removal or a leave, the person's open browser tabs are taken out of the project's live rooms: no more chat messages or activity, and for a Private project no task updates either (a Public board stays watchable, like for any visitor). They receive `project:access-removed { projectId, reason: 'removed' | 'left' }`, and the project page tells them and reloads (Private → "no access", Public → visitor view). Rejoining a Private project's room is refused.
+- **History stays.** Their messages, created/assigned tasks and activity remain and keep their name. Tasks still assigned to them can be edited normally.
+- **Confirmation first.** Removing a member and leaving a project both open a confirmation dialog explaining what happens (`ConfirmDialog.jsx`). Errors from the server are shown in the dialog.
+- **Only Owner.** The Owner cannot be removed (**403** "The project Owner cannot be removed. Every project needs an Owner."). If the Owner tries to leave, the dialog and the API (**403**) ask them to transfer ownership to another member first.
+
+**Tests:** `backend/test/removeLeave.test.js`, `frontend/src/components/TeamPanel.test.jsx`.
 ## Sprint 3 — M2: join requests (US-12, US-47)
 
 A signed-in non-member can ask to join a **Public** project; the project's Owner or an Admin approves or rejects it.

@@ -390,6 +390,13 @@ textarea.field-input{resize:vertical;min-height:90px}
 /* [US-29] Activity tab type filter */
 .activity-filter { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; }
 
+/* [Sprint 3 · M3] Confirmation dialog for Remove member / Leave project (US-13, US-14) */
+.confirm-dialog .confirm-body p{margin:0 0 8px;font-size:12px;line-height:1.6;color:var(--muted)}
+.confirm-dialog .confirm-body p:last-child{margin-bottom:0}
+.confirm-dialog .form-error{margin-top:12px}
+.modal-icon.danger{background:var(--danger-bg);color:var(--danger)}
+.btn.danger{background:var(--danger);color:var(--panel);border-color:transparent}
+.btn.danger:disabled{opacity:.6;cursor:not-allowed}
 /* [Sprint 3 · M2] Join requests (US-12, US-47) */
 .join-card .team-note,.join-requests-panel .team-note{font-size:10px;color:var(--muted);line-height:1.6;margin:0 0 12px}
 .join-form{display:flex;flex-direction:column;gap:8px}
