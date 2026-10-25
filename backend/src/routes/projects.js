@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember } from '../lib/permissions.js';
 import { logActivity, quote } from '../lib/activity.js';
+import { revokeProjectAccess } from '../lib/realtime.js'; // [Sprint 3 · M3] US-13, US-14
 
 const router = Router();
 router.use(requireAuth);
@@ -282,6 +283,9 @@ router.delete('/:id/members/:userId', async (req, res, next) => {
       targetLabel: targetName,
       meta: { role: targetRole },
     });
+    // [Sprint 3 · M3] Their open tabs stop getting live chat/activity (and private task updates) at once.
+    // Messages, tasks and activity they created are not touched: history stays in the project (US-13/US-14).
+    await revokeProjectAccess(project._id, req.params.userId, { visibility: project.visibility, reason: isSelf ? 'left' : 'removed' });
     return res.json({ members: await loadMembers(project) });
   } catch (error) {
     return next(error);

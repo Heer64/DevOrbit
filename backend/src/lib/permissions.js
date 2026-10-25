@@ -66,7 +66,12 @@ export function checkAddMember(actorRole, newRole) {
 
 // Removing a member. Members may always leave themselves (except the Owner).
 export function checkRemoveMember(actorRole, targetRole, isSelf) {
-  if (targetRole === 'Owner') return { ok: false, status: 403, message: 'The project Owner cannot be removed.' };
+  // [Sprint 3 · M3] US-14: the only Owner is asked to hand the project over before leaving.
+  if (targetRole === 'Owner' && isSelf) {
+    return { ok: false, status: 403, message: 'You are the only Owner of this project. Transfer ownership to another member before leaving.' };
+  }
+  // US-13: the only Owner cannot be removed by anyone else.
+  if (targetRole === 'Owner') return { ok: false, status: 403, message: 'The project Owner cannot be removed. Every project needs an Owner.' };
   if (isSelf) return { ok: true };
   if (!canManageMembers(actorRole)) {
     return { ok: false, status: 403, message: 'Only project Owners and Admins can remove members.' };

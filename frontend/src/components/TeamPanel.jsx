@@ -3,16 +3,22 @@ import { LogOut, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { Avatar, AVATAR_TONES, Btn, initialsOf } from './ui';
 import { projectApi, assetUrl } from '../api';
 import { ROLE_HELP, assignableRoles, canActOnMember, canManageMembers } from '../roles';
+import ConfirmDialog from './ConfirmDialog'; // [Sprint 3 · M3] US-13, US-14
 
 // Team & roles for one project. Buttons are hidden when the role cannot use them,
 // but the API checks every request again and answers 403 if the rules are broken.
-export default function TeamPanel({ projectId, myRole, currentUserId, onMembers, onLeft }) {
+// [Sprint 3 · M3] Removing a member and leaving the project both ask for confirmation first (US-13, US-14).
+// projectName is optional and only used in the confirmation text.
+export default function TeamPanel({ projectId, projectName = '', myRole, currentUserId, onMembers, onLeft }) {
   const [members, setMembers] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [newRole, setNewRole] = useState('Contributor');
+  // [Sprint 3 · M3] Open confirmation: { kind: 'remove', member } | { kind: 'leave' } | { kind: 'owner-leave' } | null
+  const [confirm, setConfirm] = useState(null);
+  const [confirmError, setConfirmError] = useState('');
 
   const apply = useCallback((list) => { setMembers(list); onMembers?.(list); }, [onMembers]);
 
@@ -33,23 +39,50 @@ export default function TeamPanel({ projectId, myRole, currentUserId, onMembers,
   };
 
   const changeRole = (member, role) => run(() => projectApi.setMemberRole(projectId, member.userId, role), `${member.name} is now ${role}.`);
-  const remove = (member) => run(() => projectApi.removeMember(projectId, member.userId), `${member.name} was removed.`);
   const add = async (e) => {
     e.preventDefault();
     if (!identifier.trim()) return;
     const ok = await run(() => projectApi.addMember(projectId, { identifier: identifier.trim(), role: newRole }), 'Member added.');
     if (ok) setIdentifier('');
   };
-  const leave = async () => {
-    if (!window.confirm('Leave this project? You will lose access if it is private.')) return;
-    setError(''); setBusy(true);
-    try { await projectApi.removeMember(projectId, currentUserId); window.dispatchEvent(new Event('devorbit:projects-updated')); onLeft?.(); }
-    catch (e) { setError(e.message || 'Could not leave the project.'); }
-    finally { setBusy(false); }
+
+  const openConfirm = (next) => { setConfirmError(''); setError(''); setNotice(''); setConfirm(next); };
+  const closeConfirm = () => { if (!busy) { setConfirm(null); setConfirmError(''); } };
+
+  // US-13: remove after confirming. History (messages, tasks, activity) stays on the server.
+  const confirmRemove = async () => {
+    const { member } = confirm;
+    setConfirmError(''); setBusy(true);
+    try {
+      const result = await projectApi.removeMember(projectId, member.userId);
+      apply(result.members || []);
+      setNotice(`${member.name} was removed from the project.`);
+      setConfirm(null);
+    } catch (e) {
+      setConfirmError(e.message || 'Could not remove this member.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // US-14: leave after confirming.
+  const confirmLeave = async () => {
+    setConfirmError(''); setBusy(true);
+    try {
+      await projectApi.removeMember(projectId, currentUserId);
+      setConfirm(null);
+      window.dispatchEvent(new Event('devorbit:projects-updated'));
+      onLeft?.();
+    } catch (e) {
+      setConfirmError(e.message || 'Could not leave the project.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const manage = canManageMembers(myRole);
   const roleChoices = assignableRoles(myRole);
+  const projectLabel = projectName ? `“${projectName}”` : 'this project';
 
   return (
     <section className="panel team-panel">
@@ -72,12 +105,22 @@ export default function TeamPanel({ projectId, myRole, currentUserId, onMembers,
                 <select aria-label={`Role for ${member.name}`} value={member.role} disabled={busy} onChange={(e) => changeRole(member, e.target.value)}>
                   {roleChoices.map((role) => <option key={role}>{role}</option>)}
                 </select>
-                <button className="iconbtn" disabled={busy} aria-label={`Remove ${member.name}`} title="Remove from project" onClick={() => remove(member)}><X size={14} /></button>
+                <button className="iconbtn" disabled={busy} aria-label={`Remove ${member.name}`} title="Remove from project" onClick={() => openConfirm({ kind: 'remove', member })}><X size={14} /></button>
               </>
             ) : (
               <>
                 <span className={`pill ${member.role === 'Owner' ? 'purple' : ''}`}>{member.role}</span>
-                {isMe && member.role !== 'Owner' && <button className="iconbtn" disabled={busy} aria-label="Leave project" title="Leave project" onClick={leave}><LogOut size={14} /></button>}
+                {isMe && (
+                  <button
+                    className="iconbtn"
+                    disabled={busy}
+                    aria-label="Leave project"
+                    title="Leave project"
+                    onClick={() => openConfirm({ kind: member.role === 'Owner' ? 'owner-leave' : 'leave' })}
+                  >
+                    <LogOut size={14} />
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -97,6 +140,46 @@ export default function TeamPanel({ projectId, myRole, currentUserId, onMembers,
       )}
       {error && <div className="form-error" role="alert">{error}</div>}
       {notice && !error && <p className="success-inline" role="status">{notice}</p>}
+
+      {/* [Sprint 3 · M3] Confirmations (US-13, US-14) */}
+      <ConfirmDialog
+        open={confirm?.kind === 'remove'}
+        title={`Remove ${confirm?.member?.name || 'this member'}?`}
+        confirmLabel="Remove member"
+        danger
+        busy={busy}
+        error={confirmError}
+        onConfirm={confirmRemove}
+        onCancel={closeConfirm}
+      >
+        <p>They will lose access to {projectLabel} straight away: chat, activity and editing tasks.</p>
+        <p>Their past messages, tasks and activity stay in the project. You can add them again later.</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm?.kind === 'leave'}
+        title="Leave this project?"
+        confirmLabel="Leave project"
+        danger
+        busy={busy}
+        error={confirmError}
+        onConfirm={confirmLeave}
+        onCancel={closeConfirm}
+      >
+        <p>You will lose access to {projectLabel} straight away: its chat, activity and editing tasks. If it is private, you will no longer be able to open it.</p>
+        <p>Your messages and tasks stay in the project. To come back, an Owner or Admin has to add you again.</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm?.kind === 'owner-leave'}
+        title="Transfer ownership first"
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={closeConfirm}
+        onCancel={closeConfirm}
+      >
+        <p>You are the only Owner of {projectLabel}. Every project needs an Owner, so make another member the Owner before you leave.</p>
+      </ConfirmDialog>
     </section>
   );
 }

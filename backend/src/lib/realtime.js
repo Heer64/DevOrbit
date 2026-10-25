@@ -17,6 +17,7 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'task:deleted'  { projectId, taskId }   [Sprint 2 final]
  *   listen     'message:created' { projectId, channelId, message }   [Sprint 2 final] members only
  *   listen     'activity:created' { projectId, activity }   [US-29] members only, activity = populated feed event
+ *   listen     'project:access-removed' { projectId, reason }   [Sprint 3 · M3] sent to a person removed from / leaving a project
  *
  * Who may join a project room: the same people who may read its tasks
  * (members of any project, and anyone for a Public project). Only reading happens here;
@@ -153,6 +154,32 @@ export function emitActivityCreated(activity) {
   const projectId = String(activity.project?._id || activity.project || '');
   if (!projectId) return;
   io.to(memberRoom(projectId)).emit('activity:created', { projectId, activity });
+}
+
+/*
+ * [Sprint 3 · M3] US-13 / US-14: someone was removed from a project or left it.
+ * Their open browser tabs stop receiving the project's members-only events (chat, activity) right away,
+ * and for a Private project its task events too. A Public project's board stays watchable, as for any visitor.
+ * Each of their sockets also gets:
+ *   'project:access-removed' { projectId, reason: 'removed' | 'left' }
+ * so the page can tell them and reload. Never throws: the removal itself has already been saved.
+ */
+export async function revokeProjectAccess(projectId, userId, { visibility = 'Private', reason = 'removed' } = {}) {
+  if (!io || !projectId || !userId) return;
+  const pid = String(projectId);
+  const uid = String(userId);
+
+  try {
+    const sockets = await io.in(memberRoom(pid)).fetchSockets();
+    for (const socket of sockets) {
+      if (String(socket.data?.userId) !== uid) continue;
+      socket.leave(memberRoom(pid));
+      if (visibility !== 'Public') socket.leave(projectRoom(pid));
+      socket.emit('project:access-removed', { projectId: pid, reason });
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'test') console.error('Could not revoke live access:', error.message);
+  }
 }
 
 export async function closeRealtime() {
