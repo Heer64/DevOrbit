@@ -91,6 +91,7 @@ export default function ProjectPage() {
   const openTaskId = searchParams.get('task') || '';
   const openChannelId = searchParams.get('channel') || '';
   const openMessageId = searchParams.get('message') || '';
+  const openThreadId = searchParams.get('thread') || ''; // [Sprint 3] US-17/US-18: from a mention notification
   const setActiveTab = useCallback((tab, extra = {}) => {
     const next = new URLSearchParams({ tab: tab.toLowerCase() });
     for (const [key, value] of Object.entries(extra)) if (value) next.set(key, value);
@@ -214,6 +215,9 @@ export default function ProjectPage() {
               channelId={openChannelId}
               highlightMessageId={openMessageId}
               onChannelChange={(channelId) => setActiveTab('Chat', { channel: channelId })}
+              members={team || []}
+              currentUserId={user?.id}
+              threadId={openThreadId}
             />
           )}
           {activeTab === 'Chat' && isLive && liveProject && !membershipRole && (

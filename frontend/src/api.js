@@ -181,6 +181,19 @@ export const taskApi = {
       stop?.();
     };
   },
+
+  // [Sprint 3 · US-20] Task comments. Contract: backend/src/routes/taskComments.js
+  //   comments   -> { comments (oldest first), nextAfter }
+  //   addComment -> { comment }   comment has author { name, username, avatarUrl } and mentions [{ _id, name, username }]
+  //   onComment(handler) gets { projectId, taskId, comment }
+  // The demo api (taskMock.js) has none of these, so the task window simply shows no comments there.
+  comments: (id, taskId, { after, limit = 100 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (after) params.set('after', after);
+    return api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}/comments?${params}`);
+  },
+  addComment: (id, taskId, body) => api(`${projectTasksPath(id)}/${encodeURIComponent(taskId)}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+  onComment: (id, handler) => liveApi.onProject(id, 'comment:created', handler),
 };
 
 const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
@@ -225,6 +238,18 @@ export const channelApi = {
   },
   send: (id, channelId, body) => api(`${channelPath(id, channelId)}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   onMessage: (id, handler) => liveApi.onProject(id, 'message:created', handler),
+
+  // [Sprint 3 · US-17] Threads. Contract: backend/src/routes/threads.js
+  //   replies -> { parent, replies (oldest first), nextAfter }
+  //   reply   -> { reply, parent: { _id, replyCount, lastReplyAt } }
+  //   onReply(handler) gets { projectId, channelId, parentId, reply, replyCount, lastReplyAt }
+  replies: (id, channelId, messageId, { after, limit = 100 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (after) params.set('after', after);
+    return api(`${channelPath(id, channelId)}/messages/${encodeURIComponent(messageId)}/replies?${params}`);
+  },
+  reply: (id, channelId, messageId, body) => api(`${channelPath(id, channelId)}/messages/${encodeURIComponent(messageId)}/replies`, { method: 'POST', body: JSON.stringify({ body }) }),
+  onReply: (id, handler) => liveApi.onProject(id, 'message:reply', handler),
 };
 
 // Milestones of one project. Each milestone comes back with taskCount, doneCount, progress (0-100) and completed.

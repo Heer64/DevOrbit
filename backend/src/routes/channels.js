@@ -8,6 +8,8 @@ import { canManageChannels, canPostMessages } from '../lib/permissions.js';
 import { ensureDefaultChannel, normalizeChannelName } from '../lib/channels.js';
 import { emitMessageCreated } from '../lib/realtime.js';
 import { logActivity, quote } from '../lib/activity.js'; // [US-29]
+import { findMentionedMembers, notifyMentions } from '../lib/mentions.js'; // [Sprint 3] US-18
+import { messageLink } from '../lib/notifications.js'; // [Sprint 3] US-18
 
 /*
  * Project channels and messages (US-16, FR-5). Mounted at /api/projects/:id/channels
@@ -23,12 +25,16 @@ import { logActivity, quote } from '../lib/activity.js'; // [US-29]
  *                                                       Viewers get 403 but can still read.
  *
  * Live: every new message is pushed as 'message:created' to members (lib/realtime.js).
+ *
+ * [Sprint 3 · US-18] @username of a project member in a message: stored in message.mentions
+ * ([{ _id, name, username }]) and the member gets a Mention notification linking to the message.
  */
 
 const router = Router({ mergeParams: true });
 router.use(requireAuth);
 
 export const AUTHOR_FIELDS = 'name username avatarUrl';
+export const MENTION_FIELDS = 'name username'; // [Sprint 3] US-18
 
 function readLimit(raw, fallback, max) {
   const value = Number.parseInt(raw, 10);
@@ -37,7 +43,8 @@ function readLimit(raw, fallback, max) {
 }
 
 // Loads the channel and checks it belongs to the project in the URL.
-async function loadChannel(req, res, project) {
+// [US-17] Exported so routes/threads.js uses the same check.
+export async function loadChannel(req, res, project) {
   if (!validId(req.params.channelId)) {
     res.status(400).json({ message: 'Invalid channel ID.' });
     return null;
@@ -51,7 +58,7 @@ async function loadChannel(req, res, project) {
 }
 
 export async function findPopulatedMessage(messageId) {
-  return Message.findById(messageId).populate('author', AUTHOR_FIELDS).lean();
+  return Message.findById(messageId).populate('author', AUTHOR_FIELDS).populate('mentions', MENTION_FIELDS).lean();
 }
 
 router.get('/', async (req, res, next) => {
@@ -118,7 +125,9 @@ router.get('/:channelId/messages', async (req, res, next) => {
     if (!channel) return undefined;
 
     const limit = readLimit(req.query.limit, 50, 100);
-    const filter = { channel: channel._id };
+    // [US-17] Thread replies stay inside their thread (routes/threads.js), not in the channel.
+    // { parentMessage: null } also matches messages saved before threads existed.
+    const filter = { channel: channel._id, parentMessage: null };
 
     if (req.query.before !== undefined) {
       const before = new Date(req.query.before);
@@ -131,6 +140,7 @@ router.get('/:channelId/messages', async (req, res, next) => {
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
       .populate('author', AUTHOR_FIELDS)
+      .populate('mentions', MENTION_FIELDS) // [Sprint 3] US-18
       .lean();
 
     const page = rows.slice(0, limit);
@@ -161,15 +171,29 @@ router.post('/:channelId/messages', async (req, res, next) => {
       return res.status(400).json({ message: `Message must be ${MESSAGE_MAX.toLocaleString('en-US')} characters or fewer.` });
     }
 
+    const mentioned = await findMentionedMembers(loaded.project, body); // [Sprint 3] US-18
+
     const created = await Message.create({
       project: loaded.project._id,
       channel: channel._id,
       author: req.user.id,
       body,
+      mentions: mentioned.map((user) => user._id), // [Sprint 3] US-18
     });
 
     const message = await findPopulatedMessage(created._id);
     emitMessageCreated(message);
+
+    // [Sprint 3] US-18: "that member receives a mention notification linking to the message".
+    await notifyMentions(mentioned, {
+      project: loaded.project._id,
+      actor: req.user.id,
+      summary: `mentioned you in #${channel.name}`,
+      targetType: 'message',
+      targetId: created._id,
+      targetLabel: `#${channel.name}`,
+      link: messageLink(loaded.project._id, channel._id, created._id),
+    });
 
     // [US-29] Chat messages appear in the project Activity Feed.
     await logActivity({

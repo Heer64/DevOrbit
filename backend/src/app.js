@@ -12,6 +12,8 @@ import profileRoutes from './routes/profile.js';
 import channelRoutes from './routes/channels.js'; // [Sprint 2 final] US-16
 import notificationRoutes from './routes/notifications.js'; // [Sprint 3 · M7 Part 1] US-30
 import joinRequestRoutes from './routes/joinRequests.js'; // [Sprint 3 · M2] US-12, US-47
+import threadRoutes from './routes/threads.js'; // [Sprint 3] US-17 thread replies
+import taskCommentRoutes from './routes/taskComments.js'; // [Sprint 3] US-20 task comments
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -71,12 +73,16 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/projects', projectRoutes);
+  // [Sprint 3] US-20. Mounted before the task routes so only comment URLs reach it.
+  app.use('/api/projects/:id/tasks/:taskId/comments', taskCommentRoutes);
   app.use('/api/projects/:id/tasks', taskRoutes);
   app.use('/api/tasks', myTaskRoutes);
   app.use('/api/projects/:id/milestones', milestoneRoutes);
   app.use('/api/projects/:id/activity', projectActivityRoutes);
   app.use('/api/activity', myActivityRoutes);
   app.use('/api/profile', profileRoutes);
+  // [Sprint 3] US-17. Mounted before the channel routes so only thread URLs reach it.
+  app.use('/api/projects/:id/channels/:channelId/messages/:messageId/replies', threadRoutes);
   app.use('/api/projects/:id/channels', channelRoutes); // [Sprint 2 final] US-16
   app.use('/api/notifications', notificationRoutes); // [Sprint 3 · M7 Part 1] US-30
   app.use('/api/projects/:id/join-requests', joinRequestRoutes); // [Sprint 3 · M2] US-12, US-47
