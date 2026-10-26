@@ -18,6 +18,8 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'message:created' { projectId, channelId, message }   [Sprint 2 final] members only
  *   listen     'activity:created' { projectId, activity }   [US-29] members only, activity = populated feed event
  *   listen     'project:access-removed' { projectId, reason }   [Sprint 3 · M3] sent to a person removed from / leaving a project
+ *   listen     'message:reply' { projectId, channelId, parentId, reply, replyCount, lastReplyAt }   [US-17] members only
+ *   listen     'comment:created' { projectId, taskId, comment }   [US-20] members only
  *
  * Who may join a project room: the same people who may read its tasks
  * (members of any project, and anyone for a Public project). Only reading happens here;
@@ -142,6 +144,34 @@ export function emitMessageCreated(message) {
   const channelId = String(message.channel?._id || message.channel || '');
   if (!projectId || !channelId) return;
   io.to(memberRoom(projectId)).emit('message:created', { projectId, channelId, message });
+}
+
+/*
+ * [US-17] A new reply in a message thread. Members only, like 'message:created'.
+ * Payload: { projectId, channelId, parentId, reply, replyCount, lastReplyAt }
+ *   reply      = populated, same shape as GET .../replies
+ *   replyCount = the parent's new reply count, so every open channel can update its "N replies" label
+ */
+export function emitThreadReply(reply, { replyCount = 0, lastReplyAt = null } = {}) {
+  if (!io || !reply) return;
+  const projectId = String(reply.project?._id || reply.project || '');
+  const channelId = String(reply.channel?._id || reply.channel || '');
+  const parentId = String(reply.parentMessage?._id || reply.parentMessage || '');
+  if (!projectId || !channelId || !parentId) return;
+  io.to(memberRoom(projectId)).emit('message:reply', { projectId, channelId, parentId, reply, replyCount, lastReplyAt });
+}
+
+/*
+ * [US-20] A new task comment. Members only: comments are team discussion, so visitors
+ * watching a Public project's board (projectRoom) do not get them.
+ * Payload: { projectId, taskId, comment }   comment = populated, same shape as GET .../comments
+ */
+export function emitCommentCreated(comment) {
+  if (!io || !comment) return;
+  const projectId = String(comment.project?._id || comment.project || '');
+  const taskId = String(comment.task?._id || comment.task || '');
+  if (!projectId || !taskId) return;
+  io.to(memberRoom(projectId)).emit('comment:created', { projectId, taskId, comment });
 }
 
 /*

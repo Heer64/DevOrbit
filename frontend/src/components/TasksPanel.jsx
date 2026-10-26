@@ -5,6 +5,7 @@ import { canDeleteTask, canWriteTasks } from '../roles';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import KanbanBoard from './KanbanBoard';
 import { CONFLICT_MESSAGE, mergeTask, versionOf } from './kanbanLogic';
+import TaskComments from './TaskComments'; // [Sprint 3] US-20
 
 // [Pair D] 'Blocked' added (FR-7b); same order as the Kanban columns.
 export const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
@@ -450,6 +451,17 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
               <button className="btn full" type="submit" disabled={saving}>
                 {saving ? <><Loader2 size={16} className="spin" /> Saving…</> : editing === 'new' ? <>Create task <Plus size={16} /></> : <>Save changes <Check size={16} /></>}
               </button>
+            )}
+            {/* [Sprint 3] US-20: comments on a saved task. Members only; the demo api has no comments, so nothing shows there. */}
+            {editing !== 'new' && api.comments && myRole && (
+              <TaskComments
+                projectId={projectId}
+                taskId={idOf(editing)}
+                api={api}
+                canComment={canWrite}
+                members={members}
+                currentUserId={currentUserId}
+              />
             )}
           </form>
         </div>

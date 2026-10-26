@@ -414,3 +414,55 @@ textarea.field-input{resize:vertical;min-height:90px}
 .join-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:40px}
 .join-actions select{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:6px 8px;font-size:10px}
 .join-card .form-error,.join-requests-panel .form-error,.join-requests-panel .success-inline{margin:10px 0 0}
+
+/* [Sprint 3 · US-17] Thread replies in the Chat tab */
+/* Fix: '.chat-message>div{flex:1}' above also matched the avatar (a div) and stretched it into an oval. */
+.chat-message>.avatar{flex:none}
+.chat.with-thread{grid-template-columns:170px minmax(0,1fr) minmax(240px,300px)}
+.chat-thread-link{display:inline-flex;white-space:nowrap;max-width:100%;align-items:center;gap:6px;margin-top:4px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:10px;padding:3px 7px 3px 5px;border-radius:7px}
+.chat-thread-link b{color:var(--accent);font-weight:700}
+.chat-thread-link span{color:var(--muted)}
+.chat-thread-link:hover,.chat-thread-link.active{background:var(--panel);border-color:var(--line);color:var(--text)}
+.chat-thread-link:not(.has-replies){opacity:0;transition:opacity .12s}
+.chat-message:hover .chat-thread-link,.chat-message:focus-within .chat-thread-link,.chat-thread-link.active{opacity:1}
+@media (hover:none){.chat-thread-link:not(.has-replies){opacity:1}}
+.chat-thread{display:flex;flex-direction:column;gap:8px;min-width:0;border-left:1px solid var(--line);padding-left:12px}
+.chat-thread-head{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.chat-thread-head b{display:flex;align-items:center;gap:5px;font-size:13px}
+.chat-thread-head small{color:var(--muted);font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-thread-head .iconbtn{width:28px;height:28px;margin-left:auto}
+.chat-thread-body{flex:1;min-height:200px;max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.chat-thread .thread-parent{background:var(--panel2)}
+.chat-thread-divider{display:flex;align-items:center;gap:8px;margin:6px 0;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.3px}
+.chat-thread-divider::after{content:'';flex:1;height:1px;background:var(--line)}
+.chat-thread-empty{color:var(--muted);font-size:10px;margin:6px}
+@media (max-width:1100px){.chat.with-thread{grid-template-columns:150px minmax(0,1fr)}.chat.with-thread .chat-thread{grid-column:1/-1;border-left:0;border-top:1px solid var(--line);padding:10px 0 0}}
+@media (max-width:820px){.chat.with-thread{grid-template-columns:1fr}}
+
+/* [Sprint 3 · US-20] Task comments with @mentions */
+.task-comments{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
+.task-comments h3{display:flex;align-items:center;gap:6px;margin:0;font-size:12px}
+.task-comments-count{font-size:9px;font-weight:700;color:var(--accent);background:var(--soft);border-radius:20px;padding:2px 7px}
+.task-comments-state{display:flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:10px}
+.task-comments-error{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.task-comment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.task-comment{display:flex;gap:9px;padding:7px 6px;border-radius:9px}
+.task-comment:hover{background:var(--panel2)}
+.task-comment>div:not(.avatar){min-width:0;flex:1}
+.task-comment-head{display:flex;align-items:baseline;gap:7px}
+.task-comment-head b{font-size:11px}
+.task-comment-head time{font-size:9px;color:var(--muted)}
+.task-comment p{margin:3px 0 0;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.mention{color:var(--accent);background:var(--soft);border-radius:4px;padding:0 3px;font-weight:700}
+.task-comment-composer{display:flex;gap:8px;align-items:flex-end}
+.task-comment-composer .btn{height:38px;flex:none}
+.mention-box{position:relative;flex:1;min-width:0}
+.mention-box textarea{width:100%;resize:vertical;min-height:38px;max-height:160px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);padding:9px 11px;font-size:12px;line-height:1.4}
+.mention-box textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px #8065ef1f}
+.mention-list{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:5;list-style:none;margin:0;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px #0003;max-height:220px;overflow-y:auto}
+.mention-list li{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:11px;cursor:pointer}
+.mention-list li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mention-list li small{color:var(--muted);font-size:10px}
+.mention-list li.active{background:var(--soft);color:var(--accent)}
+.mention-list.mention-empty{margin:0;padding:8px 10px;font-size:10px;color:var(--muted);line-height:1.4}
+

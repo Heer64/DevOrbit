@@ -275,3 +275,33 @@ Approve/reject answer **409** if the request was already decided (only one decis
 **UI:** a visitor of a Public project sees a **Request to join** card (optional message, then "Request sent", or the date they can ask again after a rejection). Owners and Admins see a **Join requests** panel under Team & roles with a role picker, Approve and Reject; the team list reloads after an approval. A logged-out user who opens a project link is sent to log in and then returned to that page.
 
 **Tests:** `backend/test/joinRequests.test.js`, `frontend/src/components/JoinRequests.test.jsx`, `frontend/src/pages/LoginPage.test.jsx`.
+
+## Sprint 3 — M4: thread replies and task comments (US-17, US-20)
+
+**Thread replies (US-17, FR-5).** Any channel message can get a thread. Replies are `Message` rows with `parentMessage` set, so they are left out of the channel history (`GET .../messages` now lists top-level messages only). The parent keeps `replyCount` and `lastReplyAt`, increased atomically (`$inc`) so replies sent at the same moment are all counted. Messages saved before threads existed count as top-level with 0 replies; nothing needs migrating. Threads are one level deep.
+
+| Call (`/api/projects/:id/channels/:channelId/messages/:messageId/replies`) | Who | Notes |
+|------|-----|-------|
+| `GET /?limit=100&after=<date>` | Members | `{ parent, replies (oldest first), nextAfter }`; pass `nextAfter` back as `after` |
+| `POST /` | Owner, Admin, Contributor | `{ body }` (≤ 4000) → 201 `{ reply, parent: { _id, replyCount, lastReplyAt } }`; Viewers **403**; replying to a reply **400** |
+
+**Task comments (US-20, FR-7).** `backend/src/models/TaskComment.js`: `project`, `task`, `author`, `body` (≤ 2000), `mentions` (Users), `createdAt`. Comments are members-only, like channels: a Public project's visitors see its tasks but not the comments.
+
+| Call (`/api/projects/:id/tasks/:taskId/comments`) | Who | Notes |
+|------|-----|-------|
+| `GET /?limit=100&after=<date>` | Members | `{ comments (oldest first), nextAfter }`; each has `author { name, username, avatarUrl }` and `mentions [{ name, username }]` |
+| `POST /` | Owner, Admin, Contributor | `{ body }` → 201 `{ comment }`; Viewers **403** |
+
+**@mentions.** Write `@username` in a comment. `backend/src/lib/mentions.js` matches only **current project members** (emails such as `a@b.com` are not mentions). Each mentioned member gets a **Mention** notification through `createNotification()` (M7 Part 1 storage) that opens the task. Mentioning yourself notifies no one, and mentioning someone twice notifies them once. The helper is ready for chat mentions (US-18).
+
+**Live and feed.** New socket events, members only: `message:reply` `{ projectId, channelId, parentId, reply, replyCount, lastReplyAt }` and `comment:created` `{ projectId, taskId, comment }`. Replies are logged as `message.posted` ("replied in a thread in #general: …") and comments as `comment.created`.
+
+**UI.** In Chat, each message shows **Reply** (on hover) or **N replies · Last reply …**. Clicking it opens the thread beside the channel (stacked below on small screens). The task window has a **Comments** section showing author, relative time (exact time on hover) and highlighted mentions. Typing `@` suggests project members (↑/↓, Enter/Tab to pick, Esc to close). Viewers read only. Demo projects (mock tasks) show no comments.
+
+**Tests:** `backend/test/threads.test.js`, `backend/test/taskComments.test.js`, `frontend/src/components/Threads.test.jsx`, `frontend/src/components/TaskComments.test.jsx`.
+
+## Sprint 3 — M4 extra: @mentions in chat (US-18)
+
+**Mentions in chat.** The channel message box and the thread reply box suggest project members when you type `@`, the same as task comments. A sent message stores `mentions` (`[{ _id, name, username }]`, returned by the channel and thread APIs) and highlights them. Each mentioned member gets a **Mention** notification: from a channel message it opens `?tab=chat&channel=…&message=…`, and from a thread reply it adds `&thread=<parentId>`, so the thread opens too. Mentions and notifications use `backend/src/lib/mentions.js` (`findMentionedMembers`, `notifyMentions`).
+
+**Tests:** `backend/test/mentionNotifications.test.js`, `frontend/src/components/ChatMentions.test.jsx`.

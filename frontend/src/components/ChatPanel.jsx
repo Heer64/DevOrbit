@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Hash, Loader2, MessageSquare, Plus, RefreshCw, Send, X } from 'lucide-react';
+import { AlertCircle, Hash, Loader2, MessageSquare, Plus, RefreshCw, Reply, Send, X } from 'lucide-react';
 import { assetUrl, channelApi } from '../api';
 import { canManageChannels, canPostMessages } from '../roles';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import { timeAgo } from './activityDisplay';
+import ThreadPanel, { replyCountLabel } from './ThreadPanel'; // [Sprint 3] US-17
+import MentionTextarea from './MentionTextarea'; // [Sprint 3] US-18
+import MentionText from './MentionText'; // [Sprint 3] US-18
 
 const MESSAGE_MAX = 4000;
 const idOf = (value) => String(value?._id || value?.id || value || '');
@@ -25,8 +28,19 @@ export function mergeMessages(list, incoming) {
  *   channelId          channel to open (from the URL); falls back to #general
  *   highlightMessageId message to scroll to and highlight (from a link)
  *   onChannelChange    (channelId) => void, so the page can keep the URL in sync
+ *   members            [Sprint 3 · US-18] [{ userId, name, username, avatarUrl }] for @ suggestions
+ *   currentUserId      [Sprint 3 · US-18] left out of the @ suggestions
+ *   threadId           [Sprint 3 · US-17] thread to open (from a link such as a mention notification)
  */
-export default function ChatPanel({ projectId, myRole, api = channelApi, channelId: wantedChannel = '', highlightMessageId = '', onChannelChange }) {
+// [Sprint 3 · US-17] Sets a message's reply count. Counts only go up, so an older live event cannot undo a newer one.
+export function applyReplyCount(list, { _id, replyCount, lastReplyAt }) {
+  if (!list) return list;
+  return list.map((message) => (idOf(message) === String(_id) && (replyCount ?? 0) >= (message.replyCount || 0)
+    ? { ...message, replyCount, lastReplyAt: lastReplyAt || message.lastReplyAt }
+    : message));
+}
+
+export default function ChatPanel({ projectId, myRole, api = channelApi, channelId: wantedChannel = '', highlightMessageId = '', onChannelChange, members = [], currentUserId = '', threadId: linkedThreadId = '' }) {
   const [channels, setChannels] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,6 +56,8 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
   const [createError, setCreateError] = useState('');
   const listRef = useRef(null);
   const stickToBottom = useRef(true);
+  const [threadId, setThreadId] = useState(''); // [Sprint 3] US-17: message whose thread is open
+  const threadsOn = Boolean(api.replies); // older/fake apis without threads simply show no reply buttons
 
   const canPost = canPostMessages(myRole);
   const canCreate = canManageChannels(myRole);
@@ -70,6 +86,7 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
     if (!activeId) return undefined;
     let active = true;
     setMessages(null); setNextBefore(null); stickToBottom.current = true;
+    setThreadId(''); // [Sprint 3] US-17: a thread belongs to one channel
     api.messages(projectId, activeId)
       .then((result) => { if (active) { setMessages(result.messages || []); setNextBefore(result.nextBefore || null); } })
       .catch((error) => { if (active) { setMessages([]); setSendError(error.message || 'Could not load messages.'); } });
@@ -82,6 +99,15 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
     return api.onMessage(projectId, (payload) => {
       if (payload.channelId !== activeId || !payload.message) return;
       setMessages((old) => (old ? mergeMessages(old, [payload.message]) : old));
+    });
+  }, [api, projectId, activeId]);
+
+  // [Sprint 3 · US-17] Live reply counts: "3 replies" updates when anyone replies in a thread of this channel.
+  useEffect(() => {
+    if (!api.onReply) return undefined;
+    return api.onReply(projectId, (payload) => {
+      if (payload.channelId !== activeId || !payload.parentId) return;
+      setMessages((old) => applyReplyCount(old, { _id: payload.parentId, replyCount: payload.replyCount, lastReplyAt: payload.lastReplyAt }));
     });
   }, [api, projectId, activeId]);
 
@@ -120,7 +146,7 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
   };
 
   const send = async (event) => {
-    event.preventDefault();
+    event?.preventDefault(); // [Sprint 3] also called without an event by the @ box (Enter)
     const body = draft.trim();
     if (!body || sending || !canPost) return;
     setSending(true); setSendError(''); stickToBottom.current = true;
@@ -133,11 +159,6 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
     } finally {
       setSending(false);
     }
-  };
-
-  const onKeyDown = (event) => {
-    // Enter sends, Shift+Enter adds a new line.
-    if (event.key === 'Enter' && !event.shiftKey) send(event);
   };
 
   const createChannel = async (event) => {
@@ -156,6 +177,19 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
 
   const active = useMemo(() => (channels || []).find((channel) => idOf(channel) === activeId), [channels, activeId]);
   const authors = useMemo(() => [...new Set((messages || []).map((message) => idOf(message.author)))], [messages]);
+  // [Sprint 3 · US-17] Open the thread named in the link once the channel's messages are loaded.
+  // The parent may be on an older page; ThreadPanel then loads it from the server.
+  const openedThreadLink = useRef('');
+  useEffect(() => {
+    if (!linkedThreadId) { openedThreadLink.current = ''; return; }
+    if (!messages || !threadsOn || openedThreadLink.current === linkedThreadId) return;
+    openedThreadLink.current = linkedThreadId;
+    setThreadId(linkedThreadId);
+  }, [messages, linkedThreadId, threadsOn]);
+  const threadParent = useMemo(() => {
+    if (!threadId) return null;
+    return (messages || []).find((message) => idOf(message) === threadId) || (threadId === linkedThreadId ? { _id: threadId } : null);
+  }, [messages, threadId, linkedThreadId]);
 
   if (loadError) {
     return (
@@ -168,7 +202,7 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
   if (channels === null) return <div className="task-state" aria-busy="true"><Loader2 size={20} className="spin" /><p>Loading channels…</p></div>;
 
   return (
-    <div className="chat">
+    <div className={`chat ${threadParent ? 'with-thread' : ''}`}>
       <nav className="chat-channels" aria-label="Channels">
         {channels.map((channel) => (
           <button key={idOf(channel)} className={idOf(channel) === activeId ? 'active' : ''} aria-current={idOf(channel) === activeId ? 'true' : undefined} onClick={() => choose(channel)}>
@@ -203,7 +237,22 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
                 <Avatar initials={initialsOf(author.name)} src={assetUrl(author.avatarUrl)} tone={AVATAR_TONES[Math.max(authors.indexOf(idOf(author)), 0) % 4]} small />
                 <div>
                   <div className="chat-message-head"><b>{author.name || 'Former member'}</b><time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString()}>{timeAgo(message.createdAt)}</time></div>
-                  <p>{message.body}</p>
+                  <p><MentionText body={message.body} mentions={message.mentions} /></p>
+                  {/* [Sprint 3] US-17: reply count / open thread */}
+                  {threadsOn && (message.replyCount > 0 || canPost) && (
+                    <button
+                      type="button"
+                      className={`chat-thread-link ${message.replyCount > 0 ? 'has-replies' : ''} ${threadId === id ? 'active' : ''}`}
+                      onClick={() => setThreadId(threadId === id ? '' : id)}
+                      aria-expanded={threadId === id}
+                      aria-label={message.replyCount > 0 ? `${replyCountLabel(message.replyCount)}, open thread` : 'Reply in thread'}
+                    >
+                      <Reply size={12} />
+                      {message.replyCount > 0
+                        ? <><b>{replyCountLabel(message.replyCount)}</b>{message.lastReplyAt && <span>Last reply {timeAgo(message.lastReplyAt)}</span>}</>
+                        : <span>Reply</span>}
+                    </button>
+                  )}
                 </div>
               </article>
             );
@@ -212,12 +261,15 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
 
         {canPost ? (
           <form className="chat-composer" onSubmit={send}>
-            <textarea
+            {/* [Sprint 3] US-18: typing @ suggests project members. Enter sends, Shift+Enter = new line. */}
+            <MentionTextarea
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
+              onChange={setDraft}
+              onSubmit={send}
+              members={members}
+              currentUserId={currentUserId}
               placeholder={`Message #${active?.name || 'general'}`}
-              aria-label="Message"
+              label="Message"
               rows={1}
               maxLength={MESSAGE_MAX}
             />
@@ -228,6 +280,22 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
         )}
         {sendError && <div className="form-error" role="alert">{sendError}</div>}
       </section>
+
+      {/* [Sprint 3] US-17 */}
+      {threadParent && (
+        <ThreadPanel
+          projectId={projectId}
+          channelId={activeId}
+          channelName={active?.name}
+          parent={threadParent}
+          api={api}
+          canPost={canPost}
+          members={members}
+          currentUserId={currentUserId}
+          onReplied={(counts) => setMessages((old) => applyReplyCount(old, counts))}
+          onClose={() => setThreadId('')}
+        />
+      )}
     </div>
   );
 }
@@ -239,5 +307,7 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
  * Admins), message history with "Show older messages", a composer (Enter sends,
  * Shift+Enter = new line) and live messages from teammates over Socket.IO.
  * Viewers see a read-only note instead of the composer.
+ * [Sprint 3 · US-17] Each message shows "Reply" / "N replies"; clicking opens its
+ * thread (ThreadPanel) beside the channel.
  * ---------------------------------------------------------------------------
  */
