@@ -305,3 +305,28 @@ Approve/reject answer **409** if the request was already decided (only one decis
 **Mentions in chat.** The channel message box and the thread reply box suggest project members when you type `@`, the same as task comments. A sent message stores `mentions` (`[{ _id, name, username }]`, returned by the channel and thread APIs) and highlights them. Each mentioned member gets a **Mention** notification: from a channel message it opens `?tab=chat&channel=…&message=…`, and from a thread reply it adds `&thread=<parentId>`, so the thread opens too. Mentions and notifications use `backend/src/lib/mentions.js` (`findMentionedMembers`, `notifyMentions`).
 
 **Tests:** `backend/test/mentionNotifications.test.js`, `frontend/src/components/ChatMentions.test.jsx`.
+
+## Sprint 3 — M5: task due dates and the 24-hour deadline query (US-23)
+
+**What a due date is.** A calendar day, not a moment. The API stores it as midnight UTC of that day (`"2026-10-28"` → `2026-10-28T00:00:00.000Z`), so every member sees the same day in any timezone. A task is due at the **end** of that day (UTC): it is overdue after that, unless it is Done. All rules are in `backend/src/lib/dueDates.js`.
+
+**Setting and editing** (`POST` / `PATCH /api/projects/:id/tasks`, Owner, Admin, Contributor)
+
+| `dueDate` sent | Result |
+|------|--------|
+| `"YYYY-MM-DD"` | saved as that day (leap days fine, `2026-02-30` is **400**) |
+| a timestamp that is exactly midnight UTC (what the API returns) | same day, so a task can be sent back unchanged; sending the same day again is not a change (no new `version`) |
+| any other timestamp, e.g. `2026-10-28T00:00:00+05:30` | **400** "Due date must be a calendar date (YYYY-MM-DD)." (turning local midnight into a day would quietly give 27 Oct) |
+| a year before 2000 or after 2100 | **400** |
+| `null` or `""` | clears it (`PATCH`) |
+
+A due-date-only edit appears in the Activity Feed as `set the due date of "X" to Oct 28, 2026` or `removed the due date of "X"`.
+
+**Deadline query: due within 24 hours, not Done (FR-10).** A task qualifies when it is not Done and `now < deadline < now + 24 h` (exactly 24 h away does not count; a passed deadline is overdue instead). With midnight-UTC dates this is the whole due day in UTC (05:30 to 05:30 in India).
+
+- `findTasksDueSoon({ now, projectIds, assignee, assignedOnly = true, limit })` in `backend/src/lib/deadlines.js`, for **M7** to send Deadline notifications. Each task has `assignee`, `project { name, color }`, `deadline` and `dedupeKey` (`deadline:<taskId>:<dueDate ISO>`, ready for `createNotification`: one notification per task and day, and a new one if the date moves).
+- `GET /api/tasks/due-soon` → `{ tasks, windowHours: 24, now }`: the caller's own open tasks in that window, from their current projects only.
+
+**On screen.** The day is read in UTC (`formatDue`), so a teammate in California still sees Oct 28; "today", "tomorrow" and "overdue" use the viewer's own calendar day (`isOverdue`, `frontend/src/dueDates.js`). Task rows and Kanban cards now show `Oct 28 · due today` / `Oct 29 · due tomorrow` (orange) besides `Oct 27 · overdue` (red); Done tasks are never overdue. In the task form the date has a **Clear** button and a line underneath that says how the day will read ("Due tomorrow (Oct 29).", "Oct 20 has already passed."). Viewers see the date but cannot change it. The dashboard's Upcoming deadlines panel is unchanged.
+
+**Tests:** `backend/test/dueDates.test.js` (parsing, timezones, leap days, exact 24-hour boundaries, the Mongo range checked against the rule for every hour of a month), `backend/test/dueDateApi.test.js` (set/clear/400s/activity, the deadline query with a fixed clock, `GET /api/tasks/due-soon`), `frontend/src/dueDates.test.js` (India, California, midnight and DST boundaries), `frontend/src/components/TaskDueDates.test.jsx` (rows, cards, form, Clear, Viewer).

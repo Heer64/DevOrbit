@@ -3,6 +3,8 @@ import { Router } from 'express';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import { requireAuth } from '../middleware/auth.js';
+import { DEADLINE_WINDOW_MS } from '../lib/dueDates.js'; // [Sprint 3 · M5]
+import { findTasksDueSoon } from '../lib/deadlines.js'; // [Sprint 3 · M5]
 
 /*
  * Personal task views for the dashboard, mounted at /api/tasks (Sprint 2 leftovers).
@@ -18,6 +20,11 @@ import { requireAuth } from '../middleware/auth.js';
  * GET /api/tasks/mine?limit=8
  *   Open tasks assigned to the caller, soonest due first (tasks without a due date last).
  *   -> { tasks, total }
+ *
+ * GET /api/tasks/due-soon   [Sprint 3 · M5] (US-23, FR-10)
+ *   Open tasks assigned to the caller whose deadline (end of the due day, UTC) is less
+ *   than 24 hours away, soonest first. Same query M7 uses for Deadline notifications.
+ *   -> { tasks, windowHours: 24, now }   each task also has deadline and dedupeKey
  *
  * GET /api/tasks/stats
  *   -> { completedLast7Days, openAssignedToMe }
@@ -100,6 +107,22 @@ router.get('/mine', async (req, res, next) => {
     ].slice(0, limit);
 
     return res.json({ tasks, total });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// [Sprint 3 · M5] US-23 deadline query for the signed-in user.
+router.get('/due-soon', async (req, res, next) => {
+  try {
+    const now = new Date();
+    const projectIds = await myProjectIds(req.user.id);
+    const windowHours = DEADLINE_WINDOW_MS / (60 * 60 * 1000);
+
+    if (projectIds.length === 0) return res.json({ tasks: [], windowHours, now });
+
+    const tasks = await findTasksDueSoon({ now, projectIds, assignee: req.user.id, limit: 50 });
+    return res.json({ tasks, windowHours, now });
   } catch (error) {
     return next(error);
   }

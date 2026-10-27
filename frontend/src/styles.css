@@ -295,6 +295,10 @@ textarea.field-input{resize:vertical;min-height:90px}
 .task-action-error{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
 .task-label.priority-high{background:var(--danger-bg);color:var(--danger)}.task-label.priority-medium{background:var(--orange-bg);color:var(--orange)}.task-label.priority-low{background:var(--blue-bg);color:var(--blue)}
 .task-meta .overdue{color:var(--danger);font-weight:700}
+/* [Sprint 3 · M5] due dates (US-23) */
+.task-meta .due-soon{color:var(--orange);font-weight:700}
+.due-input{display:flex;align-items:center;gap:8px}.due-input .field-input{flex:1;min-width:0}
+.due-clear{flex:none}
 .task-row.busy{opacity:.6}
 .task-dot:disabled{cursor:default}.task-dot:disabled:hover{border-color:var(--muted)}.task-dot.done:disabled:hover{border-color:#35b58d}
 .task-more:disabled{opacity:.4;cursor:default}.task-more.danger:hover{color:var(--danger)}

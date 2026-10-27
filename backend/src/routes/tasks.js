@@ -9,6 +9,7 @@ import { logActivity, quote } from '../lib/activity.js';
 import { requireAuth } from '../middleware/auth.js';
 import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
 import { emitTaskCreated, emitTaskDeleted, emitTaskUpdated } from '../lib/realtime.js';
+import { formatDueDay, parseDueDate } from '../lib/dueDates.js'; // [Sprint 3 · M5] US-23
 
 const router = Router({ mergeParams: true });
 
@@ -256,6 +257,21 @@ async function logTaskChanges(req, project, task, before) {
   if ((task.milestone ? task.milestone.toString() : null) !== before.milestone) changed.push('milestone');
 
   if (changed.length === 0) return null;
+
+  // [Sprint 3 · M5] A due-date-only edit says which day, so the feed shows the new deadline.
+  if (changed.length === 1 && changed[0] === 'due date') {
+    return logActivity({
+      ...base,
+      type: 'task.updated',
+      summary: task.dueDate
+        ? `set the due date of ${quote(task.title)} to ${formatDueDay(task.dueDate)}`
+        : `removed the due date of ${quote(task.title)}`,
+      meta: {
+        fields: changed,
+        dueDate: { from: before.dueDate ? new Date(before.dueDate).toISOString() : null, to: task.dueDate ? task.dueDate.toISOString() : null },
+      },
+    });
+  }
 
   return logActivity({
     ...base,
@@ -598,15 +614,16 @@ router.post('/', async (req, res, next) => {
       req.body.dueDate !== null &&
       req.body.dueDate !== ''
     ) {
-      const parsedDate = new Date(req.body.dueDate);
+      // [Sprint 3 · M5] A calendar day, stored as midnight UTC (lib/dueDates.js).
+      const parsedDate = parseDueDate(req.body.dueDate);
 
-      if (Number.isNaN(parsedDate.getTime())) {
+      if (!parsedDate.valid) {
         return res.status(400).json({
-          message: 'Invalid due date.',
+          message: parsedDate.message,
         });
       }
 
-      dueDate = parsedDate;
+      dueDate = parsedDate.value;
     }
 
     const task = await Task.create({
@@ -828,15 +845,16 @@ router.patch('/:taskId', async (req, res, next) => {
           ) {
             task.dueDate = null;
           } else {
-            const parsedDate = new Date(req.body.dueDate);
+            // [Sprint 3 · M5] A calendar day (lib/dueDates.js); the same day again changes nothing.
+            const parsedDate = parseDueDate(req.body.dueDate);
 
-            if (Number.isNaN(parsedDate.getTime())) {
+            if (!parsedDate.valid) {
               return res.status(400).json({
-                message: 'Invalid due date.',
+                message: parsedDate.message,
               });
             }
 
-            task.dueDate = parsedDate;
+            task.dueDate = parsedDate.value;
           }
         }
 
