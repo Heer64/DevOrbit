@@ -56,6 +56,7 @@ const taskSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    // [Sprint 3 · M5] A calendar day stored as midnight UTC; see lib/dueDates.js (US-23).
     dueDate: {
       type: Date,
       default: null,
@@ -75,5 +76,6 @@ completedAt: {
 
 taskSchema.index({ project: 1 });
 taskSchema.index({ status: 1 });
+taskSchema.index({ dueDate: 1, status: 1 }); // [Sprint 3 · M5] deadline query (lib/deadlines.js)
 
 export default mongoose.model('Task', taskSchema);

@@ -12,6 +12,7 @@ import {
 import { AlertCircle, Clock3, GripVertical, X } from 'lucide-react';
 import { assetUrl } from '../api';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
+import { dueSoonSuffix } from '../dueDates'; // [Sprint 3 · M5] US-23
 import {
   BOARD_STATUSES,
   COLUMN_LABELS,
@@ -203,7 +204,7 @@ function Card({ task, canMove, busy, members, onOpen, onMove }) {
       <div className="task-meta">
         <span className={`task-label priority-${(task.priority || 'Medium').toLowerCase()}`}>{task.priority || 'Medium'}</span>
         {task.label && <span className="task-label custom-label" title="Label">{task.label}</span>}
-        <span className={overdue ? 'overdue' : ''}><Clock3 size={11} />{formatDue(task.dueDate)}{overdue ? ' · overdue' : ''}</span>
+        <span className={`task-due ${overdue ? 'overdue' : dueSoonSuffix(task) ? 'due-soon' : ''}`}><Clock3 size={11} />{formatDue(task.dueDate)}{overdue ? ' · overdue' : dueSoonSuffix(task)}</span>
       </div>
       <div className="kanban-card-foot">
         {task.assignee

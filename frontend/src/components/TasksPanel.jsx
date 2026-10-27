@@ -6,6 +6,7 @@ import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import KanbanBoard from './KanbanBoard';
 import { CONFLICT_MESSAGE, mergeTask, versionOf } from './kanbanLogic';
 import TaskComments from './TaskComments'; // [Sprint 3] US-20
+import { dueSoonSuffix, dueState } from '../dueDates'; // [Sprint 3 · M5] US-23
 
 // [Pair D] 'Blocked' added (FR-7b); same order as the Kanban columns.
 export const TASK_STATUSES = ['To do', 'In progress', 'Blocked', 'Done'];
@@ -35,6 +36,16 @@ function isOverdue(task) {
   if (!task.dueDate || task.status === 'Done') return false;
   const now = new Date();
   return new Date(task.dueDate).getTime() < Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+}
+// [Sprint 3 · M5] Line under the date field, so the person sees how the day will read before saving.
+function dueHint(form) {
+  if (!form.dueDate) return 'No due date set.';
+  const day = formatDue(form.dueDate);
+  const state = dueState({ dueDate: form.dueDate, status: form.status });
+  if (state === 'overdue') return `${day} has already passed.`;
+  if (state === 'today') return `Due today (${day}).`;
+  if (state === 'tomorrow') return `Due tomorrow (${day}).`;
+  return `Due ${day}, end of day.`;
 }
 const formFromTask = (task) => ({
   title: task.title || '',
@@ -371,7 +382,7 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
                   <div className="task-meta">
                     <span className={`task-label priority-${(task.priority || 'Medium').toLowerCase()}`}>{task.priority}</span>
                     {task.label && <span className="task-label custom-label" title="Label">{task.label}</span>}
-                    <span className={isOverdue(task) ? 'overdue' : ''}><Clock3 size={11} />{formatDue(task.dueDate)}{isOverdue(task) ? ' · overdue' : ''}</span>
+                    <span className={`task-due ${isOverdue(task) ? 'overdue' : dueSoonSuffix(task) ? 'due-soon' : ''}`}><Clock3 size={11} />{formatDue(task.dueDate)}{isOverdue(task) ? ' · overdue' : dueSoonSuffix(task)}</span>
                   </div>
                 </div>
                 <span className={`pill ${STATUS_PILL[task.status] || ''}`}>{task.status}</span>
@@ -433,7 +444,11 @@ export default function TasksPanel({ projectId, myRole, currentUserId, members =
                 </select>
               </label>
               <label>Due date
-                <input className="field-input" type="date" value={form.dueDate} onChange={setField('dueDate')} />
+                <span className="due-input">
+                  <input className="field-input" type="date" value={form.dueDate} onChange={setField('dueDate')} min="2000-01-01" max="2100-12-31" aria-describedby="task-due-hint" />
+                  {canWrite && form.dueDate && <button type="button" className="link due-clear" onClick={() => setForm((old) => ({ ...old, dueDate: '' }))} aria-label="Clear due date">Clear</button>}
+                </span>
+                <span id="task-due-hint" className="field-hint">{dueHint(form)}</span>
               </label>
             </div>
             {(milestones.length > 0 || form.milestone) && (
