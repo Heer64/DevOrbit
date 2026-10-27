@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   projectApi: { list: vi.fn() },
   activityApi: { mine: vi.fn() },
   myTaskApi: { upcoming: vi.fn(), mine: vi.fn(), stats: vi.fn() },
+  invitationApi: { mine: vi.fn(), accept: vi.fn(), decline: vi.fn() }, // [Sprint 3 · M1]
 }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('../api', async (importOriginal) => ({ ...(await importOriginal()), ...mocks }));
@@ -35,6 +36,7 @@ beforeEach(() => {
   mocks.myTaskApi.upcoming.mockResolvedValue({ tasks: [] });
   mocks.myTaskApi.mine.mockResolvedValue({ tasks: [], total: 0 });
   mocks.myTaskApi.stats.mockResolvedValue({ completedLast7Days: 7, openAssignedToMe: 3 });
+  mocks.invitationApi.mine.mockResolvedValue({ invitations: [] });
 });
 
 describe('Dashboard stat cards', () => {
@@ -71,5 +73,29 @@ describe('Dashboard stat cards', () => {
     expect(screen.getByText('Your momentum')).toBeTruthy();
     expect(mocks.myTaskApi.stats).not.toHaveBeenCalled();
     expect(mocks.myTaskApi.upcoming).not.toHaveBeenCalled();
+  });
+});
+
+// [Sprint 3 · M1] US-10 / US-11: pending invitations appear on the dashboard.
+describe('Dashboard invitations', () => {
+  it('lists my pending invitations above my projects', async () => {
+    auth.user = { id: 'u1', name: 'Riya Kapoor', isDemo: false };
+    mocks.invitationApi.mine.mockResolvedValue({
+      invitations: [{
+        _id: 'i1', status: 'Pending', role: 'Contributor', expiresAt: new Date(Date.now() + 3 * 86400000).toISOString(),
+        invitedBy: { name: 'Nia Owner' }, project: { _id: 'p1', name: 'Secret Lab', color: 'mint' },
+      }],
+    });
+    renderDashboard();
+    const panel = await screen.findByRole('region', { name: 'Your invitations' });
+    expect(within(panel).getByText('Secret Lab')).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Accept invitation to Secret Lab' })).toBeTruthy();
+  });
+
+  it('shows no invitations panel when there are none, and none for the demo user', async () => {
+    auth.user = { id: 'u1', name: 'Riya Kapoor', isDemo: false };
+    renderDashboard();
+    await screen.findByRole('region', { name: 'Upcoming deadlines' });
+    expect(screen.queryByRole('region', { name: 'Your invitations' })).toBeNull();
   });
 });

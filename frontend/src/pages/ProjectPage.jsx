@@ -13,6 +13,7 @@ import ActivityPanel from '../components/ActivityPanel';
 import ChatPanel from '../components/ChatPanel'; // [Sprint 2 final] US-16
 import JoinRequestCard from '../components/JoinRequestCard'; // [Sprint 3 · M2] US-47
 import JoinRequestsPanel from '../components/JoinRequestsPanel'; // [Sprint 3 · M2] US-12
+import InvitationsPanel from '../components/InvitationsPanel'; // [Sprint 3 · M1] US-10, US-11
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -261,6 +262,10 @@ export default function ProjectPage() {
           )}
           {liveProject && membershipRole && (
             <TeamPanel key={teamVersion} projectId={id} projectName={liveProject.name} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
+          )}
+          {/* [Sprint 3 · M1] Owners and Admins invite people and see accepted / declined invitations (US-10, US-11). */}
+          {liveProject && canManageMembers(membershipRole) && (
+            <InvitationsPanel projectId={id} myRole={membershipRole} />
           )}
           {/* [Sprint 3 · M2] Owners and Admins review join requests (US-12). */}
           {liveProject && canManageMembers(membershipRole) && (

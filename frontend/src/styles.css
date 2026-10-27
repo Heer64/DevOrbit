@@ -470,3 +470,23 @@ textarea.field-input{resize:vertical;min-height:90px}
 .mention-list li.active{background:var(--soft);color:var(--accent)}
 .mention-list.mention-empty{margin:0;padding:8px 10px;font-size:10px;color:var(--muted);line-height:1.4}
 
+
+/* [Sprint 3 · M1] Invitations (US-10, US-11) */
+.invitations-panel .team-note{font-size:10px;color:var(--muted);line-height:1.6;margin:0 0 12px}
+.invite-form{margin-top:0;padding-top:0;border-top:0}
+.invitations-panel .form-error,.invitations-panel .success-inline{margin:10px 0 0}
+.invite-list{margin-top:14px;padding-top:4px;border-top:1px solid var(--line)}
+.invite-list .pill{flex:none}
+.invite-loading{margin-top:14px!important}
+.invite-inbox{margin-top:18px}
+.invite-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.invite-item:last-of-type{border-bottom:0}
+.invite-copy{flex:1;min-width:0}
+.invite-copy b{display:block;font-size:12px}
+.invite-copy p{font-size:10px;color:var(--muted);margin:4px 0;line-height:1.5}
+.invite-copy p strong{color:var(--text)}
+.invite-copy small{font-size:9px;color:var(--muted)}
+.invite-buttons{display:flex;gap:6px;flex:none}
+.invite-joined{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0 0}
+.invite-inbox .form-error,.invite-inbox>.success-inline{margin:12px 0 0}
+@media (max-width:560px){.invite-item{flex-wrap:wrap}.invite-buttons{width:100%}.invite-buttons .btn{flex:1;justify-content:center}}
