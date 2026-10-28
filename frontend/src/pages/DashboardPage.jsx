@@ -6,6 +6,7 @@ import { projectApi, toProjectCard } from '../api';
 import { AVATAR_TONES, Avatar, Btn, Heading, tone } from '../components/ui';
 import ProjectPulse from '../components/ProjectPulse';
 import { MyTasks, UpcomingDeadlines, useTaskStats } from '../components/DashboardTasks';
+import MyInvitations from '../components/MyInvitations'; // [Sprint 3 · M1] US-10, US-11
 
 const baseProjects = [
   { id: 'orbit-dashboard', name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', tag: 'Product', color: 'violet', progress: 72, members: 5, due: 'Oct 18', initials: ['AM', 'RK', 'JS', '+2'] },
@@ -108,6 +109,9 @@ export default function DashboardPage() {
           ? <StatCard icon={Zap} title="Your momentum" value="86%" trend="You're on a roll" tint="orange" />
           : <StatCard icon={ListTodo} title="Assigned to me" value={statValue('openAssignedToMe')} trend="open tasks" tint="orange" />}
       </section>
+
+      {/* [Sprint 3 · M1] Pending project invitations with Accept / Decline (US-11). Hidden when there are none. */}
+      <MyInvitations user={user} onOpenProject={(projectId) => navigate(`/project/${projectId}`)} />
 
       <div className="section-head">
         <div><h2>Current projects <span>{projects.length}</span></h2><p>Pick up where you left off.</p></div>

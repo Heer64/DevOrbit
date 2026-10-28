@@ -330,3 +330,30 @@ A due-date-only edit appears in the Activity Feed as `set the due date of "X" to
 **On screen.** The day is read in UTC (`formatDue`), so a teammate in California still sees Oct 28; "today", "tomorrow" and "overdue" use the viewer's own calendar day (`isOverdue`, `frontend/src/dueDates.js`). Task rows and Kanban cards now show `Oct 28 · due today` / `Oct 29 · due tomorrow` (orange) besides `Oct 27 · overdue` (red); Done tasks are never overdue. In the task form the date has a **Clear** button and a line underneath that says how the day will read ("Due tomorrow (Oct 29).", "Oct 20 has already passed."). Viewers see the date but cannot change it. The dashboard's Upcoming deadlines panel is unchanged.
 
 **Tests:** `backend/test/dueDates.test.js` (parsing, timezones, leap days, exact 24-hour boundaries, the Mongo range checked against the rule for every hour of a month), `backend/test/dueDateApi.test.js` (set/clear/400s/activity, the deadline query with a fixed clock, `GET /api/tasks/due-soon`), `frontend/src/dueDates.test.js` (India, California, midnight and DST boundaries), `frontend/src/components/TaskDueDates.test.jsx` (rows, cards, form, Clear, Viewer).
+
+## Sprint 3 — M1: project invitations (US-10, US-11)
+
+An Owner or Admin invites an **existing** DevOrbit user with a role. The person joins only after they **accept**; they can also **decline**. A pending invitation expires after **7 days**.
+
+**Model** (`backend/src/models/Invitation.js`): `project`, `invitee` (User), `invitedBy` (User), `role` (`Admin` | `Contributor` | `Viewer`, default `Contributor`), `status` (`Pending` | `Accepted` | `Declined` | `Expired`), `expiresAt` (sent + 7 days), `respondedAt`, `createdAt` / `updatedAt`. A unique index allows only one pending invitation per person per project. A Pending invitation past `expiresAt` is reported as `Expired` straight away; the row is stored as `Expired` the next time it is touched, which frees the slot for a new invitation.
+
+**Owner / Admin** (`/api/projects/:id/invitations`)
+
+| Call | Notes |
+|------|-------|
+| `POST /` | `{ identifier, role? }` → 201 `{ invitation }`. `identifier` is an email or username (`@name` is fine, any case). Owner may invite as Admin/Contributor/Viewer, Admin as Contributor/Viewer (same rules as US-09). **409** already a member or already has a pending invitation (nothing is created); **404** no such user; **400** no identifier or bad role; **403** Contributors, Viewers, non-members |
+| `GET /?status=all` | `{ invitations }`, newest first; `status` = `all` (default), `Pending`, `Accepted`, `Declined`, `Expired`. This is where the inviter sees that an invitation was declined |
+
+**Invited user** (`/api/invitations`)
+
+| Call | Notes |
+|------|-------|
+| `GET /?status=Pending` | `{ invitations }` — my invitations, newest first (same status values) |
+| `POST /:invitationId/accept` | → `{ invitation, project: { _id, name }, joined }`. I become a member with the invited role and the invitation is closed (`Accepted`). If I had joined some other way meanwhile, `joined` is `false` and my role is not changed |
+| `POST /:invitationId/decline` | → `{ invitation }`. I am not added; the invitation is closed (`Declined`) |
+
+Accept/decline answer **404** for an invitation that is not mine and **409** when it was already answered or has expired ("This invitation has expired. Ask the project team to invite you again."). Only one answer wins, even if Accept and Decline are clicked at once. Each invitation comes with `invitee` / `invitedBy` `{ name, username, avatarUrl }` and `project { name, color, visibility, description }` — never emails. Every step is logged in the Activity Feed (`invite.sent`, `invite.accepted`, `invite.declined`).
+
+**UI.** On a project page, Owners and Admins get an **Invitations** panel under Team & roles: email-or-username box, role picker, **Send invite**, and the list of sent invitations with their state (Pending · expires …, Accepted, Declined, Expired). It replaces the old "Add to project" form in Team & roles, because people now join by accepting (the `POST /members` API from US-09 is unchanged). On the dashboard, **Your invitations** lists pending invitations (project, who invited you, role, days left) with **Accept** and **Decline**; after accepting, the project list reloads and **Open project** takes you there. The panel is hidden when there is nothing pending and for the demo account.
+
+**Tests:** `backend/test/invitations.test.js`, `frontend/src/components/Invitations.test.jsx`, `frontend/src/pages/DashboardPage.test.jsx` (invitations panel).

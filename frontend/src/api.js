@@ -298,6 +298,23 @@ export const joinRequestApi = {
   reject: (id, requestId) => api(joinRequestPath(id, `/${encodeURIComponent(requestId)}/reject`), { method: 'POST', body: JSON.stringify({}) }),
 };
 
+// [Sprint 3 · M1] Invitations (US-10, US-11). Contract: backend/src/routes/invitations.js
+//   send       -> { invitation }    Owner/Admin; payload { identifier (email or username), role }
+//                                   409 when already a member or already invited
+//   forProject -> { invitations }   Owner/Admin, newest first (status: all by default) — shows Declined/Expired too
+//   mine       -> { invitations }   my invitations (status: Pending by default)
+//   accept     -> { invitation, project: { _id, name }, joined }
+//   decline    -> { invitation }
+// Each invitation has status ('Pending' | 'Accepted' | 'Declined' | 'Expired'), role, expiresAt, respondedAt,
+// invitee / invitedBy { _id, name, username, avatarUrl } and project { _id, name, color, visibility, description }.
+export const invitationApi = {
+  send: (id, { identifier, role }) => api(`${projectPath(id)}/invitations`, { method: 'POST', body: JSON.stringify({ identifier, role }) }),
+  forProject: (id, status = 'all') => api(`${projectPath(id)}/invitations?status=${encodeURIComponent(status)}`),
+  mine: (status = 'Pending') => api(`/invitations?status=${encodeURIComponent(status)}`),
+  accept: (invitationId) => api(`/invitations/${encodeURIComponent(invitationId)}/accept`, { method: 'POST', body: JSON.stringify({}) }),
+  decline: (invitationId) => api(`/invitations/${encodeURIComponent(invitationId)}/decline`, { method: 'POST', body: JSON.stringify({}) }),
+};
+
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
 };

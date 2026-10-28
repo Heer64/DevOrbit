@@ -14,6 +14,7 @@ import notificationRoutes from './routes/notifications.js'; // [Sprint 3 · M7 P
 import joinRequestRoutes from './routes/joinRequests.js'; // [Sprint 3 · M2] US-12, US-47
 import threadRoutes from './routes/threads.js'; // [Sprint 3] US-17 thread replies
 import taskCommentRoutes from './routes/taskComments.js'; // [Sprint 3] US-20 task comments
+import { projectInvitationRoutes, myInvitationRoutes } from './routes/invitations.js'; // [Sprint 3 · M1] US-10, US-11
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -86,6 +87,8 @@ export function createApp() {
   app.use('/api/projects/:id/channels', channelRoutes); // [Sprint 2 final] US-16
   app.use('/api/notifications', notificationRoutes); // [Sprint 3 · M7 Part 1] US-30
   app.use('/api/projects/:id/join-requests', joinRequestRoutes); // [Sprint 3 · M2] US-12, US-47
+  app.use('/api/projects/:id/invitations', projectInvitationRoutes); // [Sprint 3 · M1] US-10
+  app.use('/api/invitations', myInvitationRoutes); // [Sprint 3 · M1] US-11
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });

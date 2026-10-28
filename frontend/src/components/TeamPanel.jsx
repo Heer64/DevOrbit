@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ShieldCheck, UserPlus, X } from 'lucide-react';
-import { Avatar, AVATAR_TONES, Btn, initialsOf } from './ui';
+import { LogOut, ShieldCheck, X } from 'lucide-react';
+import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import { projectApi, assetUrl } from '../api';
 import { ROLE_HELP, assignableRoles, canActOnMember, canManageMembers } from '../roles';
 import ConfirmDialog from './ConfirmDialog'; // [Sprint 3 · M3] US-13, US-14
@@ -9,13 +9,13 @@ import ConfirmDialog from './ConfirmDialog'; // [Sprint 3 · M3] US-13, US-14
 // but the API checks every request again and answers 403 if the rules are broken.
 // [Sprint 3 · M3] Removing a member and leaving the project both ask for confirmation first (US-13, US-14).
 // projectName is optional and only used in the confirmation text.
+// [Sprint 3 · M1] New people now join through an invitation they accept (US-10, US-11, see InvitationsPanel),
+// so the old "Add to project" form is gone from here. The API's POST /members (US-09) is unchanged.
 export default function TeamPanel({ projectId, projectName = '', myRole, currentUserId, onMembers, onLeft }) {
   const [members, setMembers] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [identifier, setIdentifier] = useState('');
-  const [newRole, setNewRole] = useState('Contributor');
   // [Sprint 3 · M3] Open confirmation: { kind: 'remove', member } | { kind: 'leave' } | { kind: 'owner-leave' } | null
   const [confirm, setConfirm] = useState(null);
   const [confirmError, setConfirmError] = useState('');
@@ -39,12 +39,6 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
   };
 
   const changeRole = (member, role) => run(() => projectApi.setMemberRole(projectId, member.userId, role), `${member.name} is now ${role}.`);
-  const add = async (e) => {
-    e.preventDefault();
-    if (!identifier.trim()) return;
-    const ok = await run(() => projectApi.addMember(projectId, { identifier: identifier.trim(), role: newRole }), 'Member added.');
-    if (ok) setIdentifier('');
-  };
 
   const openConfirm = (next) => { setConfirmError(''); setError(''); setNotice(''); setConfirm(next); };
   const closeConfirm = () => { if (!busy) { setConfirm(null); setConfirmError(''); } };
@@ -127,17 +121,6 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
         );
       })}
 
-      {manage && (
-        <form className="add-member" onSubmit={add}>
-          <div className="row">
-            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="Email or username" aria-label="Email or username to add" maxLength={254} />
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value)} aria-label="Role for new member">
-              {roleChoices.map((role) => <option key={role}>{role}</option>)}
-            </select>
-          </div>
-          <Btn type="submit" icon={UserPlus} disabled={busy || !identifier.trim()}>Add to project</Btn>
-        </form>
-      )}
       {error && <div className="form-error" role="alert">{error}</div>}
       {notice && !error && <p className="success-inline" role="status">{notice}</p>}
 
