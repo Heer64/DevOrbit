@@ -262,6 +262,20 @@ export const milestoneApi = {
   tasks: (id, milestoneId) => api(`${projectPath(id)}/tasks?milestone=${encodeURIComponent(milestoneId)}`),
 };
 
+// [Sprint 3 · M8] Decisions (US-35, US-36). Contract: backend/src/routes/decisions.js
+//   list   -> { decisions }  newest date first, members only
+//   get    -> { decision }
+//   create -> { decision }   payload { title, description, participants: [userId], date: 'YYYY-MM-DD', link? }
+//   update -> { decision }   any of the same fields; link: null removes it
+// link sent: { type: 'task', id: taskId } | { type: 'thread', id: messageId } | null
+// link returned: { type, id, label, href, missing } (missing = the task/thread was deleted; href is null then)
+export const decisionApi = {
+  list: (id) => api(`${projectPath(id)}/decisions`),
+  get: (id, decisionId) => api(`${projectPath(id)}/decisions/${encodeURIComponent(decisionId)}`),
+  create: (id, payload) => api(`${projectPath(id)}/decisions`, { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, decisionId, payload) => api(`${projectPath(id)}/decisions/${encodeURIComponent(decisionId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {

@@ -357,3 +357,26 @@ Accept/decline answer **404** for an invitation that is not mine and **409** whe
 **UI.** On a project page, Owners and Admins get an **Invitations** panel under Team & roles: email-or-username box, role picker, **Send invite**, and the list of sent invitations with their state (Pending · expires …, Accepted, Declined, Expired). It replaces the old "Add to project" form in Team & roles, because people now join by accepting (the `POST /members` API from US-09 is unchanged). On the dashboard, **Your invitations** lists pending invitations (project, who invited you, role, days left) with **Accept** and **Decline**; after accepting, the project list reloads and **Open project** takes you there. The panel is hidden when there is nothing pending and for the demo account.
 
 **Tests:** `backend/test/invitations.test.js`, `frontend/src/components/Invitations.test.jsx`, `frontend/src/pages/DashboardPage.test.jsx` (invitations panel).
+
+## Sprint 3 — Decisions (M8: US-35, US-36)
+
+Project members keep a record of **why** a choice was made: a title, a description, the people involved, the date, and optionally a link to the task or chat thread where it was discussed.
+
+**Model** (`backend/src/models/Decision.js`): `project`, `title` (required, up to 120 characters), `description` (required, up to 2,000), `participants` (Users, at least one), `date` (required calendar day, `YYYY-MM-DD`, stored as midnight UTC like task due dates), `relatedTask` **or** `relatedMessage` + `relatedChannel` (a thread = its top-level channel message), `createdBy`, `updatedBy` (null until edited), `createdAt` / `updatedAt`. The field rules are in `backend/src/lib/decisions.js`.
+
+**API** (`/api/projects/:id/decisions`, members only)
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /` | All members (Viewers too) | `{ decisions }`, newest date first |
+| `GET /:decisionId` | All members | `{ decision }` |
+| `POST /` | Owner, Admin, Contributor | `{ title, description, participants: [userId], date, link? }` → 201 `{ decision }` |
+| `PATCH /:decisionId` | Owner, Admin, Contributor | any of the same fields; `link: null` removes the link → `{ decision }` |
+
+`link` is `{ type: 'task', id: <taskId> }` or `{ type: 'thread', id: <top-level messageId> }`. Each decision comes back with `participants` / `createdBy` / `updatedBy` `{ name, username, avatarUrl }` and `link: { type, id, label, href, missing }`, where `href` uses the existing deep links (`?tab=tasks&task=…`, `?tab=chat&channel=…&message=…&thread=…`). If the linked task or message is deleted later, the decision is kept and the link comes back with `missing: true` and `href: null`.
+
+**Errors:** **400** for a missing or invalid field (nothing is saved, including on edit), a participant who is not a project member (on edit, people already on the decision may stay after they leave the project), a task or thread from another project, or a reply used instead of the thread's first message; **403** for Viewers on POST/PATCH and for non-members; **404** for a decision of another project. Recording and editing are logged in the Activity Feed as `decision.created` ("recorded decision …") and `decision.updated` ("updated decision …"); an edit that changes nothing is not logged.
+
+**UI.** The project page has a **Decisions** tab (between Milestones and Activity). It lists every decision with its title, date, participants, description, link and "Recorded by … · Edited by …". Owners, Admins and Contributors get **Record decision** and an edit button. The form has title, description, date, participant checkboxes (project members), and **Related task or thread** (No link / Task / Channel thread → channel → message). Missing fields show an error in the form and nothing is sent. Viewers only see the list. Demo projects show a placeholder.
+
+**Tests:** `backend/test/decisionRules.test.js` (field rules, dates, links; no database), `backend/test/decisions.test.js` (all five acceptance criteria, roles, participants, cross-project links, reply-as-thread, deleted task, activity events), `frontend/src/components/DecisionsPanel.test.jsx` (list, record, validation, server errors, edit, Viewer, link hrefs, thread picker).
