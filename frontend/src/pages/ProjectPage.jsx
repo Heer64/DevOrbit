@@ -14,6 +14,7 @@ import ChatPanel from '../components/ChatPanel'; // [Sprint 2 final] US-16
 import JoinRequestCard from '../components/JoinRequestCard'; // [Sprint 3 · M2] US-47
 import JoinRequestsPanel from '../components/JoinRequestsPanel'; // [Sprint 3 · M2] US-12
 import InvitationsPanel from '../components/InvitationsPanel'; // [Sprint 3 · M1] US-10, US-11
+import DecisionsPanel from '../components/DecisionsPanel'; // [Sprint 3 · M8] US-35/US-36
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -41,7 +42,7 @@ const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: '
 // [Sprint 2 final] Workspace tabs. The open tab (and what is open inside it) lives in the URL,
 // e.g. /project/<id>?tab=tasks&task=<taskId> or ?tab=chat&channel=<channelId>&message=<messageId>,
 // so notifications, the activity feed and decisions can link straight to a task or a message.
-export const PROJECT_TABS = ['Tasks', 'Chat', 'Milestones', 'Activity'];
+export const PROJECT_TABS = ['Tasks', 'Chat', 'Milestones', 'Decisions', 'Activity']; // [Sprint 3 · M8] US-35/US-36: 'Decisions' added
 export function tabFromParam(value) {
   return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
 }
@@ -236,6 +237,16 @@ export default function ProjectPage() {
               <Milestone title="Collaboration core" detail="Tasks, messages and team workflow" progress={65} tone="violet" />
               <Milestone title="Public launch" detail="Discovery, profiles and community feed" progress={25} tone="orange" />
             </div>
+          )}
+          {/* [Sprint 3 · M8] US-35/US-36: project decisions. Members only. */}
+          {activeTab === 'Decisions' && isLive && membershipRole && (
+            <DecisionsPanel projectId={id} myRole={membershipRole} members={team || []} tasks={taskList} onChange={() => setWorkVersion((n) => n + 1)} />
+          )}
+          {activeTab === 'Decisions' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>Project decisions are visible to members only.</p></div>
+          )}
+          {activeTab === 'Decisions' && !isLive && (
+            <div className="task-empty"><Circle size={20} /><p>Decisions are available in real projects. Sign in and open one of your projects to record your team's decisions.</p></div>
           )}
           {activeTab === 'Activity' && isLive && membershipRole && (
             <ActivityPanel projectId={id} refreshKey={workVersion} />

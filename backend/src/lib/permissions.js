@@ -119,3 +119,9 @@ export function canPostMessages(role) {
 export function canManageChannels(role) {
   return role === 'Owner' || role === 'Admin';
 }
+
+// [Sprint 3 · M8] US-35/US-36: who may record and edit project decisions.
+// Every member can read them; Viewers cannot record or edit (403).
+export function canWriteDecisions(role) {
+  return role === 'Owner' || role === 'Admin' || role === 'Contributor';
+}

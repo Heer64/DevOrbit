@@ -39,3 +39,6 @@ export const canManageMilestones = (role) => role === 'Owner' || role === 'Admin
 // [Sprint 2 final] Mirrors canPostMessages / canManageChannels in backend/src/lib/permissions.js.
 export const canPostMessages = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
 export const canManageChannels = (role) => role === 'Owner' || role === 'Admin';
+
+// [Sprint 3 · M8] US-35/US-36: who may record and edit decisions (same rule as the API).
+export const canWriteDecisions = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
