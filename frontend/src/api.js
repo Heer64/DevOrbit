@@ -220,6 +220,41 @@ export const liveApi = {
       stop?.();
     };
   },
+  // [Sprint 3 · M7 Part 2] Events sent to the signed-in user only (their notifications).
+  onUser: (eventName, handler) => {
+    let stop = null;
+    let cancelled = false;
+    loadRealtime()
+      .then((module) => {
+        if (cancelled) return;
+        stop = module.subscribeToUserEvent(
+          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          eventName,
+          handler
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  },
+};
+
+// [Sprint 3 · M7 Part 2] The signed-in user's notifications (US-30). Contract: backend/src/routes/notifications.js
+//   list      -> { notifications (newest first), nextBefore, unreadCount }   pass nextBefore back as `before`
+//   markRead  -> { notification, unreadCount }
+//   onCreated -> live { notification, unreadCount };  onRead -> live { notificationId, unreadCount }
+export const notificationApi = {
+  list: ({ limit = 20, before, unread } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    if (unread !== undefined) params.set('unread', String(Boolean(unread)));
+    return api(`/notifications?${params}`);
+  },
+  markRead: (notificationId) => api(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PATCH' }),
+  onCreated: (handler) => liveApi.onUser('notification:created', handler),
+  onRead: (handler) => liveApi.onUser('notification:read', handler),
 };
 
 // [Sprint 2 final] Project channels (US-16). Contract: backend/src/routes/channels.js

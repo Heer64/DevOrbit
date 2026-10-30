@@ -4,6 +4,7 @@ import Notification from '../models/Notification.js';
 import Project from '../models/Project.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validId } from '../lib/projectAccess.js';
+import { emitNotificationRead } from '../lib/realtime.js'; // [Sprint 3 · M7 Part 2]
 
 /*
  * [Sprint 3 · M7 Part 1] The signed-in user's own notifications, mounted at /api/notifications (US-30, FR-33).
@@ -25,6 +26,7 @@ import { validId } from '../lib/projectAccess.js';
  *
  * PATCH /api/notifications/:notificationId/read
  *   Marks one notification as read. Safe to repeat: readAt keeps the first time it was read.
+ *   [M7 Part 2] The first time, the caller's other open tabs get 'notification:read' { notificationId, unreadCount }.
  *   -> { notification, unreadCount }
  */
 const router = Router();
@@ -99,7 +101,7 @@ router.patch('/:notificationId/read', async (req, res, next) => {
     const owned = { _id: req.params.notificationId, recipient: req.user.id, project: { $in: projectIds } };
 
     // Only unread rows are changed, so repeating the call keeps the original readAt.
-    await Notification.updateOne({ ...owned, read: false }, { $set: { read: true, readAt: new Date() } });
+    const marked = await Notification.updateOne({ ...owned, read: false }, { $set: { read: true, readAt: new Date() } });
 
     const notification = await Notification.findOne(owned)
       .populate('actor', ACTOR_FIELDS)
@@ -109,6 +111,7 @@ router.patch('/:notificationId/read', async (req, res, next) => {
     if (!notification) return res.status(404).json({ message: 'Notification not found.' });
 
     const unreadCount = await unreadCountFor(req.user.id, projectIds);
+    if (marked.modifiedCount > 0) emitNotificationRead(req.user.id, notification._id, unreadCount); // [M7 Part 2]
     return res.json({ notification, unreadCount });
   } catch (error) {
     return next(error);

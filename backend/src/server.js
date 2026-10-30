@@ -3,6 +3,7 @@ import http from 'node:http';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { closeRealtime, initRealtime } from './lib/realtime.js';
+import { startDeadlineNotifier, stopDeadlineNotifier } from './lib/taskNotifications.js'; // [Sprint 3 · M7 Part 2]
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -36,6 +37,8 @@ try {
     .filter(Boolean);
   initRealtime(server, { origins: clientOrigins });
   server.listen(port, () => console.log(`DevOrbit API listening on http://localhost:${port}`));
+  // [Sprint 3 · M7 Part 2] Deadline notifications for tasks due within 24 hours, checked every 5 minutes.
+  startDeadlineNotifier();
 } catch (error) {
   console.error('MongoDB connection failed:', error.message);
   console.error('Check that MongoDB is running and that MONGODB_URI in backend/.env is correct.');
@@ -45,6 +48,7 @@ try {
 // Close the server and database connection cleanly on Ctrl+C or shutdown
 async function shutdown(signal) {
   console.log(`${signal} received. Shutting down DevOrbit API...`);
+  stopDeadlineNotifier(); // [Sprint 3 · M7 Part 2]
   // Closing Socket.IO also closes the HTTP server it is attached to.
   await closeRealtime();
   await mongoose.connection.close();

@@ -67,6 +67,17 @@ export function subscribeToProjectEvent({ origin, getToken }, projectId, eventNa
 }
 
 /*
+ * [Sprint 3 · M7 Part 2] Calls handler(payload) for every `eventName` event sent to the signed-in user
+ * personally ('notification:created', 'notification:read'). The server puts each socket in the user's
+ * own room when it connects, so nothing needs joining. Returns a function that stops listening.
+ */
+export function subscribeToUserEvent({ origin, getToken }, eventName, handler) {
+  const current = getSocket(origin, getToken);
+  current.on(eventName, handler);
+  return () => current.off(eventName, handler);
+}
+
+/*
  * Calls onTaskUpdated(task) whenever someone changes a task in this project.
  * [Sprint 2 final] Also calls onTaskUpdated(task) for a newly created task (task:created),
  * and onTaskDeleted(taskId) when someone deletes one (task:deleted).
