@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { canWriteTasks, canDeleteTask } from '../lib/permissions.js';
 import { emitTaskCreated, emitTaskDeleted, emitTaskUpdated } from '../lib/realtime.js';
 import { formatDueDay, parseDueDate } from '../lib/dueDates.js'; // [Sprint 3 · M5] US-23
+import { notifyAssignment, notifyDeadlineIfDue } from '../lib/taskNotifications.js'; // [Sprint 3 · M7 Part 2] US-30
 
 const router = Router({ mergeParams: true });
 
@@ -498,6 +499,8 @@ router.patch('/:taskId/status', async (req, res, next) => {
     await updateProgress(project._id);
 
     await logTaskChanges(req, project, updated, snapshot(current));
+    // [Sprint 3 · M7 Part 2] A task moved back out of Done inside its due window warns the assignee again.
+    await notifyDeadlineIfDue({ task: updated, project: project._id });
 
     const populatedTask = await findPopulatedTask(updated._id);
 
@@ -652,6 +655,11 @@ router.post('/', async (req, res, next) => {
       targetLabel: task.title,
       meta: { status: task.status },
     });
+
+    // [Sprint 3 · M7 Part 2] US-22: the assignee gets an Assignment notification; US-23: a Deadline one
+    // straight away if the task is already due within 24 hours.
+    await notifyAssignment({ task, project: project._id, actor: req.user.id });
+    await notifyDeadlineIfDue({ task, project: project._id });
 
     const populatedTask = await findPopulatedTask(task._id);
 
@@ -897,6 +905,12 @@ router.patch('/:taskId', async (req, res, next) => {
     await updateProgress(project._id);
 
     await logTaskChanges(req, project, task, before);
+
+    // [Sprint 3 · M7 Part 2] A new assignee is told (US-22); a task now due within 24 hours warns its assignee (US-23).
+    if (changed) {
+      await notifyAssignment({ task, project: project._id, actor: req.user.id, previousAssignee: before.assignee });
+      await notifyDeadlineIfDue({ task, project: project._id });
+    }
 
     const populatedTask = await findPopulatedTask(task._id);
 

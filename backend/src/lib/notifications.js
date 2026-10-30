@@ -1,14 +1,45 @@
 import Notification from '../models/Notification.js';
 import Project from '../models/Project.js';
 import { validId } from './projectAccess.js';
+import { emitNotificationCreated, realtimeActive } from './realtime.js'; // [Sprint 3 · M7 Part 2]
 
 /*
  * [Sprint 3 · M7 Part 1] Notification storage helpers (US-30).
  *
- * This file only stores notifications. Deciding WHEN to notify (an @mention was posted,
- * a task was assigned, a task is due within 24 hours) and pushing them live belong to
- * M7 Part 2, which calls createNotification() from those features.
+ * This file stores notifications. The features decide WHEN to notify:
+ *   - @mentions: lib/mentions.js notifyMentions() (channel messages, thread replies, task comments)
+ *   - assignments and deadlines: lib/taskNotifications.js (M7 Part 2)
+ *
+ * [Sprint 3 · M7 Part 2] Every NEW notification is also pushed live to the recipient
+ * ('notification:created' in lib/realtime.js), so it appears within seconds (NFR-6).
  */
+
+const ACTOR_FIELDS = 'name username avatarUrl';
+const PROJECT_FIELDS = 'name color';
+
+/*
+ * [Sprint 3 · M7 Part 2] Unread notifications the user can see right now: only from projects
+ * they are currently a member of (same rule as GET /api/notifications).
+ */
+export async function unreadCountFor(userId) {
+  const projects = await Project.find({ 'members.user': userId }).select('_id').lean();
+  return Notification.countDocuments({ recipient: userId, project: { $in: projects.map((p) => p._id) }, read: false });
+}
+
+// Pushes a newly stored notification to the recipient's open tabs. Never throws.
+async function publish(saved) {
+  if (!realtimeActive()) return;
+  try {
+    const notification = await Notification.findById(saved._id)
+      .populate('actor', ACTOR_FIELDS)
+      .populate('project', PROJECT_FIELDS)
+      .lean();
+    if (!notification) return;
+    emitNotificationCreated(notification, await unreadCountFor(notification.recipient));
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'test') console.error('Could not push notification:', error.message);
+  }
+}
 
 // In-app deep links, the same formats ProjectPage already opens (see README "Links into the project").
 export function taskLink(projectId, taskId) {
@@ -46,6 +77,8 @@ function idString(value) {
  *   returns the notification that already exists instead of creating a second one.
  * - It never throws: notifications are a side effect, so a failed write is logged and the
  *   main request (posting the message, assigning the task, ...) still succeeds.
+ * - [M7 Part 2] A newly stored notification is pushed live; an existing one returned for a
+ *   repeated dedupeKey is not pushed again.
  *
  * Returns the stored notification document, or null when skipped or not saved.
  */
@@ -85,7 +118,9 @@ export async function createNotification({
     const isMember = await Project.exists({ _id: projectId, 'members.user': recipientId });
     if (!isMember) return null;
 
-    return await Notification.create(fields);
+    const saved = await Notification.create(fields);
+    await publish(saved);
+    return saved;
   } catch (error) {
     // Same recipient + dedupeKey already stored (also covers two requests racing): return that one.
     if (error?.code === 11000 && fields.dedupeKey) {

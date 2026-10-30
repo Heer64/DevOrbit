@@ -6,6 +6,7 @@ import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { projectApi, toProjectCard } from '../api';
+import NotificationBell from './NotificationBell'; // [Sprint 3 · M7 Part 2] US-30
 
 const DOMAINS = ['Developer tools', 'Education', 'Climate tech', 'Research', 'Design systems', 'Backend', 'Community', 'Other'];
 const VISIBILITIES = [
@@ -145,7 +146,10 @@ export default function AppShell() {
               {globalSearch && <button type="button" className="clear" aria-label="Clear search" onClick={() => setGlobalSearch('')}><X size={13} /></button>}
               <kbd>⌘ K</kbd>
             </label>
-            <button className="iconbtn bell" aria-label="Notifications" title="Notifications"><Bell size={17} /><i /></button>
+            {/* [Sprint 3 · M7 Part 2] Real notifications for signed-in users; the demo keeps the static bell. */}
+            {user && !user.isDemo
+              ? <NotificationBell />
+              : <button className="iconbtn bell" aria-label="Notifications" title="Notifications"><Bell size={17} /><i /></button>}
             <button className="profile-button" onClick={() => navigate('/profile')} aria-label="Open profile"><Avatar initials={avatarText} src={user?.avatarSrc} /><ChevronDown size={13} /></button>
           </div>
         </header>

@@ -20,6 +20,10 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'project:access-removed' { projectId, reason }   [Sprint 3 · M3] sent to a person removed from / leaving a project
  *   listen     'message:reply' { projectId, channelId, parentId, reply, replyCount, lastReplyAt }   [US-17] members only
  *   listen     'comment:created' { projectId, taskId, comment }   [US-20] members only
+ *   listen     'notification:created' { notification, unreadCount }   [Sprint 3 · M7 Part 2] only to the recipient
+ *   listen     'notification:read' { notificationId, unreadCount }    [Sprint 3 · M7 Part 2] only to the recipient
+ *              Every authenticated socket is put in its own user room on connect (no join needed),
+ *              so these reach all of the recipient's open tabs and nobody else.
  *
  * Who may join a project room: the same people who may read its tasks
  * (members of any project, and anyone for a Public project). Only reading happens here;
@@ -35,6 +39,8 @@ export const projectRoom = (projectId) => `project:${projectId}`;
 // [Sprint 2 final] Members-only room. Chat messages go here, because visitors of a Public
 // project may watch its task board (projectRoom) but must not read the team's channels.
 export const memberRoom = (projectId) => `project:${projectId}:members`;
+// [Sprint 3 · M7 Part 2] One private room per signed-in user, for their own notifications.
+export const userRoom = (userId) => `user:${userId}`;
 
 // Same checks as middleware/auth.js requireAuth: a valid JWT and a live, unrevoked session.
 async function userIdFromToken(token) {
@@ -69,6 +75,9 @@ export function initRealtime(httpServer, { origins = [] } = {}) {
   });
 
   io.on('connection', (socket) => {
+    // [Sprint 3 · M7 Part 2] The user id comes from the verified token (io.use above), never from the client.
+    socket.join(userRoom(socket.data.userId));
+
     socket.on('project:join', async (payload, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       const projectId = String(payload?.projectId || '');
@@ -210,6 +219,28 @@ export async function revokeProjectAccess(projectId, userId, { visibility = 'Pri
   } catch (error) {
     if (process.env.NODE_ENV !== 'test') console.error('Could not revoke live access:', error.message);
   }
+}
+
+/*
+ * [Sprint 3 · M7 Part 2] Notifications (US-30, NFR-6: shown within 5 seconds).
+ * Sent only to the recipient's own room. Safe to call when the socket server is not running.
+ *   'notification:created' { notification, unreadCount }   notification = same shape as GET /api/notifications
+ *   'notification:read'    { notificationId, unreadCount }  so other open tabs update their badge
+ */
+export function realtimeActive() {
+  return Boolean(io);
+}
+
+export function emitNotificationCreated(notification, unreadCount) {
+  if (!io || !notification) return;
+  const recipient = String(notification.recipient?._id || notification.recipient || '');
+  if (!recipient) return;
+  io.to(userRoom(recipient)).emit('notification:created', { notification, unreadCount });
+}
+
+export function emitNotificationRead(userId, notificationId, unreadCount) {
+  if (!io || !userId || !notificationId) return;
+  io.to(userRoom(String(userId))).emit('notification:read', { notificationId: String(notificationId), unreadCount });
 }
 
 export async function closeRealtime() {

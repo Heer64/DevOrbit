@@ -380,3 +380,21 @@ Project members keep a record of **why** a choice was made: a title, a descripti
 **UI.** The project page has a **Decisions** tab (between Milestones and Activity). It lists every decision with its title, date, participants, description, link and "Recorded by … · Edited by …". Owners, Admins and Contributors get **Record decision** and an edit button. The form has title, description, date, participant checkboxes (project members), and **Related task or thread** (No link / Task / Channel thread → channel → message). Missing fields show an error in the form and nothing is sent. Viewers only see the list. Demo projects show a placeholder.
 
 **Tests:** `backend/test/decisionRules.test.js` (field rules, dates, links; no database), `backend/test/decisions.test.js` (all five acceptance criteria, roles, participants, cross-project links, reply-as-thread, deleted task, activity events), `frontend/src/components/DecisionsPanel.test.jsx` (list, record, validation, server errors, edit, Viewer, link hrefs, thread picker).
+
+## Sprint 3 — M7 Part 2: notification integration (US-30, FR-10, FR-33, NFR-6)
+
+Builds on M7 Part 1 (storage + `/api/notifications`), M4's mention notifications and M5's deadline query.
+
+**Generated automatically** (all through `createNotification()`, so only current project members are notified, nobody about their own action, and a failure never breaks the request)
+
+| Type | When | Link | Duplicates |
+|------|------|------|-----------|
+| Mention | `@username` in a channel message, thread reply or task comment (M4, `lib/mentions.js`) | the message / thread / task | `mention:<type>:<id>` |
+| Assignment | a task is created with an assignee, or its assignee changes (`lib/taskNotifications.js`, called from `routes/tasks.js`). Assigning yourself tells nobody | the task | `assignment:<taskId>:v<version>`: a retried request never notifies twice, a later re-assignment does |
+| Deadline | an assigned task that is not Done is less than 24 hours from its deadline (M5 rules). Sent at once when a task is saved inside that window (create, edit, moved out of Done), and by a check every 5 minutes (`startDeadlineNotifier()`, started in `server.js`) for tasks that enter the window as time passes | the task | M5's `deadline:<taskId>:<due day>`: once per task and day; a new due date notifies again |
+
+**Live.** Every authenticated socket now joins its own room `user:<id>` on connect (the id comes from the verified token). New notifications are pushed only there as `notification:created { notification, unreadCount }` (same shape as the REST list), and marking one read sends `notification:read { notificationId, unreadCount }` to the user's other tabs. A notification returned again for a repeated `dedupeKey` is not pushed again. Same shared Socket.IO server as before.
+
+**UI.** The bell in the top bar (`NotificationBell.jsx`) shows the unread count (9+ above nine) and opens the newest notifications, labelled **Mention**, **Assignment** or **Deadline**, with who did it, the project and when. Selecting one marks it read and opens its task, message or thread. New ones appear live; "Show older" pages back. The demo workspace keeps the static bell.
+
+**Tests:** `backend/test/notificationDelivery.test.js`, `frontend/src/components/NotificationBell.test.jsx`.
