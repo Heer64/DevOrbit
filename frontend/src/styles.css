@@ -517,3 +517,10 @@ textarea.field-input{resize:vertical;min-height:90px}
 .notif-more{width:100%;margin-top:6px}
 .notif-panel .form-error{margin:6px}
 @media (max-width:640px){.notif-panel{position:fixed;left:12px;right:12px;top:64px;width:auto}}
+
+/* [Sprint 4 · M1] US-31 GitHub integration panel */
+.github-panel .team-note{font-size:10px;color:var(--muted);line-height:1.6;margin:0 0 12px}
+.github-panel .form-error,.github-panel .success-inline{margin:0 0 12px}
+.github-panel .github-account{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--panel2)}
+.github-panel .github-account p{margin:0;font-size:11px}
+.github-panel .github-account small{display:block;margin-top:4px;font-size:9px;color:var(--muted)}

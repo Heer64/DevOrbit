@@ -311,6 +311,15 @@ export const decisionApi = {
   update: (id, decisionId, payload) => api(`${projectPath(id)}/decisions/${encodeURIComponent(decisionId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
+// [Sprint 4 · M1] US-31 GitHub authorization. Contract: backend/src/routes/github.js
+//   status    -> { configured, canAuthorize, connection: null | { githubLogin, scopes, authorizedAt, authorizedBy } }  Owner/Admin
+//   authorize -> { url }  Owner only; send the browser to url. GitHub returns to /project/<id>?github=<result>.
+// The GitHub access token is never sent to the browser.
+export const githubApi = {
+  status: (id) => api(`${projectPath(id)}/github`),
+  authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {

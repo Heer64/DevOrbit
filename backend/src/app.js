@@ -16,6 +16,7 @@ import threadRoutes from './routes/threads.js'; // [Sprint 3] US-17 thread repli
 import taskCommentRoutes from './routes/taskComments.js'; // [Sprint 3] US-20 task comments
 import { projectInvitationRoutes, myInvitationRoutes } from './routes/invitations.js'; // [Sprint 3 · M1] US-10, US-11
 import decisionRoutes from './routes/decisions.js'; // [Sprint 3 · M8] US-35/US-36
+import { projectGithubRoutes, githubCallbackRoutes } from './routes/github.js'; // [Sprint 4 · M1] US-31
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -91,6 +92,8 @@ export function createApp() {
   app.use('/api/projects/:id/invitations', projectInvitationRoutes); // [Sprint 3 · M1] US-10
   app.use('/api/invitations', myInvitationRoutes); // [Sprint 3 · M1] US-11
   app.use('/api/projects/:id/decisions', decisionRoutes); // [Sprint 3 · M8] US-35/US-36
+  app.use('/api/projects/:id/github', projectGithubRoutes); // [Sprint 4 · M1] US-31 integration settings
+  app.use('/api/github', githubCallbackRoutes); // [Sprint 4 · M1] US-31 OAuth callback from GitHub
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });
