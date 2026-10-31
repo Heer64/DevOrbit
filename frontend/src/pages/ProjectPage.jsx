@@ -16,6 +16,7 @@ import JoinRequestsPanel from '../components/JoinRequestsPanel'; // [Sprint 3 ·
 import InvitationsPanel from '../components/InvitationsPanel'; // [Sprint 3 · M1] US-10, US-11
 import DecisionsPanel from '../components/DecisionsPanel'; // [Sprint 3 · M8] US-35/US-36
 import GithubIntegrationPanel from '../components/GithubIntegrationPanel'; // [Sprint 4 · M1] US-31
+import ProjectDashboard from '../components/ProjectDashboard'; // [Sprint 4 · M7] US-39
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -43,7 +44,9 @@ const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: '
 // [Sprint 2 final] Workspace tabs. The open tab (and what is open inside it) lives in the URL,
 // e.g. /project/<id>?tab=tasks&task=<taskId> or ?tab=chat&channel=<channelId>&message=<messageId>,
 // so notifications, the activity feed and decisions can link straight to a task or a message.
-export const PROJECT_TABS = ['Tasks', 'Chat', 'Milestones', 'Decisions', 'Activity']; // [Sprint 3 · M8] US-35/US-36: 'Decisions' added
+// [Sprint 3 · M8] US-35/US-36: 'Decisions' added. [Sprint 4 · M7] US-39: 'Dashboard' added (?tab=dashboard).
+// Tasks stays the default tab when the URL has none, so existing links and journeys are unchanged.
+export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Activity'];
 export function tabFromParam(value) {
   return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
 }
@@ -193,6 +196,21 @@ export default function ProjectPage() {
           <div className="project-tabs">
             {PROJECT_TABS.map((t) => <button key={t} className={activeTab === t ? 'active' : ''} aria-pressed={activeTab === t} onClick={() => setActiveTab(t)}>{t}</button>)}
           </div>
+          {/* [Sprint 4 · M7] US-39: project dashboard. Members only; numbers come from the API. */}
+          {activeTab === 'Dashboard' && isLive && membershipRole && (
+            <ProjectDashboard
+              projectId={id}
+              refreshKey={workVersion}
+              onOpenTask={(taskId) => setActiveTab('Tasks', { task: taskId })}
+              onOpenMilestones={() => setActiveTab('Milestones')}
+            />
+          )}
+          {activeTab === 'Dashboard' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>The project dashboard is visible to members only.</p></div>
+          )}
+          {activeTab === 'Dashboard' && !isLive && (
+            <div className="task-empty"><Circle size={20} /><p>The dashboard is available in real projects. Sign in and open one of your projects to see milestone progress and upcoming deadlines.</p></div>
+          )}
           {/* Kept mounted (just hidden) so tasks are not re-fetched on every tab switch. */}
           <div hidden={activeTab !== 'Tasks'}>
             <TasksPanel
