@@ -5,6 +5,7 @@ import Task from '../models/Task.js';
 import { requireAuth } from '../middleware/auth.js';
 import { DEADLINE_WINDOW_MS } from '../lib/dueDates.js'; // [Sprint 3 · M5]
 import { findTasksDueSoon } from '../lib/deadlines.js'; // [Sprint 3 · M5]
+import { upcomingWindow } from '../lib/dashboardRules.js'; // [Sprint 4 · M7] shared 7-day window (US-39)
 
 /*
  * Personal task views for the dashboard, mounted at /api/tasks (Sprint 2 leftovers).
@@ -44,10 +45,6 @@ function readInt(raw, fallback, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function startOfTodayUtc(now = new Date()) {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
 async function myProjectIds(userId) {
   const projects = await Project.find({ 'members.user': userId }).select('_id').lean();
   return projects.map((project) => project._id);
@@ -61,9 +58,9 @@ router.get('/upcoming', async (req, res, next) => {
 
     if (projectIds.length === 0) return res.json({ tasks: [], days });
 
-    const from = startOfTodayUtc();
-    // "Within the next N days": today plus N more days, up to the end of that day.
-    const until = new Date(from.getTime() + (days + 1) * DAY_MS);
+    // "Within the next N days": today plus N more days, up to the end of that day (UTC).
+    // [Sprint 4 · M7] Same window as the project dashboard: lib/dashboardRules.js.
+    const { from, until } = upcomingWindow(new Date(), days);
 
     const tasks = await Task.find({
       project: { $in: projectIds },

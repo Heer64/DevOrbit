@@ -444,3 +444,23 @@ The callback builds its redirect only from `CLIENT_ORIGIN` and the project store
 **Files:** `backend/src/routes/github.js`, `backend/src/lib/githubOAuth.js`, `backend/src/lib/githubCrypto.js`, `backend/src/models/GithubConnection.js`, `backend/src/models/GithubOAuthState.js`, `frontend/src/components/GithubIntegrationPanel.jsx`, `githubApi` in `frontend/src/api.js`.
 
 **Tests:** `backend/test/githubOAuth.test.js` (both acceptance criteria, encryption at rest, no token or secret in any response or log, state cookie + hash + single use + expiry, no open redirect, roles, missing config; GitHub is faked), `backend/test/githubCrypto.test.js` (encryption and state helpers, no database), `frontend/src/components/GithubIntegrationPanel.test.jsx`.
+
+## Sprint 4 — M7: project dashboard (US-39, FR-15)
+
+A **Dashboard** tab on the project page (`/project/<id>?tab=dashboard`) shows, from live database data:
+
+- **Milestone progress** — one progress bar per milestone: Done tasks ÷ tasks attached to it, rounded (a milestone with no tasks is 0%). Same calculation as the Milestones tab (both use `lib/projectDashboard.js`).
+- **Open tasks** — the number of tasks that are not `Done` (`To do` + `In progress` + `Blocked`), with the per-status breakdown.
+- **Due in the next 7 days** — open tasks due today up to and including 7 days ahead, soonest first, with title, due date, status, assignee and milestone. Click one to open it in the Tasks tab.
+
+Due dates are calendar days stored as midnight UTC (see Sprint 3 — M5), so "today" is the UTC day. The 7-day window starts exactly where `isOverdue()` stops, so a dated open task is always either overdue (project health, US-40) or upcoming — never both. Rules and unit tests: `backend/src/lib/dashboardRules.js`, `backend/test/dashboardRules.test.js`. The tab reloads after your own task/milestone changes and when teammates' task changes arrive live.
+
+| Call | Who | Response |
+|---|---|---|
+| `GET /api/projects/:id/dashboard` | Signed-in project members (any role). 401 not signed in, 400 bad ID, 404 no project, **403 non-members, even for a Public project** | `{ project: { _id, name, status }, membershipRole, milestones: { total, completed, items: [{ _id, title, description, dueDate, taskCount, doneCount, progress, completed }] }, tasks: { total, open, done, byStatus }, dueSoon: { days: 7, from, to, total, limit: 50, tasks: [{ _id, title, status, priority, dueDate, assignee, milestone }] }, generatedAt }` |
+
+`from` / `to` are `YYYY-MM-DD`. `dueSoon.tasks` holds at most 50 tasks; `dueSoon.total` is the full count. Overdue and blocked lists and the activity level are project health (US-40, M8), not this endpoint.
+
+**Files:** `backend/src/routes/dashboard.js`, `backend/src/lib/projectDashboard.js`, `backend/src/lib/dashboardRules.js` (milestone stats moved here from `routes/milestones.js`; `GET /api/tasks/upcoming` now uses the same 7-day window), `frontend/src/components/ProjectDashboard.jsx`, `dashboardApi` in `frontend/src/api.js`, the `Dashboard` tab in `frontend/src/pages/ProjectPage.jsx`.
+
+**Tests:** `backend/test/dashboardRules.test.js` (rules, no database), `backend/test/projectDashboard.test.js` (API: auth, membership, calculations, 7-day boundaries with a fixed clock, empty project), `frontend/src/components/ProjectDashboard.test.jsx`, `frontend/src/pages/ProjectPage.tabs.test.js`, `e2e/tests/project-dashboard.spec.js`.

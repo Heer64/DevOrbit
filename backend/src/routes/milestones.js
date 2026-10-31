@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { canManageMilestones } from '../lib/permissions.js';
 import { loadProjectForMember, loadProjectForViewer, validId } from '../lib/projectAccess.js';
 import { logActivity, quote } from '../lib/activity.js';
+import { milestoneTaskStats, withMilestoneStats } from '../lib/projectDashboard.js'; // [Sprint 4 · M7]
 
 // Mounted at /api/projects/:id/milestones
 const router = Router({ mergeParams: true });
@@ -23,34 +24,10 @@ function parseDueDate(raw) {
   return { ok: true, value: date };
 }
 
-// Task counts per milestone: Map(milestoneId -> { total, done }).
-async function taskStats(milestoneIds) {
-  if (milestoneIds.length === 0) return new Map();
-  const rows = await Task.aggregate([
-    { $match: { milestone: { $in: milestoneIds } } },
-    {
-      $group: {
-        _id: '$milestone',
-        total: { $sum: 1 },
-        done: { $sum: { $cond: [{ $eq: ['$status', 'Done'] }, 1, 0] } },
-      },
-    },
-  ]);
-  return new Map(rows.map((row) => [row._id.toString(), { total: row.total, done: row.done }]));
-}
-
-// Adds taskCount, doneCount, progress (0-100) and completed to each milestone.
-function withStats(milestone, stats) {
-  const plain = typeof milestone.toObject === 'function' ? milestone.toObject() : milestone;
-  const { total = 0, done = 0 } = stats.get(plain._id.toString()) || {};
-  return {
-    ...plain,
-    taskCount: total,
-    doneCount: done,
-    progress: total === 0 ? 0 : Math.round((done / total) * 100),
-    completed: total > 0 && done === total,
-  };
-}
+// [Sprint 4 · M7] Task counts and progress now live in lib/projectDashboard.js so the
+// Milestones tab and the project dashboard (US-39) use one calculation.
+const taskStats = milestoneTaskStats;
+const withStats = withMilestoneStats;
 
 // Checks the caller may change milestones. Responds itself and returns null when they may not.
 async function loadForManager(req, res) {

@@ -320,6 +320,17 @@ export const githubApi = {
   authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
 };
 
+// [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js
+//   project -> { project, membershipRole,
+//                milestones: { total, completed, items: [{ _id, title, dueDate, taskCount, doneCount, progress, completed }] },
+//                tasks: { total, open, done, byStatus },
+//                dueSoon: { days, from, to, total, limit, tasks: [{ _id, title, status, priority, dueDate, assignee, milestone }] },
+//                generatedAt }
+// Members only (403 otherwise). Due dates are midnight-UTC calendar days; from/to are 'YYYY-MM-DD'.
+export const dashboardApi = {
+  project: (id) => api(`${projectPath(id)}/dashboard`),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {
