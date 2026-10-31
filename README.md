@@ -398,3 +398,49 @@ Builds on M7 Part 1 (storage + `/api/notifications`), M4's mention notifications
 **UI.** The bell in the top bar (`NotificationBell.jsx`) shows the unread count (9+ above nine) and opens the newest notifications, labelled **Mention**, **Assignment** or **Deadline**, with who did it, the project and when. Selecting one marks it read and opens its task, message or thread. New ones appear live; "Show older" pages back. The demo workspace keeps the static bell.
 
 **Tests:** `backend/test/notificationDelivery.test.js`, `frontend/src/components/NotificationBell.test.jsx`.
+
+## Sprint 4 — M1: Authorize GitHub (US-31, FR-11, NFR-4)
+
+A project **Owner** connects FORGE to their GitHub account with GitHub OAuth so FORGE can read their repositories. Picking the repository (US-32) and view / disconnect / re-authorize (US-33) build on this.
+
+### GitHub OAuth setup (once per environment)
+
+1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App** (or the team organisation's settings).
+2. **Homepage URL:** the frontend, e.g. `http://localhost:5173`. **Authorization callback URL:** the API callback, e.g. `http://localhost:5000/api/github/callback` (in production the HTTPS API URL + `/api/github/callback`).
+3. Copy the Client ID and generate a Client secret, then add them to **`backend/.env` only** (never `frontend/.env`, never committed):
+
+```
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=http://localhost:5000/api/github/callback   # must match the app's callback URL exactly
+GITHUB_TOKEN_KEY=...   # 64 hex chars: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Until all four are set, the API logs which ones are missing (names only) and the panel says GitHub is not set up. Use one OAuth App per environment (local / deployed), because each has its own callback URL. Keep `GITHUB_TOKEN_KEY` the same once tokens are stored: a new key makes stored tokens unreadable.
+
+### How it works
+
+| Step | What happens |
+|------|--------------|
+| **Connect GitHub** (Owner only) | `POST /api/projects/:id/github/authorize` creates a random single-use **state** (stored only as a SHA-256 hash, expires after 10 minutes), puts the same state in an httpOnly cookie that is only sent to `/api/github/callback`, and returns the GitHub authorize URL (`scope=repo`, the fixed callback URL). The browser goes there. |
+| Approve on GitHub | GitHub redirects to `GET /api/github/callback?code&state`. The state must exist, be unexpired and unused, **and** match the cookie (constant-time compare). It is deleted on first use. The user who started must still be the project Owner. The code is exchanged for a token server-side, the GitHub account is read, the token is **encrypted with AES-256-GCM** and saved in `GithubConnection`. Redirect to `/project/:id?github=connected`. |
+| Deny on GitHub | `?error=access_denied` → nothing is stored (an earlier authorization is left as it was). Redirect to `?github=denied`. |
+| Anything wrong | Missing/mismatched cookie → `invalid`; unknown, used or expired state → `expired`; Owner changed → `forbidden`; GitHub refused the code → `error`. Nothing is stored in any of these cases. |
+
+The callback builds its redirect only from `CLIENT_ORIGIN` and the project stored with the state, never from the query string, and answers with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+
+**Token safety (NFR-4).** `encryptedToken` is `select: false` and removed from `toJSON` / `toObject`; it lives in its own collection (not on `Project`), so no project response can include it. No API response contains the token, and error logs contain only a short reason (for example `bad_verification_code`), never the token, the code or the client secret. `decryptToken()` in `lib/githubCrypto.js` is for server-side GitHub calls in US-32 / US-34.
+
+**API**
+
+| Call | Who | Answer |
+|------|-----|--------|
+| `GET /api/projects/:id/github` | Owner, Admin | `{ configured, canAuthorize, connection }`; `connection` is `null` or `{ githubLogin, scopes, authorizedAt, authorizedBy { _id, name, username } }` |
+| `POST /api/projects/:id/github/authorize` | Owner | `{ url }`; 403 for others, 503 if the server is not configured |
+| `GET /api/github/callback` | GitHub redirect | 303 to `/project/:id?github=connected\|denied\|invalid\|expired\|forbidden\|error` |
+
+**UI.** Owners and Admins see a **GitHub** panel (Integrations) in the right column of the project page. The Owner gets **Connect GitHub**; Admins see the status only. After GitHub sends the Owner back, the panel shows "GitHub is connected…" or "The GitHub connection was not made … Nothing was saved." and removes `?github` from the URL. Once authorized it shows "Authorized as @login · by … · date".
+
+**Files:** `backend/src/routes/github.js`, `backend/src/lib/githubOAuth.js`, `backend/src/lib/githubCrypto.js`, `backend/src/models/GithubConnection.js`, `backend/src/models/GithubOAuthState.js`, `frontend/src/components/GithubIntegrationPanel.jsx`, `githubApi` in `frontend/src/api.js`.
+
+**Tests:** `backend/test/githubOAuth.test.js` (both acceptance criteria, encryption at rest, no token or secret in any response or log, state cookie + hash + single use + expiry, no open redirect, roles, missing config; GitHub is faked), `backend/test/githubCrypto.test.js` (encryption and state helpers, no database), `frontend/src/components/GithubIntegrationPanel.test.jsx`.

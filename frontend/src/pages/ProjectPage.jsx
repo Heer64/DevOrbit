@@ -15,6 +15,7 @@ import JoinRequestCard from '../components/JoinRequestCard'; // [Sprint 3 · M2]
 import JoinRequestsPanel from '../components/JoinRequestsPanel'; // [Sprint 3 · M2] US-12
 import InvitationsPanel from '../components/InvitationsPanel'; // [Sprint 3 · M1] US-10, US-11
 import DecisionsPanel from '../components/DecisionsPanel'; // [Sprint 3 · M8] US-35/US-36
+import GithubIntegrationPanel from '../components/GithubIntegrationPanel'; // [Sprint 4 · M1] US-31
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -281,6 +282,10 @@ export default function ProjectPage() {
           {/* [Sprint 3 · M2] Owners and Admins review join requests (US-12). */}
           {liveProject && canManageMembers(membershipRole) && (
             <JoinRequestsPanel projectId={id} myRole={membershipRole} onApproved={() => setTeamVersion((n) => n + 1)} />
+          )}
+          {/* [Sprint 4 · M1] US-31: project integration settings. Owner connects GitHub; Admins see the status. */}
+          {liveProject && canManageMembers(membershipRole) && (
+            <GithubIntegrationPanel projectId={id} />
           )}
           <section className="panel">
             <div className="panel-head"><div><div className="eyebrow">DEVELOPMENT</div><h2 className="with-icon" style={{ marginTop: 6 }}><Code2 size={17} /> Code &amp; files</h2></div><button className="iconbtn" onClick={() => setNotice('Repository actions are demo-only until GitHub OAuth is configured.')} aria-label="Repository actions"><MoreHorizontal size={17} /></button></div>
