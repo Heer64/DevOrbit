@@ -42,3 +42,7 @@ export const canManageChannels = (role) => role === 'Owner' || role === 'Admin';
 
 // [Sprint 3 · M8] US-35/US-36: who may record and edit decisions (same rule as the API).
 export const canWriteDecisions = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
+
+// [Sprint 4 · M8] Mirrors canViewProjectHealth / canChangeCompletion in backend/src/lib/permissions.js.
+export const canViewProjectHealth = (role) => role === 'Owner' || role === 'Admin'; // US-40
+export const canChangeCompletion = (role) => role === 'Owner'; // US-15

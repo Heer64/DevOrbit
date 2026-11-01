@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember } from '../lib/permissions.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { revokeProjectAccess } from '../lib/realtime.js'; // [Sprint 3 · M3] US-13, US-14
+import { checkCompletionChange, completionFields, reopenFields, touchesCompletion, OWNER_ONLY_MESSAGE, ALREADY_COMPLETED_MESSAGE, NOT_COMPLETED_MESSAGE } from '../lib/projectCompletion.js'; // [Sprint 4 · M8] US-15
 
 const router = Router();
 router.use(requireAuth);
@@ -43,7 +44,15 @@ router.get('/discover', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
-    const projects = await Project.find({ 'members.user': req.user.id }).sort({ updatedAt: -1 }).lean();
+    // [Sprint 4 · M8] US-15/FR-21: optional ?status=Completed (or any project status) for portfolio views.
+    // Without ?status the answer is unchanged: all of my projects.
+    const filter = { 'members.user': req.user.id };
+    if (req.query.status !== undefined) {
+      const statuses = Project.schema.path('status').enumValues;
+      if (!statuses.includes(req.query.status)) return res.status(400).json({ message: `Status must be one of: ${statuses.join(', ')}.` });
+      filter.status = req.query.status;
+    }
+    const projects = await Project.find(filter).sort({ updatedAt: -1 }).lean();
     return res.json({ projects });
   } catch (error) {
     return next(error);
@@ -118,6 +127,12 @@ router.patch('/:id', async (req, res, next) => {
     if (update.description !== undefined && String(update.description).length > 2000) return res.status(400).json({ message: 'Description must be 2,000 characters or fewer.' });
     if (update.tags !== undefined && (!Array.isArray(update.tags) || update.tags.length > 20)) return res.status(400).json({ message: 'Project tags must be a list of at most 20 items.' });
     if (update.progress !== undefined && (!Number.isFinite(Number(update.progress)) || Number(update.progress) < 0 || Number(update.progress) > 100)) return res.status(400).json({ message: 'Progress must be between 0 and 100.' });
+    // [Sprint 4 · M8] US-15: moving into or out of Completed is Owner-only and goes through
+    // POST /:id/complete and POST /:id/reopen, which also record completedAt and log the event.
+    if (touchesCompletion(project.status, update.status)) {
+      if (memberRole(project, req.user.id) !== 'Owner') return res.status(403).json({ message: OWNER_ONLY_MESSAGE });
+      return res.status(400).json({ message: 'Use "Mark as completed" or "Reopen project" to change the Completed status.' });
+    }
 
     // Fields that really changed, for the activity feed. Progress is left out: the task API recalculates it.
     const changed = Object.keys(update).filter((key) => key !== 'progress' && JSON.stringify(project[key]) !== JSON.stringify(update[key]));
@@ -138,6 +153,45 @@ router.patch('/:id', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ---- [Sprint 4 · M8] Mark complete / reopen (US-15) -------------------------------------------
+// POST /api/projects/:id/complete   Owner only. 200 { project } · 403 not Owner · 409 already Completed
+// POST /api/projects/:id/reopen     Owner only. 200 { project } · 403 not Owner · 409 not Completed
+// Rules (who, which status comes back on reopen): lib/projectCompletion.js
+async function changeCompletion(req, res, next, action) {
+  try {
+    const loaded = await loadProjectForMember(req, res);
+    if (!loaded) return undefined;
+    const { project, role } = loaded;
+    const allowed = checkCompletionChange(role, project.status, action);
+    if (!allowed.ok) return res.status(allowed.status).json({ message: allowed.message });
+
+    const fields = action === 'complete' ? completionFields(project) : reopenFields(project);
+    // Conditional update: if two requests race, only the first one changes the project.
+    const updated = await Project.findOneAndUpdate(
+      { _id: project._id, status: action === 'complete' ? { $ne: 'Completed' } : 'Completed' },
+      { $set: fields },
+      { new: true, runValidators: true }
+    );
+    if (!updated) {
+      return res.status(409).json({ message: action === 'complete' ? ALREADY_COMPLETED_MESSAGE : NOT_COMPLETED_MESSAGE });
+    }
+    await logActivity({
+      project: updated._id,
+      actor: req.user.id,
+      type: action === 'complete' ? 'project.completed' : 'project.reopened',
+      summary: action === 'complete' ? `marked the project ${quote(updated.name)} as Completed` : `reopened the project ${quote(updated.name)}`,
+      targetLabel: updated.name,
+      meta: { from: project.status, to: updated.status },
+    });
+    return res.json({ project: updated });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+router.post('/:id/complete', (req, res, next) => changeCompletion(req, res, next, 'complete'));
+router.post('/:id/reopen', (req, res, next) => changeCompletion(req, res, next, 'reopen'));
 
 // ---- Members and roles (US-09) -------------------------------------------------------------
 // Every check below runs on the server; the UI only hides buttons.

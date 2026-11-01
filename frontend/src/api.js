@@ -331,6 +331,24 @@ export const dashboardApi = {
   project: (id) => api(`${projectPath(id)}/dashboard`),
 };
 
+// [Sprint 4 · M8] Mark complete / reopen (US-15). Contract: backend/src/routes/projects.js
+//   complete -> { project }  reopen -> { project }   Owner only (403); 409 when already in that state.
+export const projectCompletionApi = {
+  complete: (id) => api(`${projectPath(id)}/complete`, { method: 'POST' }),
+  reopen: (id) => api(`${projectPath(id)}/reopen`, { method: 'POST' }),
+};
+
+// [Sprint 4 · M8] Project health (US-40). Contract: backend/src/routes/health.js
+//   project -> { project, membershipRole,
+//                overdue: { total, limit, tasks: [{ _id, title, status, label, priority, dueDate, daysOverdue, assignee }] },
+//                blocked: { total, limit, tasks: [ same shape ] },
+//                activity: { days, since, count, level: 'Low'|'Medium'|'High', thresholds: { mediumFrom, highAbove } },
+//                generatedAt }
+// Owner and Admin only (403 otherwise).
+export const healthApi = {
+  project: (id) => api(`${projectPath(id)}/health`),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {
