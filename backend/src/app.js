@@ -21,6 +21,7 @@ import { githubRepositoriesRoutes, githubRepositoryRoutes } from './routes/githu
 import dashboardRoutes from './routes/dashboard.js'; // [Sprint 4 · M7] US-39
 import healthRoutes from './routes/health.js'; // [Sprint 4 · M8] US-40
 import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US-37
+import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -104,6 +105,7 @@ export function createApp() {
   app.use('/api/projects/:id/dashboard', dashboardRoutes); // [Sprint 4 · M7] US-39 project dashboard
   app.use('/api/projects/:id/health', healthRoutes); // [Sprint 4 · M8] US-40 project health
   app.use('/api/projects/:id/files', projectFileRoutes); // [Sprint 4 · M5] US-37 project files (stored in GridFS)
+  app.use('/api/projects/:id/docs', docRoutes); // [Sprint 4 · M6] US-38 documentation pages
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });

@@ -141,3 +141,9 @@ export function canChangeCompletion(role) {
 export function canUploadFiles(role) {
   return role === 'Owner' || role === 'Admin' || role === 'Contributor';
 }
+
+// [Sprint 4 · M6] US-38: who may create and save documentation pages. Every member (Viewer
+// included) can read them; Viewers cannot write (403).
+export function canWriteDocs(role) {
+  return role === 'Owner' || role === 'Admin' || role === 'Contributor';
+}

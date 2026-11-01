@@ -540,3 +540,26 @@ Each file: `{ _id, project, name, size, contentType, uploadedBy { _id, name, use
 **Files:** `backend/src/lib/projectFiles.js` (limit, messages, name cleaning, GridFS helpers), `backend/src/models/ProjectFile.js`, `backend/src/routes/projectFiles.js`; small marked additions in `lib/permissions.js` (`canUploadFiles`), `models/Activity.js` (`file.uploaded`, target `file`), `app.js`. Frontend: `components/FilesPanel.jsx`; marked additions in `api.js` (`fileApi`), `roles.js` (`canUploadFiles`), `components/activityDisplay.js`, `pages/ProjectPage.jsx` (`Files` tab).
 
 **Tests:** `backend/test/projectFiles.test.js` (both acceptance criteria incl. exactly 10 MB and 10 MB + 1 byte, GridFS storage, every role, non-members, other project's file, bad input, name cleaning), `frontend/src/components/FilesPanel.test.jsx`, `frontend/src/pages/ProjectPage.tabs.test.js`.
+
+## Sprint 4 — M6: Markdown documentation pages (US-38, FR-14b)
+
+> Scope note: US-38 is **Should** in the user stories and **Could** in the corrected FR-14b; it is part of the Sprint 4 plan (M6).
+
+The project page has a **Docs** tab (`?tab=docs`, and `?tab=docs&doc=<id>` opens one page). Every project member sees the list of pages (title, short preview, who created / last edited it, when) and can open any page; it is shown as **formatted text**. **Owners, Admins and Contributors** also get **New page** and **Edit**: a title, a Markdown box with **Write / Preview**, and a live **`1,234 / 10,000`** counter that turns red over the limit. Viewers only read.
+
+**10,000-character limit.** The content may be at most **10,000 characters** (exactly 10,000 is allowed; Windows `\r\n` line endings count as one). The server enforces it: longer content answers **400** `Content must be 10,000 characters or fewer.` and nothing is saved. The Docs tab blocks saving over the limit with the same message.
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /api/projects/:id/docs` | Members (all roles) | `{ docs }`, most recently updated first; each has `title`, `preview`, `length`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt` (no full content) |
+| `GET /api/projects/:id/docs/:docId` | Members (all roles) | `{ doc }` with the same fields plus `content` (Markdown text) |
+| `POST /api/projects/:id/docs` | Owner, Admin, Contributor | `{ title, content }` → 201 `{ doc }` |
+| `PATCH /api/projects/:id/docs/:docId` | Owner, Admin, Contributor | `{ title?, content? }` → `{ doc }`; `updatedBy` is set when something changed |
+
+Title: required, up to 120 characters. Content: required Markdown. **400** missing / blank / too long (nothing is saved, also on edit), **403** Viewers on POST/PATCH and non-members (even for a Public project), **404** a page of another project, **400** bad ID.
+
+**Safe rendering.** The server stores the Markdown as plain text and never turns it into HTML. The browser renders it with `frontend/src/components/markdown.jsx`, a small renderer that builds React elements only (no `dangerouslySetInnerHTML`, no new npm package). So any HTML in a page (`<script>`, `<img onerror=…>`, `<iframe>` …) is shown as text and never runs, and links are made only for `http:`, `https:` and `mailto:` (opened in a new tab with `rel="noopener noreferrer"`); `javascript:`, `data:` and other addresses stay plain text. Supported: `#`–`###` headings, paragraphs and line breaks, `**bold**`, `*italic*`, `` `code` ``, fenced code blocks, `-` / `1.` lists, `>` quotes, `---` and `[links](https://…)`.
+
+**Files:** `backend/src/lib/docs.js` (rules, limit, messages, preview), `backend/src/models/DocPage.js`, `backend/src/routes/docs.js`; small marked additions in `lib/permissions.js` (`canWriteDocs`) and `app.js`. Frontend: `components/DocsPanel.jsx`, `components/markdown.jsx`; marked additions in `api.js` (`docApi`), `roles.js` (`canWriteDocs`), `pages/ProjectPage.jsx` (Docs tab, `?doc=`).
+
+**Tests:** `backend/test/docRules.test.js` (rules, exactly 10,000 vs 10,001, `\r\n`, preview; no database), `backend/test/docs.test.js` (every acceptance criterion, every role, non-members, other project's page, bad input, edits that change nothing on error, list without content), `frontend/src/components/markdown.test.jsx` (each Markdown feature and the XSS cases), `frontend/src/components/DocsPanel.test.jsx` (list, read, `?doc=`, create, edit, counter and limit, Viewer, server errors), `frontend/src/pages/ProjectPage.tabs.test.js` (Docs tab).

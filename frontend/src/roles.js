@@ -50,3 +50,7 @@ export const canChangeCompletion = (role) => role === 'Owner'; // US-15
 // [Sprint 4 · M5] US-37: mirrors canUploadFiles in backend/src/lib/permissions.js.
 // Every member can list and download files; Viewers cannot upload.
 export const canUploadFiles = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';
+
+// [Sprint 4 · M6] US-38: mirrors canWriteDocs in backend/src/lib/permissions.js.
+// Every member can read documentation pages; Viewers cannot write them.
+export const canWriteDocs = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';

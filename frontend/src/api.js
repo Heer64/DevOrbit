@@ -397,6 +397,20 @@ export const fileApi = {
   download: (id, fileId) => apiBlob(`${projectPath(id)}/files/${encodeURIComponent(fileId)}/download`),
 };
 
+// [Sprint 4 · M6] Documentation pages (US-38). Contract: backend/src/routes/docs.js
+//   list   -> { docs }  most recently updated first, members only; each has title, preview, length,
+//                       createdBy, updatedBy, updatedAt (no full content)
+//   get    -> { doc }   the same fields plus content (Markdown text)
+//   create -> { doc }   Owner/Admin/Contributor; payload { title, content } (content up to 10,000 characters)
+//   update -> { doc }   same roles; payload { title?, content? }
+const docPath = (id, docId = '') => `${projectPath(id)}/docs${docId ? `/${encodeURIComponent(docId)}` : ''}`;
+export const docApi = {
+  list: (id) => api(docPath(id)),
+  get: (id, docId) => api(docPath(id, docId)),
+  create: (id, payload) => api(docPath(id), { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, docId, payload) => api(docPath(id, docId), { method: 'PATCH', body: JSON.stringify(payload) }),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {
