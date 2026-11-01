@@ -7,6 +7,9 @@ import {
 const LOOK = {
   'project.created': { icon: FolderPlus, tone: 'purple', title: 'Project created' },
   'project.updated': { icon: Pencil, tone: 'blue', title: 'Project updated' },
+  // [Sprint 4 · M8] US-15
+  'project.completed': { icon: CheckCircle2, tone: 'green', title: 'Project completed' },
+  'project.reopened': { icon: FolderPlus, tone: 'blue', title: 'Project reopened' },
   'member.added': { icon: UserPlus, tone: 'blue', title: 'New collaborator' },
   'member.role_changed': { icon: ShieldCheck, tone: 'purple', title: 'Role changed' },
   'member.removed': { icon: UserMinus, tone: 'orange', title: 'Member removed' },

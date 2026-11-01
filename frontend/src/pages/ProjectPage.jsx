@@ -17,6 +17,9 @@ import InvitationsPanel from '../components/InvitationsPanel'; // [Sprint 3 · M
 import DecisionsPanel from '../components/DecisionsPanel'; // [Sprint 3 · M8] US-35/US-36
 import GithubIntegrationPanel from '../components/GithubIntegrationPanel'; // [Sprint 4 · M1] US-31
 import ProjectDashboard from '../components/ProjectDashboard'; // [Sprint 4 · M7] US-39
+import ProjectHealth from '../components/ProjectHealth'; // [Sprint 4 · M8] US-40
+import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompletion'; // [Sprint 4 · M8] US-15
+import { canViewProjectHealth } from '../roles'; // [Sprint 4 · M8] US-40
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -144,6 +147,12 @@ export default function ProjectPage() {
       .catch(() => {});
   }, [id, isLive, user]);
   const openAddTask = () => { setActiveTab('Tasks'); setAddTaskSignal((n) => n + 1); };
+  // [Sprint 4 · M8] US-15: show the new status at once after the Owner completes or reopens the project.
+  const onCompletionChanged = useCallback((updated) => {
+    if (updated) setLiveProject(toWorkspaceProject(updated, user));
+    setWorkVersion((n) => n + 1);
+  }, [user]);
+  const isCompleted = project.status === 'Completed';
 
   const color = tone(project.color);
   // Once the real team is loaded, show real members; until then fall back to what the project record gave us.
@@ -166,6 +175,10 @@ export default function ProjectPage() {
         </div>
         <div className="project-actions">
           {canWriteTasks(taskRole) && <Btn icon={Plus} onClick={openAddTask}>Add task</Btn>}
+          {/* [Sprint 4 · M8] US-15: Owner only (the component renders nothing for other roles). */}
+          {isLive && liveProject && (
+            <ProjectCompletion projectId={id} status={liveProject.status} myRole={membershipRole} onChanged={onCompletionChanged} onNotice={setNotice} />
+          )}
           <button className="iconbtn" onClick={() => setNotice('Project notification preferences are a UI prototype.')} title="Project notifications" aria-label="Project notifications"><Bell size={16} /></button>
           <button className="iconbtn" onClick={() => setNotice('Project settings will be connected to the API later.')} title="Project settings" aria-label="Project settings"><Settings size={16} /></button>
         </div>
@@ -173,7 +186,7 @@ export default function ProjectPage() {
 
       <div className="project-summary">
         <section className="panel">
-          <div className="panel-head"><div><h2>Project progress</h2><p>Keep the work visible and the next step clear.</p></div><span className="pill green">{project.progress >= 100 ? 'Completed' : 'In progress'}</span></div>
+          <div className="panel-head"><div><h2>Project progress</h2><p>{isCompleted && project.completedAt ? `Completed on ${formatCompletedOn(project.completedAt)}.` : 'Keep the work visible and the next step clear.'}</p></div><span className="pill green">{isCompleted ? 'Completed' : project.progress >= 100 ? 'All tasks done' : 'In progress'}</span></div>
           <div className="big-progress">{project.progress}% <small>overall completion</small></div>
           <div className="progress"><i className={color} style={{ width: `${project.progress}%` }} /></div>
           <div className="stats"><div><small>Members</small><b>{memberCount}</b></div><div><small>Open tasks</small><b>{taskList.filter((t) => t.status !== 'Done').length}</b></div><div><small>Health</small><b style={{ fontSize: 13 }}>{project.health}</b></div></div>
@@ -203,6 +216,14 @@ export default function ProjectPage() {
               refreshKey={workVersion}
               onOpenTask={(taskId) => setActiveTab('Tasks', { task: taskId })}
               onOpenMilestones={() => setActiveTab('Milestones')}
+            />
+          )}
+          {/* [Sprint 4 · M8] US-40: project health (overdue, blocked, activity level). Owner and Admin only. */}
+          {activeTab === 'Dashboard' && isLive && canViewProjectHealth(membershipRole) && (
+            <ProjectHealth
+              projectId={id}
+              refreshKey={workVersion}
+              onOpenTask={(taskId) => setActiveTab('Tasks', { task: taskId })}
             />
           )}
           {activeTab === 'Dashboard' && isLive && liveProject && !membershipRole && (

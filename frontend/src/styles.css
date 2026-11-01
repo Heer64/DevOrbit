@@ -568,3 +568,10 @@ textarea.field-input{resize:vertical;min-height:90px}
 @media (max-width:1100px){.pd-columns{grid-template-columns:1fr}}
 @media (max-width:820px){.pd-stats{grid-template-columns:1fr 1fr}.pd-stats .pd-stat:first-child{grid-column:1/-1}}
 @media (max-width:560px){.pd-stats{grid-template-columns:1fr}.pd-stat-value{font-size:22px}.pd-due-day{width:62px}.pd-card{padding:12px}}
+/* ===== Sprint 4 · M8: project health under the dashboard (US-40) ===== */
+.ph{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.ph-heading{display:flex;align-items:center;gap:7px;font:700 14px Manrope;margin:0 0 4px}
+.ph-heading svg{color:var(--danger)}
+.ph-title{display:flex;align-items:center;gap:6px}
+.ph .pd-stat .ph-hint{font-size:8px;opacity:.85}
+.ph .pd-card-head .pill{display:inline-flex}
