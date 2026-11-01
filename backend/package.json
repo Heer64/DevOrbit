@@ -24,5 +24,12 @@
     "nodemon": "^3.1.7",
     "socket.io-client": "^4.8.1",
     "supertest": "^7.3.1"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
+  },
+  "allowScripts": {
+    "mongodb-memory-server@10.4.3": true,
+    "fsevents@2.3.3": true
   }
 }

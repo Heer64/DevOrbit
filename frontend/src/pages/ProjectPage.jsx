@@ -323,8 +323,9 @@ export default function ProjectPage() {
             <JoinRequestsPanel projectId={id} myRole={membershipRole} onApproved={() => setTeamVersion((n) => n + 1)} />
           )}
           {/* [Sprint 4 · M1] US-31: project integration settings. Owner connects GitHub; Admins see the status. */}
+          {/* [Sprint 4 · M2] US-32: onChange reloads the project so the header shows the connected repository. */}
           {liveProject && canManageMembers(membershipRole) && (
-            <GithubIntegrationPanel projectId={id} />
+            <GithubIntegrationPanel projectId={id} onChange={refreshProgress} />
           )}
           <section className="panel">
             <div className="panel-head"><div><div className="eyebrow">DEVELOPMENT</div><h2 className="with-icon" style={{ marginTop: 6 }}><Code2 size={17} /> Code &amp; files</h2></div><button className="iconbtn" onClick={() => setNotice('Repository actions are demo-only until GitHub OAuth is configured.')} aria-label="Repository actions"><MoreHorizontal size={17} /></button></div>
