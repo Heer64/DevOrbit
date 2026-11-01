@@ -1,5 +1,5 @@
 import {
-  CheckCircle2, CircleDot, Flag, FolderPlus, Gavel, GitCommitHorizontal, GitPullRequest, ListTodo, Mail,
+  CheckCircle2, CircleDot, FileUp, Flag, FolderPlus, Gavel, GitCommitHorizontal, GitPullRequest, ListTodo, Mail,
   MessageCircle, MessageSquare, Pencil, ShieldCheck, Trash2, UserMinus, UserPlus, UserRoundCheck,
 } from 'lucide-react';
 
@@ -36,6 +36,8 @@ const LOOK = {
   'github.commit': { icon: GitCommitHorizontal, tone: 'green', title: 'Commit pushed' },
   'github.issue': { icon: CircleDot, tone: 'blue', title: 'GitHub issue updated' },
   'github.pull_request': { icon: GitPullRequest, tone: 'purple', title: 'Pull request updated' },
+  // [Sprint 4 · M5] US-37
+  'file.uploaded': { icon: FileUp, tone: 'blue', title: 'File uploaded' },
 };
 
 // [US-29] Every type the feed knows, in display order. Used by the Activity tab's type filter.

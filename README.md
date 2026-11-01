@@ -516,3 +516,27 @@ Due dates are calendar days stored as midnight UTC (see Sprint 3 — M5), so "to
 **Files:** `backend/src/lib/projectCompletion.js`, `backend/src/lib/healthRules.js`, `backend/src/lib/projectHealth.js`, `backend/src/routes/health.js`; small marked additions in `routes/projects.js`, `models/Project.js`, `models/Activity.js`, `lib/permissions.js`, `app.js`. Frontend: `components/ProjectCompletion.jsx`, `components/ProjectHealth.jsx`; marked additions in `pages/ProjectPage.jsx`, `api.js` (`projectCompletionApi`, `healthApi`), `roles.js`, `styles.css`.
 
 **Tests:** `backend/test/projectCompletion.test.js`, `backend/test/projectHealth.test.js`, `frontend/src/components/ProjectCompletion.test.jsx`, `frontend/src/components/ProjectHealth.test.jsx`.
+
+## Sprint 4 — M5: upload a project file (US-37, FR-14a, NFR-8)
+
+The project page has a **Files** tab (`?tab=files`). Every project member sees the project's files (name, size, who uploaded it, when) and can download any of them. **Owners, Admins and Contributors** also get **Upload file**; Viewers see a note that they can download but not upload.
+
+**10 MB limit (US-37 AC2, NFR-8).** One file per upload, at most **10 MB** (exactly 10 MB is allowed). The server enforces it: a bigger file answers **413** with `This file is larger than the 10 MB limit. Files must be 10 MB or smaller.` and nothing is stored. The Files tab checks the size before sending and shows the same message, so a too-big file is not even uploaded.
+
+**Persistent storage (NFR-8).** File bytes are stored in **MongoDB GridFS** (bucket `projectFiles`, i.e. the `projectFiles.files` / `projectFiles.chunks` collections), in the same database as the rest of the app — MongoDB Atlas when deployed. Nothing is written to the server's disk, so files survive a Render redeploy. No new service, account or environment variable is needed. (Profile photos still use `UPLOAD_DIR` on disk; moving them is not part of US-37.)
+
+| Call | Who | Notes |
+|------|-----|-------|
+| `GET /api/projects/:id/files` | Members (all roles) | `{ files, membershipRole, canUpload, maxBytes }`, newest first |
+| `POST /api/projects/:id/files` | Owner, Admin, Contributor | `multipart/form-data`, one file in the field **`file`** → 201 `{ file }`. **413** `{ message, code: 'file_too_large', maxBytes }` over 10 MB; 400 no file / empty file / extra fields or files; 403 Viewer |
+| `GET /api/projects/:id/files/:fileId/download` | Members (all roles) | The bytes, as an attachment with the file's name. 404 unknown file or a file of another project |
+
+Each file: `{ _id, project, name, size, contentType, uploadedBy { _id, name, username, avatarUrl } | null, createdAt, downloadUrl }`. Non-members get **403 even for a Public project**; signed-out requests get 401.
+
+**Safety.** Membership and role are checked *before* the upload is read. File names are cleaned (no folders, no control characters, max 200 characters; non-English names are kept). Downloads are always `application/octet-stream` + `Content-Disposition: attachment` + `nosniff`, so an uploaded HTML or SVG file can never run as a page on the API's address. The GridFS id is never sent to the browser. Downloads need the access token, so the Files tab fetches them through `fileApi.download()` (same token refresh as every other call) and hands the result to the browser as a normal download.
+
+**Activity Feed.** Every upload is logged as `file.uploaded` (shown as "File uploaded").
+
+**Files:** `backend/src/lib/projectFiles.js` (limit, messages, name cleaning, GridFS helpers), `backend/src/models/ProjectFile.js`, `backend/src/routes/projectFiles.js`; small marked additions in `lib/permissions.js` (`canUploadFiles`), `models/Activity.js` (`file.uploaded`, target `file`), `app.js`. Frontend: `components/FilesPanel.jsx`; marked additions in `api.js` (`fileApi`), `roles.js` (`canUploadFiles`), `components/activityDisplay.js`, `pages/ProjectPage.jsx` (`Files` tab).
+
+**Tests:** `backend/test/projectFiles.test.js` (both acceptance criteria incl. exactly 10 MB and 10 MB + 1 byte, GridFS storage, every role, non-members, other project's file, bad input, name cleaning), `frontend/src/components/FilesPanel.test.jsx`, `frontend/src/pages/ProjectPage.tabs.test.js`.

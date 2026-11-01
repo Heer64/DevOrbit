@@ -20,6 +20,7 @@ import ProjectDashboard from '../components/ProjectDashboard'; // [Sprint 4 · M
 import ProjectHealth from '../components/ProjectHealth'; // [Sprint 4 · M8] US-40
 import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompletion'; // [Sprint 4 · M8] US-15
 import { canViewProjectHealth } from '../roles'; // [Sprint 4 · M8] US-40
+import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -48,8 +49,9 @@ const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: '
 // e.g. /project/<id>?tab=tasks&task=<taskId> or ?tab=chat&channel=<channelId>&message=<messageId>,
 // so notifications, the activity feed and decisions can link straight to a task or a message.
 // [Sprint 3 · M8] US-35/US-36: 'Decisions' added. [Sprint 4 · M7] US-39: 'Dashboard' added (?tab=dashboard).
+// [Sprint 4 · M5] US-37: 'Files' added (?tab=files).
 // Tasks stays the default tab when the URL has none, so existing links and journeys are unchanged.
-export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Activity'];
+export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Files', 'Activity'];
 export function tabFromParam(value) {
   return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
 }
@@ -287,6 +289,16 @@ export default function ProjectPage() {
           )}
           {activeTab === 'Decisions' && !isLive && (
             <div className="task-empty"><Circle size={20} /><p>Decisions are available in real projects. Sign in and open one of your projects to record your team's decisions.</p></div>
+          )}
+          {/* [Sprint 4 · M5] US-37: project files (upload up to 10 MB, list, download). Members only. */}
+          {activeTab === 'Files' && isLive && membershipRole && (
+            <FilesPanel projectId={id} myRole={membershipRole} onChange={() => setWorkVersion((n) => n + 1)} />
+          )}
+          {activeTab === 'Files' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>Project files are visible to members only.</p></div>
+          )}
+          {activeTab === 'Files' && !isLive && (
+            <div className="task-empty"><Circle size={20} /><p>Files are available in real projects. Sign in and open one of your projects to upload and download project files.</p></div>
           )}
           {activeTab === 'Activity' && isLive && membershipRole && (
             <ActivityPanel projectId={id} refreshKey={workVersion} />

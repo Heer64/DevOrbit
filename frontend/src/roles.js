@@ -46,3 +46,7 @@ export const canWriteDecisions = (role) => role === 'Owner' || role === 'Admin' 
 // [Sprint 4 · M8] Mirrors canViewProjectHealth / canChangeCompletion in backend/src/lib/permissions.js.
 export const canViewProjectHealth = (role) => role === 'Owner' || role === 'Admin'; // US-40
 export const canChangeCompletion = (role) => role === 'Owner'; // US-15
+
+// [Sprint 4 · M5] US-37: mirrors canUploadFiles in backend/src/lib/permissions.js.
+// Every member can list and download files; Viewers cannot upload.
+export const canUploadFiles = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';

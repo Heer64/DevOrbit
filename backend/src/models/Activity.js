@@ -34,12 +34,16 @@ export const ACTIVITY_TYPES = [
   'github.commit',
   'github.issue',
   'github.pull_request',
+  // [Sprint 4 · M5] US-37
+  'file.uploaded',
 ];
 
 export const TARGET_TYPES = [
   'project', 'member', 'task', 'milestone',
   // [US-29]
   'message', 'invite', 'join_request', 'comment', 'decision', 'github',
+  // [Sprint 4 · M5] US-37
+  'file',
 ];
 
 const activitySchema = new mongoose.Schema(
