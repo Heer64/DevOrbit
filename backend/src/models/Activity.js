@@ -4,6 +4,9 @@ import mongoose from 'mongoose';
 export const ACTIVITY_TYPES = [
   'project.created',
   'project.updated',
+  // [Sprint 4 · M8] US-15
+  'project.completed',
+  'project.reopened',
   'member.added',
   'member.role_changed',
   'member.removed',

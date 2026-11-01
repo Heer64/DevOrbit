@@ -592,3 +592,10 @@ textarea.field-input{resize:vertical;min-height:90px}
 .github-repo-empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .github-repo-empty .team-note{margin:0}
 @media (max-width:560px){.github-repo-actions .btn{flex:1}}
+/* ===== Sprint 4 · M8: project health under the dashboard (US-40) ===== */
+.ph{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.ph-heading{display:flex;align-items:center;gap:7px;font:700 14px Manrope;margin:0 0 4px}
+.ph-heading svg{color:var(--danger)}
+.ph-title{display:flex;align-items:center;gap:6px}
+.ph .pd-stat .ph-hint{font-size:8px;opacity:.85}
+.ph .pd-card-head .pill{display:inline-flex}

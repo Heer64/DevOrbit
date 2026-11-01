@@ -493,3 +493,26 @@ Due dates are calendar days stored as midnight UTC (see Sprint 3 — M5), so "to
 **Files:** `backend/src/routes/dashboard.js`, `backend/src/lib/projectDashboard.js`, `backend/src/lib/dashboardRules.js` (milestone stats moved here from `routes/milestones.js`; `GET /api/tasks/upcoming` now uses the same 7-day window), `frontend/src/components/ProjectDashboard.jsx`, `dashboardApi` in `frontend/src/api.js`, the `Dashboard` tab in `frontend/src/pages/ProjectPage.jsx`.
 
 **Tests:** `backend/test/dashboardRules.test.js` (rules, no database), `backend/test/projectDashboard.test.js` (API: auth, membership, calculations, 7-day boundaries with a fixed clock, empty project), `frontend/src/components/ProjectDashboard.test.jsx`, `frontend/src/pages/ProjectPage.tabs.test.js`, `e2e/tests/project-dashboard.spec.js`.
+
+## Sprint 4 — M8: complete / reopen a project and project health (US-15, US-40, FR-3, FR-21, FR-22)
+
+**Mark complete / reopen (US-15).** On a project page the **Owner** sees **Mark as completed** (or **Reopen project** once it is Completed) next to *Add task*, with a confirmation dialog. Completing sets `status: 'Completed'`, records `completedAt` and remembers the active status the project had (`reopenStatus`); reopening restores that status (`Planning` or `In progress`; "Active" in the user story means any status that is not Completed, which are the two this app already uses). Both actions appear in the activity feed (`project.completed`, `project.reopened`). Admins can still edit other details, but `PATCH /api/projects/:id` refuses to move a project into or out of Completed (403 for non-Owners, 400 for the Owner, who is pointed at the actions). **Archived** (FR-3) is not built: it is not in US-15 and the sprint plan says to confirm its scope first.
+
+**Portfolio-ready (FR-21).** `GET /api/projects?status=Completed` returns my Completed projects (index on `members.user, status, completedAt`); without `?status` the list is unchanged.
+
+**Project health (US-40).** Under the dashboard (Dashboard tab), Owners and Admins see:
+
+- **Overdue tasks**: past their due day (UTC) and not Done — the same `isOverdue()` the dashboard uses, so a task is never both overdue and "due in the next 7 days".
+- **Blocked tasks**: status `Blocked` **or** label `Blocked` (any letter case); Done tasks are left out.
+- **Activity level**: activity feed events in the last 7 days (rolling): **Low** < 5, **Medium** 5–20, **High** > 20.
+
+| Endpoint | Who | Response |
+|---|---|---|
+| `POST /api/projects/:id/complete` | Owner | `{ project }`; 403 others, 409 already Completed |
+| `POST /api/projects/:id/reopen` | Owner | `{ project }`; 403 others, 409 not Completed |
+| `GET /api/projects?status=Completed` | Signed in | `{ projects }` (my projects with that status); 400 unknown status |
+| `GET /api/projects/:id/health` | Owner, Admin (403 Contributor, Viewer, non-members) | `{ project, membershipRole, overdue: { total, limit: 50, tasks: [{ _id, title, status, label, priority, dueDate, daysOverdue, assignee }] }, blocked: { total, limit, tasks }, activity: { days: 7, since, count, level, thresholds: { mediumFrom: 5, highAbove: 20 } }, generatedAt }` |
+
+**Files:** `backend/src/lib/projectCompletion.js`, `backend/src/lib/healthRules.js`, `backend/src/lib/projectHealth.js`, `backend/src/routes/health.js`; small marked additions in `routes/projects.js`, `models/Project.js`, `models/Activity.js`, `lib/permissions.js`, `app.js`. Frontend: `components/ProjectCompletion.jsx`, `components/ProjectHealth.jsx`; marked additions in `pages/ProjectPage.jsx`, `api.js` (`projectCompletionApi`, `healthApi`), `roles.js`, `styles.css`.
+
+**Tests:** `backend/test/projectCompletion.test.js`, `backend/test/projectHealth.test.js`, `frontend/src/components/ProjectCompletion.test.jsx`, `frontend/src/components/ProjectHealth.test.jsx`.

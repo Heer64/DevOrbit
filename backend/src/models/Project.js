@@ -20,11 +20,17 @@ const projectSchema = new mongoose.Schema(
     progress: { type: Number, min: 0, max: 100, default: 0 },
     githubRepo: { type: String, trim: true, maxlength: 300, default: '' },
     members: { type: [membershipSchema], default: [] },
+    // [Sprint 4 · M8] US-15: when the Owner marked the project Completed (null while active),
+    // and the active status to go back to on reopen. Rules: lib/projectCompletion.js.
+    completedAt: { type: Date, default: null },
+    reopenStatus: { type: String, enum: ['', 'Planning', 'In progress'], default: '' },
   },
   { timestamps: true }
 );
 
 projectSchema.index({ 'members.user': 1, updatedAt: -1 });
 projectSchema.index({ visibility: 1, updatedAt: -1 });
+// [Sprint 4 · M8] US-15/FR-21: "completed projects of this member" for portfolios.
+projectSchema.index({ 'members.user': 1, status: 1, completedAt: -1 });
 
 export default mongoose.model('Project', projectSchema);

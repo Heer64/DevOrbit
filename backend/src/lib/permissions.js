@@ -125,3 +125,13 @@ export function canManageChannels(role) {
 export function canWriteDecisions(role) {
   return role === 'Owner' || role === 'Admin' || role === 'Contributor';
 }
+
+// [Sprint 4 · M8] US-40: project health is a "Project Manager" view (Owner or Admin).
+export function canViewProjectHealth(role) {
+  return role === 'Owner' || role === 'Admin';
+}
+
+// [Sprint 4 · M8] US-15: only the Owner marks the project Completed or reopens it.
+export function canChangeCompletion(role) {
+  return role === 'Owner';
+}
