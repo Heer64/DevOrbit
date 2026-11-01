@@ -359,6 +359,44 @@ export const healthApi = {
   project: (id) => api(`${projectPath(id)}/health`),
 };
 
+// [Sprint 4 · M5] Like api(), but for a file download: same sign-in and token refresh, returns a Blob.
+// Downloads need the access token in the Authorization header, so a plain <a href> cannot be used.
+async function apiBlob(path) {
+  const request = (accessToken) => fetch(`${API_BASE}${path}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    credentials: 'include',
+  });
+
+  let response = await request(currentAccessToken);
+  if (response.status === 401) {
+    try {
+      const token = await refreshAccessToken();
+      response = await request(token);
+      if (response.status === 401) dispatchSessionExpired();
+    } catch {
+      dispatchSessionExpired();
+    }
+  }
+  if (!response.ok) throw makeApiError(await readJson(response), response.status);
+  return response.blob();
+}
+
+// [Sprint 4 · M5] Project files (US-37). Contract: backend/src/routes/projectFiles.js
+//   list     -> { files, membershipRole, canUpload, maxBytes }  newest first, members only
+//   upload   -> { file }   Owner/Admin/Contributor; one file, max 10 MB
+//               413 { message, code: 'file_too_large', maxBytes } when the file is over the limit
+//   download -> Blob of the file's bytes (members only)
+// Each file: { _id, project, name, size, contentType, uploadedBy { _id, name, username, avatarUrl } | null, createdAt, downloadUrl }
+export const fileApi = {
+  list: (id) => api(`${projectPath(id)}/files`),
+  upload: (id, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api(`${projectPath(id)}/files`, { method: 'POST', body: form });
+  },
+  download: (id, fileId) => apiBlob(`${projectPath(id)}/files/${encodeURIComponent(fileId)}/download`),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {

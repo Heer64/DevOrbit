@@ -135,3 +135,9 @@ export function canViewProjectHealth(role) {
 export function canChangeCompletion(role) {
   return role === 'Owner';
 }
+
+// [Sprint 4 · M5] US-37: who may upload project files. Every member (Viewer included) can list
+// and download them; Viewers cannot upload (403).
+export function canUploadFiles(role) {
+  return role === 'Owner' || role === 'Admin' || role === 'Contributor';
+}
