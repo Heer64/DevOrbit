@@ -311,7 +311,16 @@ test('roles: only the Owner can start the GitHub authorization', async () => {
 test('roles: Owner and Admin see integration settings; others do not', async () => {
   const ownerView = await as(owner).get(github());
   assert.equal(ownerView.status, 200);
-  assert.deepEqual(ownerView.body, { configured: true, canAuthorize: true, connection: null });
+  assert.deepEqual(ownerView.body, {
+    configured: true,
+    canAuthorize: true,
+    connection: null,
+    // [Sprint 4 · M2] US-32 fields (backend/test/githubRepository.test.js covers them)
+    repository: null,
+    connectionState: 'not_connected',
+    active: false,
+    canSelectRepository: false,
+  });
 
   const adminView = await as(admin).get(github());
   assert.equal(adminView.status, 200);

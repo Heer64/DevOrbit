@@ -315,9 +315,19 @@ export const decisionApi = {
 //   status    -> { configured, canAuthorize, connection: null | { githubLogin, scopes, authorizedAt, authorizedBy } }  Owner/Admin
 //   authorize -> { url }  Owner only; send the browser to url. GitHub returns to /project/<id>?github=<result>.
 // The GitHub access token is never sent to the browser.
+// [Sprint 4 · M2] US-32 Connect a repository. Contract: backend/src/routes/githubRepository.js
+//   status also returns { repository: null | { id, name, fullName, owner, private, htmlUrl, defaultBranch, connectedAt, connectedBy },
+//                         connectionState: 'not_connected' | 'unavailable' | 'needs_repository' | 'active', active, canSelectRepository }
+//   repositories     -> { githubLogin, repositories: [{ id, name, fullName, owner, private, htmlUrl, description, archived, admin, updatedAt }],
+//                         truncated, selectedId }   Owner only
+//   selectRepository -> same body as status (now Active)   Owner only; the server checks the ID against the GitHub list
+//   Errors carry error.response.data.code: owner_only, github_not_configured, github_not_authorized, github_reauthorize,
+//   github_changed, invalid_repository, repository_not_available, github_rate_limited, github_forbidden, github_unavailable.
 export const githubApi = {
   status: (id) => api(`${projectPath(id)}/github`),
   authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
+  repositories: (id) => api(`${projectPath(id)}/github/repositories`), // [Sprint 4 · M2]
+  selectRepository: (id, repositoryId) => api(`${projectPath(id)}/github/repository`, { method: 'PUT', body: JSON.stringify({ repositoryId }) }), // [Sprint 4 · M2]
 };
 
 // [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js

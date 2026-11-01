@@ -445,6 +445,35 @@ The callback builds its redirect only from `CLIENT_ORIGIN` and the project store
 
 **Tests:** `backend/test/githubOAuth.test.js` (both acceptance criteria, encryption at rest, no token or secret in any response or log, state cookie + hash + single use + expiry, no open redirect, roles, missing config; GitHub is faked), `backend/test/githubCrypto.test.js` (encryption and state helpers, no database), `frontend/src/components/GithubIntegrationPanel.test.jsx`.
 
+## Sprint 4 — M2: Connect a repository (US-32, FR-11)
+
+After the Owner has authorized GitHub (US-31, M1), the **GitHub** panel on the project page offers **Choose repository**. The Owner picks one repository from the authorized GitHub account's list, and the panel shows it with an **Active** badge. Admins see the repository and the state but cannot change it. Picking again replaces the repository (a project always has at most one).
+
+**When is the connection Active?** (`repositoryStatus()` in `backend/src/lib/githubRepos.js`)
+
+| `connectionState` | Meaning |
+|---|---|
+| `not_connected` | GitHub has not been authorized for this project yet (US-31) |
+| `unavailable` | an authorization is stored, but the server's GitHub settings are missing, so it cannot be used |
+| `needs_repository` | authorized, but no repository is chosen, or it was chosen under a different GitHub account than the one authorized now |
+| `active` | authorized, server configured, and a repository chosen under the current GitHub account |
+
+The chosen repository is stored on the project's `GithubConnection` (`repository` field: GitHub repository ID, `owner/name`, link, private, default branch, whether the account can administer it, the GitHub account it was chosen under, who connected it and when). `Project.githubRepo` is set to `owner/name` so the project header shows it. Connecting or changing it is logged in the activity feed as `project.updated`.
+
+**API** (Owner only; needs a stored authorization and the server GitHub settings)
+
+| Call | Answer |
+|------|--------|
+| `GET /api/projects/:id/github` (M1, extended) | adds `{ repository, connectionState, active, canSelectRepository }`; Owner and Admin |
+| `GET /api/projects/:id/github/repositories` | `{ githubLogin, repositories: [{ id, name, fullName, owner, private, htmlUrl, defaultBranch, description, archived, admin, updatedAt }], truncated, selectedId }`; up to 500, most recently updated first |
+| `PUT /api/projects/:id/github/repository` | body `{ repositoryId }`; the server checks the ID against the authorized account's list, saves it, and answers with the status body (now `active: true`) |
+
+Errors are `{ message, code }`: 403 `owner_only`, 503 `github_not_configured`, 409 `github_not_authorized`, 409 `github_reauthorize` (GitHub rejects the token, or it can no longer be decrypted), 409 `github_changed` (re-authorized while choosing), 400 `invalid_repository`, 400 `repository_not_available`, 503 `github_rate_limited` (with `Retry-After`), 502 `github_forbidden` / `github_unavailable`. The access token is decrypted only for the request to `api.github.com`; it is never returned or logged.
+
+**Files:** `backend/src/lib/githubRepos.js`, `backend/src/routes/githubRepository.js`, the `repository` field in `backend/src/models/GithubConnection.js`, the status fields in `backend/src/routes/github.js`, `frontend/src/components/GithubRepositoryPicker.jsx`, the repository part of `frontend/src/components/GithubIntegrationPanel.jsx`, `githubApi.repositories` / `githubApi.selectRepository` in `frontend/src/api.js`.
+
+**Tests:** `backend/test/githubRepos.test.js` (GitHub client and Active rule, no database), `backend/test/githubRepository.test.js` (API: acceptance criterion, Owner only, validation, persistence, GitHub errors, re-authorization; GitHub is faked), `frontend/src/components/GithubRepository.test.jsx`.
+
 ## Sprint 4 — M7: project dashboard (US-39, FR-15)
 
 A **Dashboard** tab on the project page (`/project/<id>?tab=dashboard`) shows, from live database data:

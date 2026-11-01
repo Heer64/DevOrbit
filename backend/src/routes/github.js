@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { loadProjectForMember, memberRole } from '../lib/projectAccess.js';
 import { canEditProject } from '../lib/permissions.js';
 import { encryptToken } from '../lib/githubCrypto.js';
+import { repositoryStatus } from '../lib/githubRepos.js'; // [Sprint 4 · M2] US-32
 import {
   STATE_TTL_MS,
   authorizeUrl,
@@ -26,6 +27,8 @@ import {
  * Project routes, mounted at /api/projects/:id/github (see app.js):
  *   GET  /            Owner, Admin   -> { configured, canAuthorize, connection }
  *                     connection is null or { githubLogin, scopes, authorizedAt, authorizedBy { _id, name, username } }.
+ *                     [Sprint 4 · M2] US-32 adds { repository, connectionState, active, canSelectRepository };
+ *                     see lib/githubRepos.js and routes/githubRepository.js.
  *                     The access token is never part of any response.
  *   POST /authorize   Owner only     -> { url }  (503 when GitHub is not configured on the server)
  *                     Creates a single-use state (10 minutes), sets it in an httpOnly cookie that is only
@@ -72,7 +75,7 @@ function clientOrigin() {
   return (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',')[0].trim().replace(/\/$/, '');
 }
 
-function connectionView(connection) {
+export function connectionView(connection) { // [Sprint 4 · M2] exported for routes/githubRepository.js
   if (!connection) return null;
   const by = connection.authorizedBy;
   return {
@@ -98,11 +101,15 @@ projectGithubRoutes.get('/', async (req, res, next) => {
     }
     const connection = await GithubConnection.findOne({ project: access.project._id })
       .populate('authorizedBy', 'name username')
+      .populate('repository.connectedBy', 'name username') // [Sprint 4 · M2] US-32
       .lean();
+    const configured = githubConfig().configured;
     return res.json({
-      configured: githubConfig().configured,
+      configured,
       canAuthorize: access.role === 'Owner',
       connection: connectionView(connection),
+      // [Sprint 4 · M2] US-32: { repository, connectionState, active, canSelectRepository } (lib/githubRepos.js)
+      ...repositoryStatus({ connection, configured, role: access.role }),
     });
   } catch (error) {
     return next(error);
