@@ -320,6 +320,8 @@ test('roles: Owner and Admin see integration settings; others do not', async () 
     connectionState: 'not_connected',
     active: false,
     canSelectRepository: false,
+    // [Sprint 4 · M4] US-34 webhook status (backend/test/githubWebhook.test.js covers it)
+    webhook: null,
   });
 
   const adminView = await as(admin).get(github());

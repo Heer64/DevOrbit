@@ -15,6 +15,8 @@ import {
   repositoryStatus,
   storedRepository,
 } from '../lib/githubRepos.js';
+import { setupProjectWebhook } from '../lib/githubWebhookSetup.js'; // [Sprint 4 · M4] US-34
+import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
 
 /*
  * [Sprint 4 · M2] US-32 Connect a repository (FR-11).
@@ -48,6 +50,9 @@ import {
  *   502 github_forbidden / github_unavailable   GitHub refused or could not be reached
  *
  * The access token is decrypted only for the call to GitHub; it is never returned or logged.
+ *
+ * [Sprint 4 · M4] US-34: after saving, PUT also adds the repository webhook (lib/githubWebhookSetup.js)
+ * and the answer includes `webhook` ({ status, message, events, updatedAt } or null).
  */
 
 function fail(res, status, code, message, extra = {}) {
@@ -192,12 +197,21 @@ githubRepositoryRoutes.put('/', async (req, res, next) => {
       });
     }
 
+    // [Sprint 4 · M4] US-34: add (or move) the repository webhook. Never fails the request:
+    // the outcome is saved on the connection and shown by the panel.
+    const webhook = await setupProjectWebhook({
+      connection: saved,
+      accessToken,
+      previousRepository: connection.repository || null,
+    });
+
     // Same shape as GET /api/projects/:id/github (M1) so the panel can simply replace its state.
     return res.json({
       configured: true,
       canAuthorize: role === 'Owner',
       connection: connectionView(saved),
       ...repositoryStatus({ connection: saved, configured: true, role }),
+      webhook: webhookView({ ...saved, webhook }), // [Sprint 4 · M4] US-34
     });
   } catch (error) {
     return next(error);

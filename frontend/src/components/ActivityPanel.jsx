@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, RefreshCw } from 'lucide-react';
+import { Activity, ExternalLink, RefreshCw } from 'lucide-react';
 import { activityApi, liveApi } from '../api';
 import { Btn } from './ui';
-import { ACTIVITY_TYPE_KEYS, activityLook, activitySentence, timeAgo } from './activityDisplay';
+import { ACTIVITY_TYPE_KEYS, activityGithubLink, activityLook, activitySentence, timeAgo } from './activityDisplay';
 
 // Merge events without duplicates and keep newest-first ordering.
 function mergeEvents(...groups) {
@@ -182,6 +182,7 @@ export default function ActivityPanel({ projectId, refreshKey = 0 }) {
       {visibleEvents.map((event) => {
         const look = activityLook(event);
         const Icon = look.icon;
+        const githubLink = activityGithubLink(event); // [Sprint 4 · M4] US-34
 
         return (
           <div className="event" key={event._id}>
@@ -195,6 +196,17 @@ export default function ActivityPanel({ projectId, refreshKey = 0 }) {
               <small title={new Date(event.createdAt).toLocaleString()}>
                 {timeAgo(event.createdAt)}
               </small>
+              {/* [Sprint 4 · M4] US-34: commits, issues and pull requests link to GitHub. */}
+              {githubLink && (
+                <a
+                  className="event-link"
+                  href={githubLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open on GitHub <ExternalLink size={10} aria-hidden="true" />
+                </a>
+              )}
             </div>
           </div>
         );
