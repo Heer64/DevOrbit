@@ -16,6 +16,8 @@ import {
   repositoryStatus,
   storedRepository,
 } from '../lib/githubRepos.js';
+import { setupProjectWebhook } from '../lib/githubWebhookSetup.js'; // [Sprint 4 · M4] US-34
+import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
 
 /*
  * [Sprint 4 · M2] US-32 Connect a repository (FR-11).
@@ -53,6 +55,9 @@ import {
  * [Sprint 4 · M3] US-33: a disconnected connection answers 409 github_disconnected; a token GitHub
  * rejects (401) or that cannot be decrypted is recorded as needing re-authorization, so the panel
  * stops showing Active; PUT answers with the full status body (routes/github.js githubStatusBody).
+ *
+ * [Sprint 4 · M4] US-34: after saving, PUT also adds the repository webhook (lib/githubWebhookSetup.js)
+ * and the answer includes `webhook` ({ status, message, events, updatedAt } or null).
  */
 
 function fail(res, status, code, message, extra = {}) {
@@ -207,9 +212,18 @@ githubRepositoryRoutes.put('/', async (req, res, next) => {
       });
     }
 
+    // [Sprint 4 · M4] US-34: add (or move) the repository webhook. Never fails the request:
+    // the outcome is saved on the connection and shown by the panel.
+    const webhook = await setupProjectWebhook({
+      connection: saved,
+      accessToken,
+      previousRepository: connection.repository || null,
+    });
+
     // Same shape as GET /api/projects/:id/github (M1) so the panel can simply replace its state.
-    // [Sprint 4 · M3] US-33: built by the same function as GET, so it includes the US-33 fields.
-    return res.json(githubStatusBody({ connection: saved, configured: true, role }));
+    // [Sprint 4 · M3] US-33: built by the same function as GET, so it includes the US-33 fields;
+    // [Sprint 4 · M4] US-34: with the webhook outcome that was just recorded.
+    return res.json(githubStatusBody({ connection: { ...saved, webhook }, configured: true, role }));
   } catch (error) {
     return next(error);
   }

@@ -605,3 +605,17 @@ textarea.field-input{resize:vertical;min-height:90px}
 .ph-title{display:flex;align-items:center;gap:6px}
 .ph .pd-stat .ph-hint{font-size:8px;opacity:.85}
 .ph .pd-card-head .pill{display:inline-flex}
+/* [Sprint 4 · M4] US-34 GitHub events in the feed */
+.event .event-link{display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:8px;font-weight:700;color:var(--accent);text-decoration:none}
+.event .event-link:hover,.event .event-link:focus-visible{text-decoration:underline}
+.github-panel .github-webhook{margin-top:10px}
+.github-panel .github-webhook-state{display:flex;align-items:center;gap:6px;margin:0 0 6px;color:var(--muted)}
+.github-panel .github-webhook details{margin:0 0 10px;font-size:10px}
+.github-panel .github-webhook summary{cursor:pointer;color:var(--accent);font-weight:700;font-size:10px}
+.github-panel .github-deliveries{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.github-panel .github-deliveries li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.github-panel .github-deliveries b{font-size:10px}
+.github-panel .github-deliveries small{grid-column:1/-1;font-size:9px;color:var(--muted);overflow-wrap:anywhere}
+.github-panel .delivery-status{font-size:9px;color:var(--muted)}
+.github-panel .delivery-status.processed{color:var(--green,#2d9c76)}
+.github-panel .delivery-status.failed{color:var(--orange,#c97a2b)}

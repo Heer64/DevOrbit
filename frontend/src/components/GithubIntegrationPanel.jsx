@@ -4,6 +4,7 @@ import { Github, Lock, RefreshCw, Unlink } from 'lucide-react';
 import { githubApi } from '../api';
 import { Btn } from './ui';
 import GithubRepositoryPicker from './GithubRepositoryPicker'; // [Sprint 4 · M2] US-32
+import GithubWebhookStatus from './GithubWebhookStatus'; // [Sprint 4 · M4] US-34
 import ConfirmDialog from './ConfirmDialog'; // [Sprint 4 · M3] US-33 (shared dialog from Sprint 3 · M3)
 
 /*
@@ -17,6 +18,9 @@ import ConfirmDialog from './ConfirmDialog'; // [Sprint 4 · M3] US-33 (shared d
  * [Sprint 4 · M2] US-32: once GitHub is authorized, the Owner picks one repository
  * (GithubRepositoryPicker) and the panel shows it with an "Active" badge. Admins see the
  * repository and the state but cannot change it.
+ *
+ * [Sprint 4 · M4] US-34: with an Active repository the panel also shows whether the webhook that
+ * sends commits, issues and pull requests to the Activity feed is set up (GithubWebhookStatus).
  *
  * [Sprint 4 · M3] US-33 Manage the GitHub connection: the Owner and Admins see the repository name
  * and the connection status, and can
@@ -258,6 +262,9 @@ export default function GithubIntegrationPanel({
           </small>
         </div>
       )}
+      {/* [Sprint 4 · M4] US-34: webhook status + recent deliveries.
+          [Sprint 4 · M3] US-33: not after a disconnect (the hook was removed; nothing to set up). */}
+      {repository && !disconnected && <GithubWebhookStatus projectId={projectId} webhook={status?.webhook} api={api} />}
       {state === 'active' && canSelectRepository && !picking && (
         <button type="button" className="link github-change-repo" onClick={() => { setResult(null); setPicking(true); }}>Change repository</button>
       )}

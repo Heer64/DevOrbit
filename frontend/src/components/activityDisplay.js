@@ -57,6 +57,14 @@ export function activitySentence(event) {
   return `${who} ${event?.summary || ''}`.trim();
 }
 
+// [Sprint 4 · M4] US-34: the GitHub link of a commit / issue / pull request entry, or ''.
+// Only https://github.com/... is ever used as a link, whatever the API sends.
+export function activityGithubLink(event) {
+  if (!String(event?.type || '').startsWith('github.')) return '';
+  const url = typeof event?.meta?.url === 'string' ? event.meta.url.trim() : '';
+  return /^https:\/\/github\.com\/[^\s"'<>]+$/.test(url) ? url : '';
+}
+
 // "just now", "12 min ago", "3 hours ago", "Yesterday", "Oct 14".
 export function timeAgo(value, now = Date.now()) {
   const time = new Date(value).getTime();

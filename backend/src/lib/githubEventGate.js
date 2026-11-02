@@ -6,22 +6,17 @@ import { githubEventsAccepted } from './githubConnection.js';
  * [Sprint 4 · M3] US-33 event gate: "After disconnect, new events stop coming in but old feed
  * entries stay." This file is the interface between US-33 (M3) and the webhook pipeline (US-34, M4).
  *
- * Contract for M4 (the webhook handler is M4's; nothing here receives or verifies webhooks):
- *   1. After verifying X-Hub-Signature-256, find the projects for the delivery's repository:
- *        const projectIds = await projectsAcceptingGithubEvents(payload.repository.id);
- *      An empty list means no project has that repository connected (or it was disconnected):
- *      acknowledge the delivery (2xx) and record nothing.
- *   2. For each project, record the event with logActivity() (lib/activity.js), type
- *      'github.commit' | 'github.issue' | 'github.pull_request', and put the GitHub repository ID in
- *      meta.repositoryId (plus meta.author, the GitHub username, as US-29 already expects).
- *   3. logActivity() calls canRecordGithubEvent() itself for every github.* event, so an event that
- *      arrives (or is retried / reconciled) after a disconnect is dropped even if step 1 was skipped.
+ * How M4's webhook pipeline (routes/githubWebhook.js, US-34) uses it; nothing here receives or
+ * verifies webhooks:
+ *   1. activeProjectsFor() keeps M2's Active rule and also applies githubEventsAccepted(), so a
+ *      delivery for a disconnected project is recorded as ignored (not retried as a failure).
+ *   2. logActivity() (lib/activity.js) calls canRecordGithubEvent() for every github.* event, so an
+ *      event can never be added after a disconnect, whatever code path writes it.
+ *   3. Disconnect (routes/github.js) calls M4's removeProjectWebhook() before revoking the token, and
+ *      re-authorize / reconnect calls M4's setupProjectWebhook() again.
  *   4. Disconnect never deletes Activity documents: earlier GitHub entries stay in the feed.
- *   5. OPEN DEPENDENCY ON M4: if US-34 registers a webhook on the repository, removing that hook on
- *      GitHub when the project is disconnected belongs with M4's webhook code (it owns the hook ID
- *      and its storage). Until that exists, GitHub keeps delivering to the endpoint after a
- *      disconnect and this gate drops every delivery, so the feed still receives nothing new.
- *      The disconnect route (routes/github.js) marks the place to call it.
+ *
+ * projectsAcceptingGithubEvents() is the same rule as a database lookup, for any other caller.
  *
  * Both functions read the database at the time of the call, so the answer changes the moment a
  * project is disconnected. Neither throws for bad input; they answer "no".

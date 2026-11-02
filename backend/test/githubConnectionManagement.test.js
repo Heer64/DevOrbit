@@ -3,6 +3,7 @@
 //    coming in but old feed entries stay."
 // GitHub itself is never called: globalThis.fetch is replaced per test with a fake GitHub.
 import { test, before, after, beforeEach, afterEach } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { setup, teardown, signup, authed } from './helpers.js';
@@ -14,6 +15,10 @@ import Project from '../src/models/Project.js';
 import { decryptToken, encryptToken } from '../src/lib/githubCrypto.js';
 import { logActivity } from '../src/lib/activity.js';
 import { canRecordGithubEvent, projectsAcceptingGithubEvents } from '../src/lib/githubEventGate.js';
+// [Sprint 4 · M4] US-34 pipeline, used by the integration tests at the end of this file.
+import WebhookDelivery from '../src/models/WebhookDelivery.js';
+import { signPayload } from '../src/lib/githubWebhooks.js';
+import { webhookOptions, waitForWebhookWork } from '../src/routes/githubWebhook.js';
 
 const TOKEN = 'gho_US33_OLD_TOKEN_never_leaves_server_0001';
 const NEW_TOKEN = 'gho_US33_NEW_TOKEN_never_leaves_server_0002';
@@ -24,6 +29,15 @@ const GITHUB_ENV = {
   GITHUB_CALLBACK_URL: 'http://localhost:5000/api/github/callback',
   GITHUB_TOKEN_KEY: 'b'.repeat(64),
 };
+// [Sprint 4 · M4] US-34 webhook settings, switched on only by the tests that need them.
+const WEBHOOK_SECRET = 'us33-webhook-secret-for-tests-0123456789';
+const WEBHOOK_ENV = { GITHUB_WEBHOOK_SECRET: WEBHOOK_SECRET, GITHUB_WEBHOOK_URL: 'https://forge.example.com/api/github/webhook' };
+function setWebhookEnv(on) {
+  for (const [name, value] of Object.entries(WEBHOOK_ENV)) {
+    if (on) process.env[name] = value;
+    else delete process.env[name];
+  }
+}
 const GITHUB_USER = { id: 4242, login: 'octo-owner' };
 const REPO = { githubId: 101, fullName: 'octo-owner/devorbit' };
 
@@ -54,7 +68,14 @@ const rawRepo = (id = REPO.githubId, fullName = REPO.fullName) => ({
 // Fake GitHub. Every answer can be overridden; records every call.
 let realFetch;
 let githubCalls;
-function fakeGithub({ user = json(GITHUB_USER), repository = json(rawRepo()), revoke = new Response(null, { status: 204 }), token } = {}) {
+function fakeGithub({
+  user = json(GITHUB_USER),
+  repository = json(rawRepo()),
+  revoke = new Response(null, { status: 204 }),
+  token,
+  createHook = json({ id: 88 }, 201), // [Sprint 4 · M4] POST /repos/{owner}/{repo}/hooks
+  deleteHook = new Response(null, { status: 204 }), // [Sprint 4 · M4] DELETE /repos/{owner}/{repo}/hooks/{id}
+} = {}) {
   githubCalls = [];
   globalThis.fetch = async (url, options = {}) => {
     githubCalls.push({ url: String(url), options });
@@ -69,6 +90,8 @@ function fakeGithub({ user = json(GITHUB_USER), repository = json(rawRepo()), re
     if (host === 'api.github.com' && pathname === '/user') return answer(user);
     if (host === 'api.github.com' && pathname === `/repositories/${REPO.githubId}`) return answer(repository);
     if (host === 'api.github.com' && pathname === `/applications/${GITHUB_ENV.GITHUB_CLIENT_ID}/token`) return answer(revoke);
+    if (host === 'api.github.com' && pathname === `/repos/${REPO.fullName}/hooks` && options.method === 'POST') return answer(createHook);
+    if (host === 'api.github.com' && pathname.startsWith(`/repos/${REPO.fullName}/hooks/`) && options.method === 'DELETE') return answer(deleteHook);
     throw new Error(`Unexpected request to ${url}`);
   };
 }
@@ -134,6 +157,8 @@ const noSecretAnywhere = (...bodies) => {
 before(async () => {
   ({ app } = await setup());
   realFetch = globalThis.fetch;
+  webhookOptions.sleep = async () => {}; // [Sprint 4 · M4] no real back-off waits in tests
+  webhookOptions.baseDelayMs = 1;
   [owner, admin, contributor, viewer, outsider] = await Promise.all(
     ['US33 Owner', 'US33 Admin', 'US33 Contributor', 'US33 Viewer', 'US33 Outsider'].map((name) => signup(app, name))
   );
@@ -162,6 +187,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  setWebhookEnv(false);
   for (const method of consoleMethods) console[method] = originalConsole[method];
   globalThis.fetch = realFetch;
 });
@@ -489,4 +515,86 @@ test('NFR-4: no response or log line contains a token or the client secret acros
   bodies.push((await disconnect(owner)).body);
   bodies.push((await as(admin).get(base())).body);
   noSecretAnywhere(...bodies);
+});
+
+// --- Integration with M4's webhook pipeline (US-34) -------------------------------------------
+
+const ACTIVE_HOOK = { status: 'active', hookId: 77, repositoryId: REPO.githubId, message: '', updatedAt: new Date() };
+
+function deliverPush(deliveryId) {
+  // A different commit per delivery, so M4's duplicate guard (GithubFeedKey) never merges two tests.
+  const sha = createHash('sha1').update(deliveryId).digest('hex');
+  const body = JSON.stringify({
+    ref: 'refs/heads/main',
+    repository: { id: REPO.githubId, full_name: REPO.fullName },
+    sender: { login: 'octocat' },
+    commits: [{ id: sha, message: `Commit for ${deliveryId}`, url: `https://github.com/${REPO.fullName}/commit/${sha}`, author: { name: 'octocat', username: 'octocat' } }],
+  });
+  return request(app)
+    .post('/api/github/webhook')
+    .set('Content-Type', 'application/json')
+    .set('X-GitHub-Event', 'push')
+    .set('X-GitHub-Delivery', deliveryId)
+    .set('X-Hub-Signature-256', signPayload(WEBHOOK_SECRET, Buffer.from(body)))
+    .send(body);
+}
+
+test('M4: disconnect takes the webhook off GitHub before revoking the token, and clears it', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  const res = await disconnect(admin);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.webhookRemoved, true);
+  assert.equal(res.body.webhook, null);
+
+  const hookCall = githubCalls.findIndex((call) => call.url === `https://api.github.com/repos/${REPO.fullName}/hooks/77` && call.options.method === 'DELETE');
+  const revokeCall = githubCalls.findIndex((call) => call.url.endsWith(`/applications/${GITHUB_ENV.GITHUB_CLIENT_ID}/token`));
+  assert.ok(hookCall >= 0, 'hook removed on GitHub');
+  assert.ok(revokeCall > hookCall, 'removed with the token before it was revoked');
+  assert.equal(githubCalls[hookCall].options.headers.Authorization, `Bearer ${TOKEN}`);
+  assert.equal((await GithubConnection.findOne({ project: projectId }).lean()).webhook, null);
+  noSecretAnywhere(res.body);
+});
+
+test('M4: a delivery after disconnect is ignored (not retried as a failure); old entries stay', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  assert.equal((await deliverPush('before-disconnect')).status, 202);
+  await waitForWebhookWork();
+  const before = await Activity.find({ project: projectId, type: /^github\./ }).lean();
+  assert.equal(before.length, 1, 'events flow while connected');
+
+  await disconnect(owner);
+  assert.equal((await deliverPush('after-disconnect')).status, 202);
+  await waitForWebhookWork();
+
+  const delivery = await WebhookDelivery.findOne({ deliveryId: 'after-disconnect' }).lean();
+  assert.equal(delivery.status, 'ignored');
+  assert.ok((delivery.attempts || 0) <= 1, 'no retries');
+  const after = await Activity.find({ project: projectId, type: /^github\./ }).lean();
+  assert.equal(after.length, 1, 'no new GitHub entry');
+  assert.equal(String(after[0]._id), String(before[0]._id), 'the earlier entry stays');
+});
+
+test('M4: reconnecting sets the webhook up again so events flow back in', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  await disconnect(owner);
+
+  fakeGithub();
+  const flow = await startFlow(admin);
+  const res = await callback({ code: 'reconnect', state: flow.state }, flow.cookie);
+  assert.equal(res.headers.location, `http://localhost:5173/project/${projectId}?github=reauthorized`);
+  const create = githubCalls.find((call) => call.url === `https://api.github.com/repos/${REPO.fullName}/hooks` && call.options.method === 'POST');
+  assert.ok(create, 'webhook created again');
+  assert.equal(create.options.headers.Authorization, `Bearer ${NEW_TOKEN}`);
+
+  const status = await as(owner).get(base());
+  assert.equal(status.body.connectionState, 'active');
+  assert.equal(status.body.webhook.status, 'active');
+  assert.equal((await GithubConnection.findOne({ project: projectId }).lean()).webhook.hookId, 88);
+
+  assert.equal((await deliverPush('after-reconnect')).status, 202);
+  await waitForWebhookWork();
+  assert.equal((await WebhookDelivery.findOne({ deliveryId: 'after-reconnect' }).lean()).status, 'processed');
 });

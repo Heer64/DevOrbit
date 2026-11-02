@@ -31,6 +31,22 @@ const connectedRepositorySchema = new mongoose.Schema(
   { _id: false }
 );
 
+// [Sprint 4 · M4] US-34: the repository webhook that sends commits, issues and pull requests.
+// Set when the Owner chooses a repository (routes/githubRepository.js, lib/githubWebhookSetup.js).
+// The webhook secret is never stored here: it lives only in GITHUB_WEBHOOK_SECRET.
+// [Sprint 4 · M3] US-33: cleared on disconnect after removeProjectWebhook(); set up again on reconnect.
+export const WEBHOOK_STATUSES = ['active', 'not_configured', 'not_admin', 'failed'];
+const webhookSchema = new mongoose.Schema(
+  {
+    status: { type: String, enum: WEBHOOK_STATUSES, required: true },
+    hookId: { type: Number, default: null },
+    repositoryId: { type: Number, default: null }, // which repository the hook is on
+    message: { type: String, trim: true, maxlength: 300, default: '' },
+    updatedAt: { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
+
 // [Sprint 4 · M3] US-33: the latest repository check ("Check connection", or right after a
 // re-authorize). It only counts for the repository (githubId) and authorization (authorizedAt) it
 // was made for; see currentRepositoryAccess() in lib/githubConnection.js.
@@ -63,6 +79,7 @@ const githubConnectionSchema = new mongoose.Schema(
     },
     authorizedAt: { type: Date, required: true, default: Date.now },
     repository: { type: connectedRepositorySchema, default: null }, // [Sprint 4 · M2] US-32
+    webhook: { type: webhookSchema, default: null }, // [Sprint 4 · M4] US-34
     // [Sprint 4 · M3] US-33 soft disconnect. Records written before US-33 have no status and count
     // as connected. A disconnected record keeps the GitHub account and repository (so re-authorize
     // can restore it) but no token, and lib/githubEventGate.js accepts no events for it.

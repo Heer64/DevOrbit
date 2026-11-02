@@ -21,6 +21,8 @@ import {
   revokeGithubToken,
   verifyConnection,
 } from '../lib/githubConnection.js';
+import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
+import { removeProjectWebhook, setupProjectWebhook } from '../lib/githubWebhookSetup.js'; // [Sprint 4 · M4] US-34, used by US-33
 import {
   STATE_TTL_MS,
   authorizeUrl,
@@ -126,6 +128,7 @@ export function githubStatusBody({ connection, configured, role }) {
     connection: connectionView(connection),
     // M1 canAuthorize · M2 { repository, connectionState, active, canSelectRepository } · M3 the rest
     ...connectionStatus({ connection, configured, role }),
+    webhook: webhookView(connection), // [Sprint 4 · M4] US-34: { status, message, events, updatedAt } or null
   };
 }
 
@@ -276,19 +279,30 @@ projectGithubRoutes.post('/disconnect', async (req, res, next) => {
     }
     await GithubOAuthState.deleteMany({ project: access.project._id });
 
+    let accessToken = null;
+    try {
+      accessToken = previous.encryptedToken ? decryptToken(previous.encryptedToken) : null;
+    } catch {
+      accessToken = null; // unreadable token: nothing usable for GitHub calls
+    }
+
+    // [Sprint 4 · M4] US-34: take the repository webhook off GitHub while the token still works
+    // (M4's removeProjectWebhook(); it keeps a hook another project still uses, never throws).
+    // Even if this fails, the event gate (lib/githubEventGate.js) drops every later delivery.
+    let webhookRemoved = false;
+    if (previous.webhook?.hookId && accessToken) {
+      webhookRemoved = (await removeProjectWebhook({ connection: previous, accessToken })).removed === true;
+    }
+    if (previous.webhook) {
+      await GithubConnection.updateOne({ _id: previous._id, status: 'disconnected' }, { $set: { webhook: null } });
+    }
+
     // Revoke the token on GitHub too (best effort; it is already gone from the database).
     let revokedOnGithub = false;
     const config = githubConfig();
-    if (previous.encryptedToken && config.configured) {
-      try {
-        revokedOnGithub = await revokeGithubToken(decryptToken(previous.encryptedToken), config);
-      } catch {
-        revokedOnGithub = false; // unreadable token: nothing usable to revoke
-      }
+    if (accessToken && config.configured) {
+      revokedOnGithub = await revokeGithubToken(accessToken, config);
     }
-    // OPEN DEPENDENCY ON M4 (US-34): if a repository webhook was registered, remove it on GitHub
-    // here. The hook ID and its storage belong to the webhook pipeline. Until then the event gate
-    // (lib/githubEventGate.js) drops every delivery for this project.
 
     // The project header stops showing the repository, unless someone typed a different reference.
     const repoName = previous.repository?.fullName || '';
@@ -311,6 +325,7 @@ projectGithubRoutes.post('/disconnect', async (req, res, next) => {
     return res.json({
       ...githubStatusBody({ connection, configured: config.configured, role: access.role }),
       revokedOnGithub,
+      webhookRemoved, // [Sprint 4 · M4] US-34
     });
   } catch (error) {
     return next(error);
@@ -498,6 +513,15 @@ githubCallbackRoutes.get('/callback', async (req, res) => {
     );
 
     if (!previous) return finish(projectId, 'connected');
+
+    // [Sprint 4 · M4] US-34: a reconnected (or re-authorized) repository needs its webhook so events
+    // reach the feed again. Disconnect removed it; a failed setup may also be retried here. M4's
+    // setupProjectWebhook() never throws and records the outcome on the connection.
+    const hookOnRepository = previous.webhook?.status === 'active' && previous.webhook.repositoryId === keptRepository?.githubId;
+    if (repositoryCheck?.access === 'accessible' && !hookOnRepository) {
+      const saved = await GithubConnection.findOne({ project: project._id }).lean();
+      if (saved) await setupProjectWebhook({ connection: saved, accessToken, previousRepository: null });
+    }
 
     // [Sprint 4 · M3] US-33: re-authorized. Restore the header's repository reference once the
     // repository is readable again, and record it in the feed.
