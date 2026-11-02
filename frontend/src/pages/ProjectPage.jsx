@@ -21,6 +21,7 @@ import ProjectHealth from '../components/ProjectHealth'; // [Sprint 4 · M8] US-
 import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompletion'; // [Sprint 4 · M8] US-15
 import { canViewProjectHealth } from '../roles'; // [Sprint 4 · M8] US-40
 import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
+import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -51,7 +52,8 @@ const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: '
 // [Sprint 3 · M8] US-35/US-36: 'Decisions' added. [Sprint 4 · M7] US-39: 'Dashboard' added (?tab=dashboard).
 // [Sprint 4 · M5] US-37: 'Files' added (?tab=files).
 // Tasks stays the default tab when the URL has none, so existing links and journeys are unchanged.
-export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Files', 'Activity'];
+// [Sprint 4 · M6] US-38: 'Docs' added (?tab=docs&doc=<id> opens a page).
+export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Files', 'Docs', 'Activity'];
 export function tabFromParam(value) {
   return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
 }
@@ -103,6 +105,7 @@ export default function ProjectPage() {
   const openChannelId = searchParams.get('channel') || '';
   const openMessageId = searchParams.get('message') || '';
   const openThreadId = searchParams.get('thread') || ''; // [Sprint 3] US-17/US-18: from a mention notification
+  const openDocId = searchParams.get('doc') || ''; // [Sprint 4 · M6] US-38: documentation page to open
   const setActiveTab = useCallback((tab, extra = {}) => {
     const next = new URLSearchParams({ tab: tab.toLowerCase() });
     for (const [key, value] of Object.entries(extra)) if (value) next.set(key, value);
@@ -299,6 +302,16 @@ export default function ProjectPage() {
           )}
           {activeTab === 'Files' && !isLive && (
             <div className="task-empty"><Circle size={20} /><p>Files are available in real projects. Sign in and open one of your projects to upload and download project files.</p></div>
+          )}
+          {/* [Sprint 4 · M6] US-38: project documentation pages. Members only. */}
+          {activeTab === 'Docs' && isLive && membershipRole && (
+            <DocsPanel projectId={id} myRole={membershipRole} docId={openDocId} onOpenDoc={(docId) => setActiveTab('Docs', { doc: docId })} />
+          )}
+          {activeTab === 'Docs' && isLive && liveProject && !membershipRole && (
+            <div className="task-empty"><Circle size={20} /><p>Project documentation is visible to members only.</p></div>
+          )}
+          {activeTab === 'Docs' && !isLive && (
+            <div className="task-empty"><Circle size={20} /><p>Documentation pages are available in real projects. Sign in and open one of your projects to write your team's docs.</p></div>
           )}
           {activeTab === 'Activity' && isLive && membershipRole && (
             <ActivityPanel projectId={id} refreshKey={workVersion} />
