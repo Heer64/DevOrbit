@@ -576,6 +576,12 @@ textarea.field-input{resize:vertical;min-height:90px}
 .github-panel .github-repo-connected small svg{vertical-align:-1px}
 .github-panel .github-change-repo{margin-top:8px}
 .github-panel .github-next-step{margin:12px 0}
+/* [Sprint 4 · M3] US-33 manage the GitHub connection */
+.github-panel .github-status-line{margin:0 0 10px;font-size:11px;color:var(--muted)}
+.github-panel .github-disconnected{border-style:dashed}
+.github-panel .github-repo-prefix{color:var(--muted)}
+.github-panel .github-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.github-panel .github-actions .btn{padding:9px 12px}
 .github-repo-picker{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .github-repo-picker .team-note{margin:0}
 .github-repo-filter{display:flex;align-items:center;gap:7px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--bg);padding:0 10px;color:var(--muted)}

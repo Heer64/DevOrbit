@@ -13,6 +13,9 @@ const githubOAuthStateSchema = new mongoose.Schema(
     stateHash: { type: String, required: true, unique: true },
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // [Sprint 4 · M3] US-33: 'connect' (first time, Owner only) or 'reauthorize' (Owner or Admin).
+    // The callback re-checks the role for this purpose. Records without it count as 'connect'.
+    purpose: { type: String, enum: ['connect', 'reauthorize'], default: 'connect' },
     expiresAt: { type: Date, required: true, index: { expires: 0 } },
   },
   { timestamps: true }

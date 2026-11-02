@@ -326,12 +326,22 @@ export const decisionApi = {
 // [Sprint 4 · M4] US-34 GitHub webhooks. Contract: backend/src/routes/githubWebhook.js
 //   status / selectRepository also return webhook: null | { status: 'active'|'not_configured'|'not_admin'|'failed', message, events, updatedAt }
 //   deliveries -> { deliveries: [{ deliveryId, event, action, repoFullName, status, attempts, entries, reason, lastError, receivedAt, processedAt }] }
+// [Sprint 4 · M3] US-33 Manage the GitHub connection. Contract: backend/src/routes/github.js
+//   status also returns { canReauthorize, canDisconnect, canVerify, acceptingEvents, disconnectedAt, disconnectedBy,
+//                         needsReauthorization, reauthorizationReason, lastCheckedAt, repositoryAccess } and the states
+//                         'disconnected' | 'needs_reauthorization' | 'repository_unavailable' | 'unverified'.
+//   authorize   -> also Admins once GitHub was connected before ("Re-authorize"); GitHub returns with ?github=reauthorized.
+//   disconnect  -> status body + { revokedOnGithub }   Owner/Admin; sends { confirm: true }
+//   verify      -> status body + { check: { token, repository } }   Owner/Admin ("Check connection")
+//   New error codes: confirmation_required, github_disconnected, owner_or_admin_only.
 export const githubApi = {
   status: (id) => api(`${projectPath(id)}/github`),
   authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
   repositories: (id) => api(`${projectPath(id)}/github/repositories`), // [Sprint 4 · M2]
   selectRepository: (id, repositoryId) => api(`${projectPath(id)}/github/repository`, { method: 'PUT', body: JSON.stringify({ repositoryId }) }), // [Sprint 4 · M2]
   deliveries: (id) => api(`${projectPath(id)}/github/deliveries`), // [Sprint 4 · M4] US-34 recent webhook deliveries (Owner/Admin)
+  disconnect: (id) => api(`${projectPath(id)}/github/disconnect`, { method: 'POST', body: JSON.stringify({ confirm: true }) }), // [Sprint 4 · M3]
+  verify: (id) => api(`${projectPath(id)}/github/verify`, { method: 'POST' }), // [Sprint 4 · M3]
 };
 
 // [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js

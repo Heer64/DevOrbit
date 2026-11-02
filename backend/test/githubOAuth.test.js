@@ -320,6 +320,17 @@ test('roles: Owner and Admin see integration settings; others do not', async () 
     connectionState: 'not_connected',
     active: false,
     canSelectRepository: false,
+    // [Sprint 4 · M3] US-33 fields (backend/test/githubConnectionManagement.test.js covers them)
+    canReauthorize: false,
+    canDisconnect: false,
+    canVerify: false,
+    acceptingEvents: false,
+    disconnectedAt: null,
+    disconnectedBy: null,
+    needsReauthorization: false,
+    reauthorizationReason: null,
+    lastCheckedAt: null,
+    repositoryAccess: null,
     // [Sprint 4 · M4] US-34 webhook status (backend/test/githubWebhook.test.js covers it)
     webhook: null,
   });

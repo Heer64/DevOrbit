@@ -147,3 +147,9 @@ export function canUploadFiles(role) {
 export function canWriteDocs(role) {
   return role === 'Owner' || role === 'Admin' || role === 'Contributor';
 }
+
+// [Sprint 4 · M3] US-33 (FR-35): who may view the GitHub connection, check it, disconnect it and
+// re-authorize it. Connecting GitHub for the very first time stays Owner only (US-31).
+export function canManageGithubConnection(role) {
+  return role === 'Owner' || role === 'Admin';
+}

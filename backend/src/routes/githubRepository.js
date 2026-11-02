@@ -7,7 +7,8 @@ import { loadProjectForMember } from '../lib/projectAccess.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { decryptToken } from '../lib/githubCrypto.js';
 import { githubConfig } from '../lib/githubOAuth.js';
-import { connectionView } from './github.js';
+import { githubStatusBody, markNeedsReauthorization } from './github.js'; // [Sprint 4 · M3] US-33 (was connectionView)
+import { isDisconnected } from '../lib/githubConnection.js'; // [Sprint 4 · M3] US-33
 import {
   GithubApiError,
   listUserRepositories,
@@ -51,6 +52,10 @@ import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-3
  *
  * The access token is decrypted only for the call to GitHub; it is never returned or logged.
  *
+ * [Sprint 4 · M3] US-33: a disconnected connection answers 409 github_disconnected; a token GitHub
+ * rejects (401) or that cannot be decrypted is recorded as needing re-authorization, so the panel
+ * stops showing Active; PUT answers with the full status body (routes/github.js githubStatusBody).
+ *
  * [Sprint 4 · M4] US-34: after saving, PUT also adds the repository webhook (lib/githubWebhookSetup.js)
  * and the answer includes `webhook` ({ status, message, events, updatedAt } or null).
  */
@@ -76,11 +81,17 @@ async function loadOwnerConnection(req, res) {
     fail(res, 409, 'github_not_authorized', 'Connect GitHub first, then choose a repository.');
     return null;
   }
+  // [Sprint 4 · M3] US-33: no token is stored after a disconnect.
+  if (isDisconnected(connection)) {
+    fail(res, 409, 'github_disconnected', 'GitHub was disconnected from this project. Re-authorize GitHub, then choose a repository.');
+    return null;
+  }
   let accessToken;
   try {
     accessToken = decryptToken(connection.encryptedToken);
   } catch {
     // Wrong or rotated GITHUB_TOKEN_KEY, or a damaged record. Never log the stored value.
+    await markNeedsReauthorization(connection, 'token_unreadable'); // [Sprint 4 · M3] US-33
     fail(res, 409, 'github_reauthorize', 'The stored GitHub authorization can no longer be used. Re-authorize GitHub, then choose a repository.');
     return null;
   }
@@ -120,6 +131,8 @@ githubRepositoriesRoutes.get('/', async (req, res, next) => {
     try {
       list = await listUserRepositories(accessToken);
     } catch (error) {
+      // [Sprint 4 · M3] US-33: a revoked or expired token is recorded so the panel asks to re-authorize.
+      if (error?.kind === 'unauthorized') await markNeedsReauthorization(connection, 'token_rejected');
       return sendGithubError(res, error);
     }
 
@@ -158,6 +171,8 @@ githubRepositoryRoutes.put('/', async (req, res, next) => {
     try {
       list = await listUserRepositories(accessToken);
     } catch (error) {
+      // [Sprint 4 · M3] US-33: a revoked or expired token is recorded so the panel asks to re-authorize.
+      if (error?.kind === 'unauthorized') await markNeedsReauthorization(connection, 'token_rejected');
       return sendGithubError(res, error);
     }
     const repository = list.repositories.find((item) => item.id === repositoryId);
@@ -170,7 +185,7 @@ githubRepositoryRoutes.put('/', async (req, res, next) => {
     // Only if the authorization is still the one we listed with (a re-authorize in between would
     // otherwise attach a repository chosen under another GitHub account).
     const saved = await GithubConnection.findOneAndUpdate(
-      { _id: connection._id, githubUserId: connection.githubUserId, authorizedAt: connection.authorizedAt },
+      { _id: connection._id, githubUserId: connection.githubUserId, authorizedAt: connection.authorizedAt, status: { $ne: 'disconnected' } }, // [M3] not if disconnected meanwhile
       { $set: { repository: storedRepository(repository, { githubUserId: connection.githubUserId, connectedBy: req.user.id }) } },
       { new: true, runValidators: true }
     )
@@ -206,13 +221,9 @@ githubRepositoryRoutes.put('/', async (req, res, next) => {
     });
 
     // Same shape as GET /api/projects/:id/github (M1) so the panel can simply replace its state.
-    return res.json({
-      configured: true,
-      canAuthorize: role === 'Owner',
-      connection: connectionView(saved),
-      ...repositoryStatus({ connection: saved, configured: true, role }),
-      webhook: webhookView({ ...saved, webhook }), // [Sprint 4 · M4] US-34
-    });
+    // [Sprint 4 · M3] US-33: built by the same function as GET, so it includes the US-33 fields;
+    // [Sprint 4 · M4] US-34: with the webhook outcome that was just recorded.
+    return res.json(githubStatusBody({ connection: { ...saved, webhook }, configured: true, role }));
   } catch (error) {
     return next(error);
   }

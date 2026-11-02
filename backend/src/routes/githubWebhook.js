@@ -10,6 +10,7 @@ import { canEditProject } from '../lib/permissions.js';
 import { logActivity } from '../lib/activity.js';
 import { githubConfig } from '../lib/githubOAuth.js';
 import { repositoryStatus } from '../lib/githubRepos.js';
+import { githubEventsAccepted } from '../lib/githubConnection.js'; // [Sprint 4 · M3] US-33 event gate
 import { SUPPORTED_EVENTS, deliveryRepositoryId, mapGithubEvent } from '../lib/githubEvents.js';
 import {
   RETRY_DEFAULTS,
@@ -64,12 +65,16 @@ export function waitForWebhookWork() {
 
 // Projects whose connection to this repository is Active right now (US-32 rule). After a
 // disconnect (US-33) the project is no longer here, so new events stop; old entries stay.
+// [Sprint 4 · M3] US-33: disconnect is a soft disconnect (the record and its repository stay), so the
+// US-33 gate is applied here too. Without it a disconnected project would reach logActivity(), which
+// refuses github.* events for it, and the delivery would be retried as a failure instead of ignored.
 async function activeProjectsFor(repositoryId) {
   if (!repositoryId) return [];
   const configured = githubConfig().configured;
   const connections = await GithubConnection.find({ 'repository.githubId': repositoryId }).lean();
   return connections
     .filter((connection) => repositoryStatus({ connection, configured, role: 'Owner' }).active)
+    .filter((connection) => githubEventsAccepted(connection, repositoryId))
     .map((connection) => connection.project);
 }
 

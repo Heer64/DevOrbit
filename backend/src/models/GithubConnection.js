@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
  * [Sprint 4 · M1] US-31: the GitHub authorization stored for a project after its Owner approves
  * FORGE on GitHub. One per project. Kept in its own collection (not on Project) so the token can
  * never ride along with a project document sent to the browser.
+ * [Sprint 4 · M3] US-33 adds the soft-disconnect and re-authorization fields below.
  *
  * encryptedToken is AES-256-GCM ciphertext (lib/githubCrypto.js), is never selected by default,
  * and is stripped from toJSON/toObject as a second guard. Repository choice (US-32) and
@@ -33,6 +34,7 @@ const connectedRepositorySchema = new mongoose.Schema(
 // [Sprint 4 · M4] US-34: the repository webhook that sends commits, issues and pull requests.
 // Set when the Owner chooses a repository (routes/githubRepository.js, lib/githubWebhookSetup.js).
 // The webhook secret is never stored here: it lives only in GITHUB_WEBHOOK_SECRET.
+// [Sprint 4 · M3] US-33: cleared on disconnect after removeProjectWebhook(); set up again on reconnect.
 export const WEBHOOK_STATUSES = ['active', 'not_configured', 'not_admin', 'failed'];
 const webhookSchema = new mongoose.Schema(
   {
@@ -45,6 +47,19 @@ const webhookSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// [Sprint 4 · M3] US-33: the latest repository check ("Check connection", or right after a
+// re-authorize). It only counts for the repository (githubId) and authorization (authorizedAt) it
+// was made for; see currentRepositoryAccess() in lib/githubConnection.js.
+const repositoryCheckSchema = new mongoose.Schema(
+  {
+    githubId: { type: Number, required: true },
+    authorizedAt: { type: Date, required: true },
+    access: { type: String, enum: ['accessible', 'not_accessible', 'unverified'], required: true },
+    checkedAt: { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
+
 const githubConnectionSchema = new mongoose.Schema(
   {
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, unique: true },
@@ -52,13 +67,37 @@ const githubConnectionSchema = new mongoose.Schema(
     githubUserId: { type: Number, required: true },
     githubLogin: { type: String, required: true, trim: true, maxlength: 100 },
     scopes: { type: [{ type: String, trim: true, maxlength: 60 }], default: [] },
-    encryptedToken: { type: String, required: true, select: false },
+    // [Sprint 4 · M3] US-33: removed on disconnect, so it is only required while connected.
+    encryptedToken: {
+      type: String,
+      select: false,
+      required() {
+        // In update validators `this` is a query (or null), not the document: the routes always
+        // write the token together with status 'connected' there, so only documents are checked.
+        return this instanceof mongoose.Document ? this.status !== 'disconnected' : false;
+      },
+    },
     authorizedAt: { type: Date, required: true, default: Date.now },
     repository: { type: connectedRepositorySchema, default: null }, // [Sprint 4 · M2] US-32
     webhook: { type: webhookSchema, default: null }, // [Sprint 4 · M4] US-34
+    // [Sprint 4 · M3] US-33 soft disconnect. Records written before US-33 have no status and count
+    // as connected. A disconnected record keeps the GitHub account and repository (so re-authorize
+    // can restore it) but no token, and lib/githubEventGate.js accepts no events for it.
+    status: { type: String, enum: ['connected', 'disconnected'], default: 'connected' },
+    disconnectedAt: { type: Date, default: null },
+    disconnectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // [Sprint 4 · M3] US-33: GitHub rejected the stored token (401) or it can no longer be decrypted.
+    // Set by "Check connection" and by M2's repository calls; cleared by a successful re-authorize.
+    needsReauthorization: { type: Boolean, default: false },
+    reauthorizationReason: { type: String, enum: ['', 'token_rejected', 'token_unreadable'], default: '' },
+    lastCheckedAt: { type: Date, default: null },
+    repositoryCheck: { type: repositoryCheckSchema, default: null },
   },
   { timestamps: true }
 );
+
+// [Sprint 4 · M3] US-33 / US-34: webhook deliveries are matched to projects by repository ID.
+githubConnectionSchema.index({ 'repository.githubId': 1, status: 1 });
 
 function hideSecret(_doc, ret) {
   delete ret.encryptedToken;
