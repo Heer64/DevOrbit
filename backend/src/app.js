@@ -22,6 +22,7 @@ import dashboardRoutes from './routes/dashboard.js'; // [Sprint 4 · M7] US-39
 import healthRoutes from './routes/health.js'; // [Sprint 4 · M8] US-40
 import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US-37
 import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
+import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot } from './lib/avatar.js';
 
 export function createApp() {
@@ -35,6 +36,9 @@ export function createApp() {
 
   app.disable('x-powered-by');
   app.use(cors({ origin: clientOrigins, credentials: true }));
+  // [Sprint 4 · M4] US-34: GitHub webhooks need the raw body for the X-Hub-Signature-256 check, so this
+  // is mounted before express.json() and the /api rate limiter (it has its own limiter).
+  app.use('/api/github/webhook', githubWebhookRoutes);
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
@@ -100,6 +104,7 @@ export function createApp() {
   // [Sprint 4 · M2] US-32: choose the repository. Mounted before the M1 routes so only these URLs reach them.
   app.use('/api/projects/:id/github/repositories', githubRepositoriesRoutes);
   app.use('/api/projects/:id/github/repository', githubRepositoryRoutes);
+  app.use('/api/projects/:id/github/deliveries', githubDeliveriesRoutes); // [Sprint 4 · M4] US-34 webhook delivery log
   app.use('/api/projects/:id/github', projectGithubRoutes); // [Sprint 4 · M1] US-31 integration settings
   app.use('/api/github', githubCallbackRoutes); // [Sprint 4 · M1] US-31 OAuth callback from GitHub
   app.use('/api/projects/:id/dashboard', dashboardRoutes); // [Sprint 4 · M7] US-39 project dashboard

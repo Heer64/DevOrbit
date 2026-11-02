@@ -30,6 +30,21 @@ const connectedRepositorySchema = new mongoose.Schema(
   { _id: false }
 );
 
+// [Sprint 4 · M4] US-34: the repository webhook that sends commits, issues and pull requests.
+// Set when the Owner chooses a repository (routes/githubRepository.js, lib/githubWebhookSetup.js).
+// The webhook secret is never stored here: it lives only in GITHUB_WEBHOOK_SECRET.
+export const WEBHOOK_STATUSES = ['active', 'not_configured', 'not_admin', 'failed'];
+const webhookSchema = new mongoose.Schema(
+  {
+    status: { type: String, enum: WEBHOOK_STATUSES, required: true },
+    hookId: { type: Number, default: null },
+    repositoryId: { type: Number, default: null }, // which repository the hook is on
+    message: { type: String, trim: true, maxlength: 300, default: '' },
+    updatedAt: { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
+
 const githubConnectionSchema = new mongoose.Schema(
   {
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, unique: true },
@@ -40,6 +55,7 @@ const githubConnectionSchema = new mongoose.Schema(
     encryptedToken: { type: String, required: true, select: false },
     authorizedAt: { type: Date, required: true, default: Date.now },
     repository: { type: connectedRepositorySchema, default: null }, // [Sprint 4 · M2] US-32
+    webhook: { type: webhookSchema, default: null }, // [Sprint 4 · M4] US-34
   },
   { timestamps: true }
 );

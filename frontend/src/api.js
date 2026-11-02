@@ -323,11 +323,15 @@ export const decisionApi = {
 //   selectRepository -> same body as status (now Active)   Owner only; the server checks the ID against the GitHub list
 //   Errors carry error.response.data.code: owner_only, github_not_configured, github_not_authorized, github_reauthorize,
 //   github_changed, invalid_repository, repository_not_available, github_rate_limited, github_forbidden, github_unavailable.
+// [Sprint 4 · M4] US-34 GitHub webhooks. Contract: backend/src/routes/githubWebhook.js
+//   status / selectRepository also return webhook: null | { status: 'active'|'not_configured'|'not_admin'|'failed', message, events, updatedAt }
+//   deliveries -> { deliveries: [{ deliveryId, event, action, repoFullName, status, attempts, entries, reason, lastError, receivedAt, processedAt }] }
 export const githubApi = {
   status: (id) => api(`${projectPath(id)}/github`),
   authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
   repositories: (id) => api(`${projectPath(id)}/github/repositories`), // [Sprint 4 · M2]
   selectRepository: (id, repositoryId) => api(`${projectPath(id)}/github/repository`, { method: 'PUT', body: JSON.stringify({ repositoryId }) }), // [Sprint 4 · M2]
+  deliveries: (id) => api(`${projectPath(id)}/github/deliveries`), // [Sprint 4 · M4] US-34 recent webhook deliveries (Owner/Admin)
 };
 
 // [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js

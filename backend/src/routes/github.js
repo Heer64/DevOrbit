@@ -9,6 +9,7 @@ import { loadProjectForMember, memberRole } from '../lib/projectAccess.js';
 import { canEditProject } from '../lib/permissions.js';
 import { encryptToken } from '../lib/githubCrypto.js';
 import { repositoryStatus } from '../lib/githubRepos.js'; // [Sprint 4 · M2] US-32
+import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
 import {
   STATE_TTL_MS,
   authorizeUrl,
@@ -110,6 +111,7 @@ projectGithubRoutes.get('/', async (req, res, next) => {
       connection: connectionView(connection),
       // [Sprint 4 · M2] US-32: { repository, connectionState, active, canSelectRepository } (lib/githubRepos.js)
       ...repositoryStatus({ connection, configured, role: access.role }),
+      webhook: webhookView(connection), // [Sprint 4 · M4] US-34: { status, message, events, updatedAt } or null
     });
   } catch (error) {
     return next(error);

@@ -474,6 +474,71 @@ Errors are `{ message, code }`: 403 `owner_only`, 503 `github_not_configured`, 4
 
 **Tests:** `backend/test/githubRepos.test.js` (GitHub client and Active rule, no database), `backend/test/githubRepository.test.js` (API: acceptance criterion, Owner only, validation, persistence, GitHub errors, re-authorization; GitHub is faked), `frontend/src/components/GithubRepository.test.jsx`.
 
+## Sprint 4 — M4: GitHub events in the feed (US-34, FR-12, NFR-11a, NFR-11b)
+
+When a repository is connected (US-32) and a commit is pushed, or an issue or pull request is opened or updated, a feed entry with the **event type, title, GitHub author and an "Open on GitHub" link** appears in the project's Activity feed. It is saved and pushed live over socket.io a moment after GitHub's delivery arrives, well within 60 seconds.
+
+### Setup (once per environment)
+
+Add to **`backend/.env` only**:
+
+```
+GITHUB_WEBHOOK_SECRET=...   # at least 20 characters: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+GITHUB_WEBHOOK_URL=https://<public API host>/api/github/webhook
+```
+
+On Render this is the API's public URL + `/api/github/webhook`. **GitHub cannot reach `localhost`**, so for local testing forward deliveries with one of these:
+
+- **smee.io:** open https://smee.io, click *Start a new channel*, set `GITHUB_WEBHOOK_URL` to the channel URL, then run `npx smee-client --url <channel URL> --target http://localhost:5000/api/github/webhook`.
+- **ngrok:** `ngrok http 5000`, then set `GITHUB_WEBHOOK_URL=https://<id>.ngrok-free.app/api/github/webhook`.
+
+Restart the API, then (as the Owner) **choose the repository again** in the GitHub panel. That creates the webhook. GitHub's first delivery is a `ping`, which shows under **Recent deliveries**.
+
+### How the webhook gets created
+
+When the Owner chooses a repository (`PUT /api/projects/:id/github/repository`, M2), the API also calls `POST /repos/{owner}/{repo}/hooks` with the events `push`, `issues` and `pull_request`, `content_type: json` and the shared secret. If a hook with our URL already exists (another project connected the same repository, or an earlier attempt), it is reused and its secret/events refreshed. Changing to another repository removes our hook from the old one, unless another project still uses that repository. Choosing the repository **never fails because of the webhook**. The outcome is saved on `GithubConnection.webhook`, and the panel shows it:
+
+| `webhook.status` | Panel shows |
+|---|---|
+| `active` | **Webhook active**: commits, issues and pull requests appear in the feed |
+| `not_admin` | not set up: the authorized GitHub account is not an admin of the repository (GitHub only lets admins add webhooks) |
+| `not_configured` | not set up: `GITHUB_WEBHOOK_SECRET` / `GITHUB_WEBHOOK_URL` missing on the server |
+| `failed` | not set up: GitHub unreachable, rate limited or the authorization was revoked. Choose the repository again to retry |
+
+For **US-33 (disconnect, M3):** call `removeProjectWebhook({ connection, accessToken })` from `backend/src/lib/githubWebhookSetup.js` before deleting the `GithubConnection` (load it with `.select('+encryptedToken')` and decrypt the token). It never throws. Even without it, a disconnected project gets **no new** entries, because the endpoint only adds entries for projects whose connection is still Active. Old entries are never touched.
+
+### Receiving a delivery: `POST /api/github/webhook`
+
+| Step | What happens |
+|---|---|
+| 1 | Mounted **before `express.json()`** and the `/api` rate limiter (it has its own: 300/min), using `express.raw()`, so the HMAC is computed on the exact bytes GitHub signed. |
+| 2 | `503` if the webhook settings are missing. **`X-Hub-Signature-256` is verified first** (HMAC-SHA256 with `GITHUB_WEBHOOK_SECRET`, `crypto.timingSafeEqual`). Missing or wrong → `401`, nothing stored. |
+| 3 | `400` for missing `X-GitHub-Event` / `X-GitHub-Delivery` or a body that is not JSON. |
+| 4 | The delivery is recorded in **`WebhookDelivery`** (metadata only). `deliveryId` is unique: the same delivery again → `200 { duplicate: true }`, not processed twice. |
+| 5 | `ping` → `200`. Everything else → `202` straight away (GitHub waits 10 s at most), then processed in the background. |
+| 6 | Every project whose GitHub connection is **Active** for `repository.id` gets the mapped entries through `logActivity()` (saved + pushed live). Each entry first claims a **`GithubFeedKey`** (unique per project + event), so the same commit or issue update never shows twice, even under a new delivery ID. |
+
+**Event mapping** (`backend/src/lib/githubEvents.js`)
+
+| GitHub event | Actions | Feed type | Example sentence |
+|---|---|---|---|
+| `push` | each new commit on a branch (max 20 per push; branch deletes and tags skipped) | `github.commit` | *octocat pushed commit "Fix login bug" to main* |
+| `issues` | `opened`, `edited`, `closed`, `reopened` | `github.issue` | *riya-gh opened issue #12 "Login fails on Safari"* |
+| `pull_request` | `opened`, `edited`, `closed` (shown as *merged* when merged), `reopened`, `synchronize` | `github.pull_request` | *dev-gh merged pull request #7 "Add webhooks"* |
+
+Other events and actions (labels, stars, ...) are recorded as `ignored`. `actor` is `null` (no FORGE user), and `meta` holds `{ author, title, url, action, repository, sha | number }`. `url` is only ever an `https://github.com/...` link, and the browser checks that again before showing **Open on GitHub** (`rel="noopener noreferrer"`).
+
+### Retry, logging and rate limits
+
+- **Retry (NFR-11a):** if processing fails (e.g. the database is briefly unavailable), it is retried **3 times with 1 s / 2 s / 4 s backoff**. Only the **final failure is logged**, as one line `GitHub webhook delivery <id> (<event>) failed after 4 attempts: <short reason>`, and the delivery is marked `failed` with `lastError`. Logs never contain the payload, the webhook secret or a token.
+- **Delivery log:** `WebhookDelivery` keeps `deliveryId, event, action, repoFullName, projects, status (received | processed | ignored | failed), attempts, entries, reason, lastError, receivedAt, processedAt` for 30 days. Owner/Admin see the last 20 under **Recent deliveries** in the GitHub panel (`GET /api/projects/:id/github/deliveries`). To re-run a failed delivery, use **Redeliver** in GitHub → repository → Settings → Webhooks → Recent deliveries. GitHub sends it with a new delivery ID, and `GithubFeedKey` stops duplicates.
+- **Rate limits (NFR-11b):** receiving webhooks makes **no** GitHub API calls. Only creating/removing the hook does. On a rate-limit answer (`403`/`429` with `x-ratelimit-remaining: 0` or `Retry-After`) it waits once if the reset is ≤ 10 s, otherwise it stops and records `failed` ("rate limit reached") instead of retrying hard.
+- **Known gaps:** GitHub does not redeliver failed deliveries automatically, and the periodic reconciliation with the GitHub API that NFR-11a mentions is **not built** (not in the Sprint 4 plan for M4). A delivery whose processing was cut off by a server restart stays `received`. Use GitHub's **Redeliver**.
+
+**Files:** `backend/src/routes/githubWebhook.js`, `backend/src/lib/githubEvents.js`, `backend/src/lib/githubWebhooks.js`, `backend/src/lib/githubWebhookSetup.js`, `backend/src/models/WebhookDelivery.js`, `backend/src/models/GithubFeedKey.js`, the `webhook` field in `backend/src/models/GithubConnection.js`, the hook call in `backend/src/routes/githubRepository.js`, `webhook` in `GET /api/projects/:id/github` (`routes/github.js`), mounting in `backend/src/app.js`, `frontend/src/components/GithubWebhookStatus.jsx`, the link in `frontend/src/components/ActivityPanel.jsx` + `activityGithubLink()` in `activityDisplay.js`, `githubApi.deliveries` in `frontend/src/api.js`.
+
+**Tests:** `backend/test/githubEvents.test.js` (event mapping, no database), `backend/test/githubWebhooks.test.js` (signature, retry/backoff, rate limits, hook create/reuse/delete; GitHub faked; no database), `backend/test/githubWebhook.test.js` (API: acceptance criterion for commits, issues and PRs; bad/missing signature; duplicate and redelivered events; unconnected / disconnected / inactive repositories; retry + final failure log; hook creation on connect, not_admin, not_configured, GitHub failure, repository change; delivery log roles; no token or secret in responses or logs), `frontend/src/components/GithubEvents.test.jsx`.
+
 ## Sprint 4 — M7: project dashboard (US-39, FR-15)
 
 A **Dashboard** tab on the project page (`/project/<id>?tab=dashboard`) shows, from live database data:
