@@ -323,11 +323,21 @@ export const decisionApi = {
 //   selectRepository -> same body as status (now Active)   Owner only; the server checks the ID against the GitHub list
 //   Errors carry error.response.data.code: owner_only, github_not_configured, github_not_authorized, github_reauthorize,
 //   github_changed, invalid_repository, repository_not_available, github_rate_limited, github_forbidden, github_unavailable.
+// [Sprint 4 · M3] US-33 Manage the GitHub connection. Contract: backend/src/routes/github.js
+//   status also returns { canReauthorize, canDisconnect, canVerify, acceptingEvents, disconnectedAt, disconnectedBy,
+//                         needsReauthorization, reauthorizationReason, lastCheckedAt, repositoryAccess } and the states
+//                         'disconnected' | 'needs_reauthorization' | 'repository_unavailable' | 'unverified'.
+//   authorize   -> also Admins once GitHub was connected before ("Re-authorize"); GitHub returns with ?github=reauthorized.
+//   disconnect  -> status body + { revokedOnGithub }   Owner/Admin; sends { confirm: true }
+//   verify      -> status body + { check: { token, repository } }   Owner/Admin ("Check connection")
+//   New error codes: confirmation_required, github_disconnected, owner_or_admin_only.
 export const githubApi = {
   status: (id) => api(`${projectPath(id)}/github`),
   authorize: (id) => api(`${projectPath(id)}/github/authorize`, { method: 'POST' }),
   repositories: (id) => api(`${projectPath(id)}/github/repositories`), // [Sprint 4 · M2]
   selectRepository: (id, repositoryId) => api(`${projectPath(id)}/github/repository`, { method: 'PUT', body: JSON.stringify({ repositoryId }) }), // [Sprint 4 · M2]
+  disconnect: (id) => api(`${projectPath(id)}/github/disconnect`, { method: 'POST', body: JSON.stringify({ confirm: true }) }), // [Sprint 4 · M3]
+  verify: (id) => api(`${projectPath(id)}/github/verify`, { method: 'POST' }), // [Sprint 4 · M3]
 };
 
 // [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js

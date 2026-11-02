@@ -474,6 +474,54 @@ Errors are `{ message, code }`: 403 `owner_only`, 503 `github_not_configured`, 4
 
 **Tests:** `backend/test/githubRepos.test.js` (GitHub client and Active rule, no database), `backend/test/githubRepository.test.js` (API: acceptance criterion, Owner only, validation, persistence, GitHub errors, re-authorization; GitHub is faked), `frontend/src/components/GithubRepository.test.jsx`.
 
+## Sprint 4 — M3: Manage the GitHub connection (US-33, FR-35)
+
+> Owner/Admin can view status, disconnect and re-authorize. After disconnect, new events stop coming in but old feed entries stay.
+
+Builds on M1 (US-31 OAuth, encrypted token) and M2 (US-32 repository, Active rule). It reuses M1's OAuth flow and M2's status function rather than adding new ones.
+
+**What the Owner and Admins can do** (GitHub panel on the project page):
+
+| Action | What happens |
+|---|---|
+| **View** | Repository name, "Connection status: …" and the badge. States are M2's `not_connected` / `unavailable` / `needs_repository` / `active`, plus `disconnected`, `needs_reauthorization` (GitHub rejected the token, or it cannot be decrypted), `repository_unavailable` (the account can no longer read the repository) and `unverified` (re-authorized, but the repository could not be checked yet). |
+| **Check connection** | `POST /api/projects/:id/github/verify`. Checks the token (`GET /user`) **and** read access to the connected repository (`GET /repositories/{id}`). A good token alone never makes the connection Active. If GitHub is rate-limited or down, the request returns 503/502 and nothing changes (NFR-11b). |
+| **Disconnect** | Confirmed in a dialog, then `POST /api/projects/:id/github/disconnect` with `{ confirm: true }`. This is a **soft disconnect**: <br>• `status` becomes `disconnected` and the encrypted token is deleted (and revoked on GitHub when possible). <br>• Pending Connect / Re-authorize attempts are cancelled. <br>• `Project.githubRepo` is cleared if it still names the repository. <br>• One `project.updated` feed entry is written. <br>• The GitHub account and repository are kept so re-authorizing can restore them. <br>• **No `Activity` document is ever deleted.** |
+| **Re-authorize** | The same `POST /api/projects/:id/github/authorize` as M1. The first connection stays Owner only. Once a record exists (connected, expired or disconnected), the Owner **or an Admin** may run it again. <br>• The state stores `purpose: 'reauthorize'` and the callback re-checks the role for that purpose. <br>• The callback clears the disconnected / needs-re-authorization flags and checks the kept repository with the new token, then redirects with `?github=reauthorized`. <br>• Same GitHub account and the repository is readable: **Active** again. A different account: `needs_repository` (M2's rule). |
+
+**Event gate — interface with M4 (US-34).** `backend/src/lib/githubEventGate.js`:
+
+```js
+projectsAcceptingGithubEvents(githubRepositoryId) // -> [projectId], [] after a disconnect
+canRecordGithubEvent(projectId, githubRepositoryId?) // -> boolean
+```
+
+1. M4's webhook handler (signature check, retries and reconciliation stay M4's) calls `projectsAcceptingGithubEvents(payload.repository.id)` and records nothing when the list is empty.
+2. Events are written with `logActivity()`: type `github.commit` / `github.issue` / `github.pull_request`, `meta.repositoryId` = GitHub repository ID, `meta.author` = GitHub username.
+3. `logActivity()` itself refuses every `github.*` event for a project whose connection does not accept events. So a delivery that is late, retried or reconciled after a disconnect still adds nothing. The check runs at write time.
+
+**Open dependency on M4:** removing the repository webhook on GitHub when a project is disconnected belongs with M4's webhook code, which owns the hook ID and where it is stored. The call site is marked in the disconnect route. Until it exists, GitHub keeps delivering after a disconnect and the gate drops each delivery, so the feed still gets nothing new.
+
+**Who:** Owner and Admin view, check, disconnect and re-authorize. Contributors, Viewers and visitors get 403. Choosing the repository stays Owner only (US-32).
+
+**Token safety (NFR-4):** unchanged from M1. The token is decrypted only for the GitHub call or the revoke request. It is never returned or logged, and it is deleted on disconnect.
+
+**Files:** `backend/src/lib/githubConnection.js` (rules: states, roles per OAuth purpose, verification, revoke; no database), `backend/src/lib/githubEventGate.js`. Marked additions in:
+- `routes/github.js`: status body, Owner/Admin authorize + callback, `disconnect`, `verify`
+- `routes/githubRepository.js`: disconnected → 409 `github_disconnected`, 401 / unreadable token recorded, shared status body
+- `models/GithubConnection.js`: `status`, `disconnectedAt/By`, `needsReauthorization`, `reauthorizationReason`, `lastCheckedAt`, `repositoryCheck`, index on `repository.githubId`
+- `models/GithubOAuthState.js`: `purpose`
+- `lib/activity.js`: gate for `github.*`
+- `lib/permissions.js`: `canManageGithubConnection`
+
+Frontend: `components/GithubIntegrationPanel.jsx`, `githubApi.disconnect` / `githubApi.verify` in `api.js`, `styles.css`.
+
+**Tests:**
+- `backend/test/githubConnection.test.js`: rules, no database.
+- `backend/test/githubConnectionManagement.test.js`: API, covering all three acceptance criteria, requirement 5, roles, in-flight OAuth after a disconnect, rate limits, and no secrets in responses or logs. GitHub is faked.
+- `frontend/src/components/GithubConnectionManagement.test.jsx`.
+- One assertion in `backend/test/githubOAuth.test.js`: M1's exact GET body now includes the US-33 fields.
+
 ## Sprint 4 — M7: project dashboard (US-39, FR-15)
 
 A **Dashboard** tab on the project page (`/project/<id>?tab=dashboard`) shows, from live database data:
