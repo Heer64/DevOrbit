@@ -11,6 +11,18 @@
     "start:backend": "npm --prefix backend start",
     "test": "npm --prefix backend test && npm --prefix frontend test",
     "test:e2e": "npm --prefix e2e test",
-    "ci": "npm --prefix backend ci && npm --prefix frontend ci && npm test && npm run build:frontend"
+    "ci": "npm --prefix backend ci && npm --prefix frontend ci && npm test && npm run build:frontend",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write",
+    "format:check": "prettier --check",
+    "seed": "npm --prefix backend run seed"
+  },
+  "devDependencies": {
+    "eslint": "^10.1.0",
+    "prettier": "^3.8.1"
+  },
+  "engines": {
+    "node": ">=20.19"
   }
 }

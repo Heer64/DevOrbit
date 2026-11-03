@@ -7,7 +7,7 @@ import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
 import TeamPanel from '../components/TeamPanel';
 import TasksPanel from '../components/TasksPanel';
 import { MOCK_MEMBERS, MOCK_USER_ID, mockTaskApi } from '../taskMock';
-import { canManageMembers, canWriteTasks } from '../roles';
+import { canManageMembers, canViewProjectHealth, canWriteTasks } from '../roles'; // canViewProjectHealth: [Sprint 4 · M8] US-40
 import MilestonesPanel from '../components/MilestonesPanel';
 import ActivityPanel from '../components/ActivityPanel';
 import ChatPanel from '../components/ChatPanel'; // [Sprint 2 final] US-16
@@ -19,7 +19,6 @@ import GithubIntegrationPanel from '../components/GithubIntegrationPanel'; // [S
 import ProjectDashboard from '../components/ProjectDashboard'; // [Sprint 4 · M7] US-39
 import ProjectHealth from '../components/ProjectHealth'; // [Sprint 4 · M8] US-40
 import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompletion'; // [Sprint 4 · M8] US-15
-import { canViewProjectHealth } from '../roles'; // [Sprint 4 · M8] US-40
 import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
 import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
 
