@@ -1,0 +1,353 @@
+% DevOrbit - Sprint 4 acceptance test report: GitHub integration exit checks (M1-M4).
+% Compile:  pdflatex sprint4-exit-checks.tex   (run it twice so the table of contents is filled in)
+%
+\newcommand{\ResultCheckFive}{\PASS}
+\newcommand{\ResultBonus}{\PASS}
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+
+\definecolor{passgreen}{HTML}{1E8E4E}
+\definecolor{failred}{HTML}{C62828}
+\definecolor{pendorange}{HTML}{E08A00}
+\definecolor{headgray}{HTML}{EEF0F5}
+\definecolor{accent}{HTML}{6343D7}
+
+\newcommand{\PASS}{\textbf{\textcolor{passgreen}{PASS}}}
+\newcommand{\FAIL}{\textbf{\textcolor{failred}{FAIL}}}
+\newcommand{\PENDING}{\textbf{\textcolor{pendorange}{PENDING}}}
+
+% \shot{file in images/}{width as fraction of the line}{caption}
+\newcommand{\shot}[3]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{images/#1}{%
+      \includegraphics[width=#2\linewidth,height=0.40\textheight,keepaspectratio]{images/#1}%
+    }{%
+      \fcolorbox{gray}{gray!8}{\parbox[c][4.2cm][c]{0.82\linewidth}{\centering\small
+        \textbf{Screenshot to add}\\[4pt] save it as \texttt{images/#1}}}%
+    }
+    \caption{#3}
+  \end{figure}}
+
+% One check: objective / requirement / steps / expected / actual / result
+\newenvironment{checkinfo}{\par\smallskip\noindent\tabularx{\linewidth}{>{\bfseries}p{2.6cm} X}\toprule}{\bottomrule\endtabularx\par\medskip}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small DevOrbit -- Sprint 4 acceptance tests}
+\rhead{\small GitHub integration (M1--M4)}
+\cfoot{\small \thepage}
+
+\hypersetup{pdftitle={DevOrbit Sprint 4 GitHub exit checks}, pdfauthor={Urvish Babariya}}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.5cm}
+  {\Huge\bfseries\color{accent} DevOrbit\par}
+  \vspace{0.6cm}
+  {\LARGE Sprint 4 Acceptance Test Report\par}
+  \vspace{0.3cm}
+  {\Large GitHub Integration Exit Checks (M1--M4)\par}
+  \vspace{1.5cm}
+  \begin{tabular}{>{\bfseries}l l}
+    User stories   & US-31, US-32, US-33, US-34 \\
+    Requirements   & FR-11, FR-12, FR-35, NFR-4, NFR-11a, NFR-11b \\
+    Test type      & Manual acceptance (black-box, end-to-end, real GitHub) \\
+    Tester         & Urvish Babariya \\
+    Date           & 3 November 2026 \\
+    Code version   & \texttt{main} at \texttt{b234f22} (PR \#29) \\
+    Repository     & \url{https://github.com/Heer64/DevOrbit} \\
+  \end{tabular}
+  \vfill
+  {\small Course team project -- Software Engineering\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Purpose and scope}
+The Sprint 4 plan ends with exit checks for the GitHub integration that the automated tests cannot cover,
+because they need a real GitHub account, a real OAuth App and a real repository sending webhooks.
+This report records those checks, run by hand against the code on \texttt{main} after all eight
+Sprint 4 parts were merged.
+
+\begin{itemize}
+  \item \textbf{M1, US-31} Authorize GitHub (OAuth, state check, token encrypted, never sent to the browser).
+  \item \textbf{M2, US-32} Connect one repository; the connection shows as Active.
+  \item \textbf{M3, US-33} Owner/Admin view status, disconnect, re-authorize; old feed entries stay.
+  \item \textbf{M4, US-34} Signed webhooks for commits, issues and pull requests appear in the Activity feed.
+\end{itemize}
+
+The other Sprint 4 parts (M5 files, M6 docs, M7 dashboard, M8 completion and health) are covered by the
+automated backend, frontend and Playwright end-to-end tests and are not repeated here.
+
+%=====================================================================
+\section{Summary of results}
+\begin{center}
+\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l l}
+  \toprule
+  \textbf{\#} & \textbf{Exit check} & \textbf{Stories} & \textbf{Result} \\
+  \midrule
+  1  & Demo: connect GitHub and a repository (Active, webhook active, ping received) & US-31, US-32, US-34 & \PASS \\
+  1b & A repository the account does not administer: connected, but no webhook and a clear message & US-32, US-34 & \PASS \\
+  2  & A real commit and a real issue appear in the Activity feed with a GitHub link & US-34 & \PASS \\
+  3  & A webhook request with a wrong or missing signature is rejected (401) and nothing is stored & US-34, NFR-4 & \PASS \\
+  4  & The app keeps working while GitHub is unreachable; GitHub actions fail safely & NFR-11b & \PASS \\
+  5  & Disconnect: webhook removed, new events stop, old entries stay & US-33 & \ResultCheckFive \\
+  B  & Bonus: re-authorize after disconnect, connection Active again & US-33 & \ResultBonus \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+%=====================================================================
+\section{Test environment}
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}p{3.6cm} X}
+  \toprule
+  Machine        & Windows laptop, Google Chrome, VS Code terminals (PowerShell) \\
+  Backend        & \texttt{backend/}, \texttt{npm run dev} on \path{http://localhost:5000} \\
+  Frontend       & \texttt{frontend/}, \texttt{npm run dev} on \path{http://localhost:5173} \\
+  Database       & MongoDB Community Server 9.0.4 installed locally (\path{mongodb://127.0.0.1:27017/devorbit}) \\
+  GitHub OAuth App & ``DevOrbit Local Test'', callback \path{http://localhost:5000/api/github/callback} \\
+  Webhook relay  & smee.io channel + \texttt{smee-client}, forwarding to \texttt{/api/github/webhook} (GitHub cannot reach \texttt{localhost}) \\
+  GitHub account & \texttt{@Urvish2007} \\
+  Test repository & \path{Urvish2007/devorbit-webhook-test} (public, owned by the tester, so the account is its admin) \\
+  Secrets        & \texttt{GITHUB\_CLIENT\_ID}, \texttt{GITHUB\_CLIENT\_SECRET}, \texttt{GITHUB\_TOKEN\_KEY} (64 hex), \texttt{GITHUB\_WEBHOOK\_SECRET}, \texttt{GITHUB\_WEBHOOK\_URL} set in \texttt{backend/.env} only; never committed and not shown in this report \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Setup}
+\begin{enumerate}
+  \item Registered the OAuth App on GitHub with the homepage and callback URLs above (Figure~\ref{fig:oauth}).
+  \item Created a smee.io channel and started \texttt{smee-client} to forward deliveries to the local API.
+  \item Filled in the GitHub settings in \texttt{backend/.env}; the token key and webhook secret were generated with
+        \path{crypto.randomBytes(32)}.
+  \item Before the settings were filled in, the server started normally and listed only the \emph{names} of the
+        missing settings, never any values (Figure~\ref{fig:before}). This matches US-31: secrets live only in server
+        environment variables and are never logged.
+\end{enumerate}
+
+\shot{setup-oauth-app.png}{0.85}{GitHub OAuth App registration: homepage \texttt{http://localhost:5173}, redirect URI \texttt{http://localhost:5000/api/github/callback}, wildcard matching and device flow off.\label{fig:oauth}}
+\shot{setup-backend-before-config.png}{0.6}{Backend before the GitHub settings were added: GitHub connect is turned off and only the setting names are printed. The API still starts and connects to MongoDB.\label{fig:before}}
+
+%=====================================================================
+\section{Exit checks}
+
+%---------------------------------------------------------------------
+\subsection{Check 1: Demo, connect GitHub and a repository}
+\begin{checkinfo}
+  Objective   & The Owner authorizes GitHub, picks one repository, the connection shows as Active and the webhook is created. \\
+  Requirement & US-31 (authorize with a state-checked callback), US-32 (one repository, shown as Active), US-34 (signed webhook configured). \\
+  Steps       & Signed up, created a project, clicked \emph{Connect GitHub}, approved on GitHub, clicked \emph{Choose repository},
+                selected \path{Urvish2007/devorbit-webhook-test}, clicked \emph{Connect repository}. \\
+  Expected    & Panel shows \emph{Active} and \emph{Webhook active}; GitHub sends a \texttt{ping} that DevOrbit records. \\
+  Actual      & Authorized as \texttt{@Urvish2007}; repository connected; status \emph{Active}; badge \emph{Webhook active}.
+                smee.io received the \texttt{ping} from \path{Urvish2007/devorbit-webhook-test}, and \emph{Recent deliveries}
+                lists it as \emph{Ignored} (``GitHub ping: the webhook reached DevOrbit''), which is the intended handling of a ping. \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{check1-webhook-active.png}{0.95}{GitHub panel after connecting \texttt{Urvish2007/devorbit-webhook-test}: connection status Active, authorized as \texttt{@Urvish2007}, webhook active.}
+\shot{check1-smee-ping.png}{0.6}{smee.io received GitHub's \texttt{ping} event from \texttt{Urvish2007/devorbit-webhook-test} when the webhook was created.}
+
+\subsubsection*{Check 1b: repository the account does not administer}
+\begin{checkinfo}
+  Objective   & GitHub only lets repository admins add webhooks. Connecting someone else's repository must not fail silently. \\
+  Steps       & In the first attempt, the repository \path{NiranjanD0/WarpCopy-Parallel-File-Transfer-over-SSH} (owned by another account) was chosen. \\
+  Expected    & The repository connects (US-32), but no webhook is created, and the panel explains why. \\
+  Actual      & Status \emph{Active}; badge \emph{Webhook not set up} with the message ``the authorized GitHub account is not an admin of
+                this repository, so it cannot add a webhook''. No deliveries. Switching with \emph{Change repository} to the tester's own
+                repository then worked (Check 1). \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{check1b-not-admin.png}{0.95}{Non-admin repository: connected and Active, but the webhook is not set up and the reason is shown.}
+
+%---------------------------------------------------------------------
+\subsection{Check 2: Real GitHub events appear in the Activity feed}
+\begin{checkinfo}
+  Objective   & A commit pushed, or an issue opened, in the connected repository appears in the project's Activity feed with
+                event type, title, author and a link to GitHub, within 60 seconds. \\
+  Requirement & US-34, FR-12. \\
+  Steps       & On GitHub: edited \texttt{README.md} and committed to \texttt{main}; opened issue \#1 ``Test issue from exit check''.
+                In DevOrbit: opened the \emph{Activity} tab and \emph{Recent deliveries}. \\
+  Expected    & Both events delivered (HTTP 202), processed, and shown in the feed with an \emph{Open on GitHub} link. \\
+  Actual      & smee forwarded three deliveries: \texttt{ping} (200) then \texttt{push} and \texttt{issues} (202 each).
+                \emph{Recent deliveries}: \texttt{push} and \texttt{issues~·~opened} both ``Added to feed, 1 new entry''.
+                Activity feed: ``Urvish2007 pushed commit `Update README with webhook test information' to main'' and
+                ``Urvish2007 opened issue \#1 `Test issue from exit check''', each with \emph{Open on GitHub}.
+                Deliveries are answered at once and processed straight away, well inside the 60-second limit. \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{check2-smee-terminal.png}{0.55}{smee-client forwarding GitHub's deliveries to the local API: \texttt{ping} answered 200, \texttt{push} and \texttt{issues} accepted with 202.}
+\shot{check2-recent-deliveries.png}{0.95}{Recent deliveries in the GitHub panel: \texttt{issues~·~opened} and \texttt{push} added to the feed, \texttt{ping} ignored.}
+\shot{check2-activity-feed.png}{0.8}{Activity feed entries created from GitHub, each with type, title, GitHub author and an \emph{Open on GitHub} link.}
+
+%---------------------------------------------------------------------
+\subsection{Check 3: Requests with a bad or missing signature are rejected}
+\begin{checkinfo}
+  Objective   & Only deliveries signed with the shared secret are accepted (\texttt{X-Hub-Signature-256}, HMAC-SHA256 of the raw body). \\
+  Requirement & US-34 (verify the signature before processing), NFR-4. \\
+  Steps       & Sent a fake \texttt{push} delivery with \texttt{curl.exe}: (a) with signature \texttt{sha256=000\ldots0}
+                (delivery \texttt{manual-test-1}); (b) with no signature header (delivery \texttt{manual-test-2}). \\
+  Expected    & HTTP 401 for both; nothing stored in the feed or in Recent deliveries. \\
+  Actual      & Both requests returned \textbf{401}. The Activity feed and Recent deliveries did not change; neither delivery ID was recorded. \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{check3-no-signature.png}{0.6}{Fake deliveries rejected: wrong signature \texttt{sha256=000\ldots0} returns 401, and a request without a signature returns 401.}
+
+%---------------------------------------------------------------------
+\subsection{Check 4: The app works while GitHub is unreachable}
+\begin{checkinfo}
+  Objective   & An outage at GitHub must not affect the rest of DevOrbit, and GitHub actions must fail without changing data. \\
+  Requirement & NFR-11b; Sprint 4 exit check ``app works with GitHub down''. \\
+  Steps       & Blocked GitHub on the test PC by adding \path{127.0.0.1 github.com} and \path{127.0.0.1 api.github.com} to the
+                Windows \texttt{hosts} file. Confirmed with \path{curl.exe https://api.github.com} (result \texttt{000}, no connection).
+                Then used the project: created a task, moved it on the board, sent a chat message, created a docs page, opened the Activity feed.
+                Clicked \emph{Check connection}. Finally removed the two lines and clicked \emph{Check connection} again. \\
+  Expected    & All project features work. \emph{Check connection} shows an error and the status stays Active. After GitHub is reachable again,
+                the check succeeds. \\
+  Actual      & Task ``Task while GitHub is down'' created and moved To do $\rightarrow$ In progress; chat message ``Chat works without GitHub''
+                posted in \texttt{\#general}; docs page ``Offline note'' created; all three logged in the Activity feed.
+                \emph{Check connection} showed ``Could not reach GitHub. Please try again.'' and the status stayed \emph{Active}, with the webhook still active.
+                After unblocking: ``Connection checked: the authorization works and \path{Urvish2007/devorbit-webhook-test} can be read.'' \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{check4-github-blocked.png}{0.55}{GitHub blocked: \texttt{curl.exe https://api.github.com} returns \texttt{000} (cannot connect).}
+\shot{check4-board.png}{0.65}{While GitHub is down: a new task created and moved to In Progress on the Kanban board.}
+\shot{check4-chat.png}{0.6}{While GitHub is down: chat message posted in \texttt{\#general}.}
+\shot{check4-docs.png}{0.6}{While GitHub is down: documentation page ``Offline note'' created.}
+\shot{check4-activity.png}{0.65}{While GitHub is down: the Activity feed records the new task, the move and the chat message.}
+\shot{check4-check-connection-error.png}{0.6}{\emph{Check connection} while GitHub is down: a clear error, and the connection stays Active with the webhook still active (nothing changed).}
+\shot{check4-check-connection-ok.png}{0.6}{After GitHub was unblocked: \emph{Check connection} succeeds.}
+
+%---------------------------------------------------------------------
+\subsection{Check 5: Disconnect, new events stop and old entries stay}
+\begin{checkinfo}
+  Objective   & After disconnect, no new GitHub events reach the feed, the webhook is removed from GitHub, and earlier feed entries remain. \\
+  Requirement & US-33, FR-35. \\
+  Steps       & Clicked \emph{Disconnect} and confirmed. While disconnected, on GitHub: committed the README line
+                ``After disconnect -- should NOT appear'' and opened issue \#2 ``Opened issue after Disconnect!''.
+                Then checked the Activity feed. \\
+  Expected    & Status \emph{Disconnected}; no feed entry for the commit or the issue made while disconnected; a ``disconnected GitHub''
+                entry in the feed; earlier entries are not deleted. \\
+  Actual      & Status \emph{Disconnected}: ``GitHub was disconnected from this project. No new GitHub events are added to the Activity Feed.
+                Earlier entries stay.'' The panel keeps the last account and repository and offers \emph{Re-authorize GitHub}.
+                Both events exist on GitHub (Figures~\ref{fig:readme} and~\ref{fig:issues}), but the feed has \textbf{no entry for either}:
+                directly after ``Urvish Babariya disconnected GitHub (repository `Urvish2007/devorbit-webhook-test')'' the next entry is the
+                re-authorization (Figure~\ref{fig:after}). The events from while it was disconnected were not added later either.
+                Disconnect deletes no feed entries; the screenshot is cropped to the newest entries. The automated test
+                \path{githubConnectionManagement.test.js} also checks that the webhook is removed from GitHub on disconnect;
+                GitHub's Webhooks settings page was not captured in this run. \\
+  Result      & \ResultCheckFive \\
+\end{checkinfo}
+\shot{check5-disconnected.png}{0.6}{GitHub panel after Disconnect: status Disconnected, last account and repository kept, \emph{Re-authorize GitHub} offered.}
+\shot{check5-github-readme.png}{0.95}{On GitHub, \texttt{README.md} contains the line ``After disconnect -- should NOT appear'', committed while DevOrbit was disconnected (later lines were added after re-authorizing).\label{fig:readme}}
+\shot{check5-github-issues.png}{0.95}{On GitHub, issue \#2 ``Opened issue after Disconnect!'' was opened while DevOrbit was disconnected.\label{fig:issues}}
+\shot{check5-activity-after-disconnect.png}{0.85}{DevOrbit Activity feed, newest first: the commit after re-authorizing, ``reconnected GitHub as @Urvish2007'', and ``disconnected GitHub''. Nothing from the time it was disconnected (no README commit, no issue \#2) was added.\label{fig:after}}
+
+%---------------------------------------------------------------------
+\subsection{Bonus: Re-authorize after disconnect}
+\begin{checkinfo}
+  Objective   & The Owner (or an Admin) can re-authorize a disconnected integration and it returns to Active with its repository. \\
+  Requirement & US-33. \\
+  Steps       & Clicked \emph{Re-authorize GitHub}, approved on GitHub, then committed ``Update README with reauthorisation note''
+                (README line ``we're reauthorising again!''). \\
+  Expected    & The connection becomes Active again with the same repository, the re-authorization is logged, and new events reach the feed again. \\
+  Actual      & The feed shows ``Urvish Babariya reconnected GitHub as @Urvish2007'', followed about a minute later by
+                ``Urvish2007 pushed commit `Update README with reauthorisation note' to main'' with \emph{Open on GitHub} (``just now'').
+                So the integration is back on the same repository and its webhook delivers again. \\
+  Result      & \ResultBonus \\
+\end{checkinfo}
+\noindent See Figure~\ref{fig:after}: the ``reconnected GitHub'' entry and the commit that followed it.
+
+%=====================================================================
+\section{Observations and defects found}
+\begin{center}
+\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l X X}
+  \toprule
+  \textbf{ID} & \textbf{Severity} & \textbf{Observation} & \textbf{Recommendation} \\
+  \midrule
+  D1 & Medium &
+  When deliveries arrived through smee (which adds an \texttt{X-Forwarded-For} header), the backend logged
+  \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR} from \texttt{express-rate-limit} (Figure~\ref{fig:d1}). Deliveries were still processed (202).
+  The app does not set Express's \texttt{trust proxy}. On Render, which also sits behind a proxy, every client would then share the proxy's
+  IP for rate limiting. &
+  Set \path{app.set('trust proxy', 1)} in \texttt{createApp()} for the deployed API (one proxy hop), ideally controlled by an environment variable, and re-test. \\
+  D2 & Low &
+  The Activity item for an issue that was \emph{opened} is titled ``GitHub issue updated'' (its text correctly says ``opened issue \#1''). &
+  Title the item by action, e.g.\ ``GitHub issue opened'', or use a neutral ``GitHub issue''. \\
+  O1 & Info &
+  The OAuth App form had ``Expire user access tokens'' ticked. With it on, GitHub's token expires after 8 hours. The backend stores only the access
+  token (no refresh), so the panel would then ask to re-authorize (handled by US-33). &
+  For the team's OAuth App, untick it, or plan token refresh as future work. \\
+  O2 & Info &
+  On the test PC \texttt{ipconfig /flushdns} needs an administrator terminal (Figure~\ref{fig:flush}). Windows applied the \texttt{hosts} change anyway
+  (confirmed by \texttt{curl}, Figure in Check 4). &
+  Note it in the test procedure; it does not affect the app. \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+\shot{obs-rate-limit-warning.png}{0.95}{D1: \texttt{express-rate-limit} validation error logged while smee forwarded deliveries with an \texttt{X-Forwarded-For} header.\label{fig:d1}}
+\shot{check4-flushdns-elevation.png}{0.5}{O2: \texttt{ipconfig /flushdns} requires an elevated (administrator) terminal on the test PC.\label{fig:flush}}
+
+%=====================================================================
+\section{Related automated tests}
+The same rules are also covered by automated tests on \texttt{main}, which run in GitHub Actions on every pull request
+(Node 20 and 22, MongoDB 7). They use a fake GitHub, so this manual run is what proves the real integration.
+
+\begin{center}
+\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X X}
+  \toprule
+  \textbf{Part} & \textbf{Backend (node:test + supertest)} & \textbf{Frontend (Vitest + Testing Library)} \\
+  \midrule
+  M1 US-31 & \texttt{githubOAuth.test.js}, \path{githubCrypto.test.js} & \path{GithubIntegrationPanel.test.jsx} \\
+  M2 US-32 & \texttt{githubRepos.test.js}, \path{githubRepository.test.js} & \path{GithubRepository.test.jsx} \\
+  M3 US-33 & \path{githubConnection.test.js}, \path{githubConnectionManagement.test.js} & \path{GithubConnectionManagement.test.jsx} \\
+  M4 US-34 & \path{githubEvents.test.js}, \path{githubWebhook.test.js}, \path{githubWebhooks.test.js} & \path{GithubEvents.test.jsx} \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+Examples of what they check: a missing or wrong \texttt{X-Hub-Signature-256} returns 401 and stores nothing; a repeated delivery is not
+processed twice; after disconnect, new events stop and old entries stay; disconnect and \emph{Check connection} behave safely when GitHub is down
+or rate-limited; the token never appears in a response or a log line.
+
+%=====================================================================
+\section{Conclusion}
+Checks 1--4 passed against real GitHub: authorization, repository connection, webhook creation, delivery of real commit and issue events
+into the Activity feed, rejection of unsigned or wrongly signed requests, and correct behaviour while GitHub is unreachable.
+Disconnect stopped new events (a commit and an issue made while disconnected never reached the feed), and re-authorizing restored the
+connection on the same repository, with new commits arriving again. All Sprint 4 GitHub exit checks passed.
+Defect D1 (\texttt{trust proxy}) should be fixed before the API is relied on behind Render's proxy; D2 is a wording issue.
+
+\vspace{1.2cm}
+\noindent
+\begin{tabularx}{\linewidth}{X X}
+  Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt} \\[2pt]
+  Urvish Babariya (tester) & \\[14pt]
+  Date: 3 November 2026 & Date: \rule{3.5cm}{0.4pt} \\
+\end{tabularx}
+
+\end{document}

@@ -42,6 +42,7 @@ const styles = {
 // Returns the cleaned URL when it is safe to link to, otherwise null.
 export function safeHref(raw) {
   const url = String(raw || '').trim();
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what this check refuses
   if (!url || /[\s\u0000-\u001f\u007f]/.test(url)) return null;
   let parsed;
   try {

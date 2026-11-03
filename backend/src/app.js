@@ -23,7 +23,7 @@ import healthRoutes from './routes/health.js'; // [Sprint 4 · M8] US-40
 import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US-37
 import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
-import { uploadRoot } from './lib/avatar.js';
+import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 
 export function createApp() {
   const app = express();
@@ -66,13 +66,38 @@ export function createApp() {
     skip,
   }));
 
+  app.use('/uploads', (_req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  });
+
+  // [Sprint 1 · gaps] Profile photos live in MongoDB GridFS (lib/avatar.js). Same URL as before.
+  // Anything not found there falls through to the old uploads folder (photos from before the move).
+  app.get('/uploads/avatars/:filename', async (req, res, next) => {
+    try {
+      const file = await findAvatar(req.params.filename);
+      if (!file) return next();
+      res.set('Content-Type', file.metadata?.contentType || avatarMimeType(file.filename));
+      // Every upload gets a new random name, so a URL never changes content.
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      const stream = openAvatar(file._id);
+      stream.once('error', (error) => {
+        if (!res.headersSent) {
+          res.removeHeader('Cache-Control');
+          res.removeHeader('Content-Type');
+          next(error);
+        }
+        else res.destroy(error);
+      });
+      return stream.pipe(res);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   app.use(
     '/uploads',
-    (_req, res, next) => {
-      res.set('X-Content-Type-Options', 'nosniff');
-      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      next();
-    },
     express.static(uploadRoot(), {
       index: false,
       dotfiles: 'deny',

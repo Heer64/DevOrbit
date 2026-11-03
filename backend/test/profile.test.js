@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { setup, teardown, signup, authed, jpegBytes, pngBytes } from './helpers.js';
 
@@ -13,6 +14,11 @@ after(teardown);
 
 const upload = (token, buffer, filename, contentType) =>
   request(app).post('/api/profile/me/avatar').set('Authorization', `Bearer ${token}`).attach('avatar', buffer, { filename, contentType });
+
+// [Sprint 1 · gaps] Photos are stored in MongoDB GridFS (bucket "avatars"), not in the uploads folder.
+const storedPhotos = (avatarUrl) =>
+  mongoose.connection.db.collection('avatars.files').countDocuments({ filename: path.basename(avatarUrl) });
+const onDisk = (avatarUrl) => fs.existsSync(path.join(uploadDir, 'avatars', path.basename(avatarUrl)));
 
 test('US-05 bio can be exactly 500 characters but not 501', async () => {
   const ok = await authed(app, me.token).patch('/api/profile/me').send({ bio: 'a'.repeat(500) });
@@ -49,16 +55,39 @@ test('US-05 a JPEG under 2 MB uploads and is served back', async () => {
   assert.equal(file.status, 200);
   assert.equal(file.headers['content-type'], 'image/jpeg');
   assert.equal(file.headers['x-content-type-options'], 'nosniff');
+  assert.equal(file.body.length, 5000);
+});
+
+test('Sprint 1 D: an uploaded photo is kept in MongoDB, not on the server disk', async () => {
+  const res = await upload(me.token, pngBytes(3000), 'p.png', 'image/png');
+  assert.equal(res.status, 200);
+  assert.equal(await storedPhotos(res.body.user.avatarUrl), 1);
+  assert.equal(onDisk(res.body.user.avatarUrl), false);
+  const file = await request(app).get(res.body.user.avatarUrl);
+  assert.equal(file.status, 200);
+  assert.equal(file.headers['content-type'], 'image/png');
+  assert.match(file.headers['cache-control'], /immutable/);
+});
+
+test('Sprint 1 D: a photo saved in the old uploads folder is still served', async () => {
+  const name = `${'a'.repeat(24)}-${'b'.repeat(16)}.jpg`;
+  fs.mkdirSync(path.join(uploadDir, 'avatars'), { recursive: true });
+  fs.writeFileSync(path.join(uploadDir, 'avatars', name), jpegBytes(700));
+  const file = await request(app).get(`/uploads/avatars/${name}`);
+  assert.equal(file.status, 200);
+  assert.equal(file.headers['content-type'], 'image/jpeg');
+  const missing = await request(app).get(`/uploads/avatars/${'c'.repeat(24)}-${'d'.repeat(16)}.png`);
+  assert.equal(missing.status, 404);
 });
 
 test('US-05 a PNG uploads, and replacing the photo deletes the old file', async () => {
   const first = await upload(me.token, jpegBytes(2000), 'a.jpg', 'image/jpeg');
-  const oldPath = path.join(uploadDir, 'avatars', path.basename(first.body.user.avatarUrl));
-  assert.ok(fs.existsSync(oldPath));
+  assert.equal(await storedPhotos(first.body.user.avatarUrl), 1);
   const second = await upload(me.token, pngBytes(2000), 'b.png', 'image/png');
   assert.equal(second.status, 200);
   assert.match(second.body.user.avatarUrl, /\.png$/);
-  assert.ok(!fs.existsSync(oldPath));
+  assert.equal(await storedPhotos(first.body.user.avatarUrl), 0);
+  assert.equal((await request(app).get(first.body.user.avatarUrl)).status, 404);
 });
 
 test('US-05 a photo of exactly 2 MB is accepted and one byte over is refused with 413', async () => {
@@ -95,12 +124,11 @@ test('US-05 upload needs a file, a field called avatar and a signed-in user', as
 
 test('US-05 the photo can be removed', async () => {
   const up = await upload(me.token, jpegBytes(900), 'a.jpg', 'image/jpeg');
-  const filePath = path.join(uploadDir, 'avatars', path.basename(up.body.user.avatarUrl));
-  assert.ok(fs.existsSync(filePath));
+  assert.equal(await storedPhotos(up.body.user.avatarUrl), 1);
   const del = await authed(app, me.token).delete('/api/profile/me/avatar');
   assert.equal(del.status, 200);
   assert.equal(del.body.user.avatarUrl, '');
-  assert.ok(!fs.existsSync(filePath));
+  assert.equal(await storedPhotos(up.body.user.avatarUrl), 0);
 });
 
 test('users only change their own profile', async () => {

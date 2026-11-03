@@ -58,38 +58,54 @@ devorbit/
 
 ## Getting Started
 
-You will need Node.js and a MongoDB connection (local or Atlas).
+You will need **Node.js 20.19 or newer** (22 recommended) and a MongoDB connection (local MongoDB or Atlas).
 
 ```bash
 # clone the repo
-git clone <repo-link>
-cd devorbit
+git clone https://github.com/Heer64/DevOrbit.git
+cd DevOrbit
 
-# install dependencies
-cd server && npm install
-cd ../client && npm install
+# install dependencies (each folder has its own package.json)
+npm install                    # root: lint and format tools
+cd backend && npm install
+cd ../frontend && npm install
+cd ..
 ```
 
-Copy `.env.example` to `.env` in the server folder and fill in your own values. Please don't push your `.env` file to GitHub.
+Copy `backend/.env.example` to `backend/.env` and fill in your own values (at least `MONGODB_URI` and a 32+ character `JWT_SECRET`). Please don't push your `.env` file to GitHub.
+
+**Demo data (optional).** Fill an empty development database with a small team, two projects, milestones, tasks in every status and chat messages:
+
+```bash
+cd backend
+npm run seed               # does nothing if the demo data is already there
+npm run seed -- --reset    # removes only the demo accounts and their projects, then adds them again
+```
+
+It prints the demo logins (`aarav@seed.devorbit.test` and others, password `DevOrbit@2026`, or `SEED_PASSWORD` from `backend/.env`). It never touches other data and refuses to run when `NODE_ENV=production`.
 
 Then start both parts:
 
 ```bash
 # backend
-cd server
+cd backend
 npm run dev
 
 # frontend (in a new terminal)
-cd client
+cd frontend
 npm run dev
 ```
 
-To run the tests:
+To run the tests and checks:
 
 ```bash
-cd server && npm test      # Jest
-cd client && npm run test  # Vitest
+cd backend && npm test     # node:test + supertest (starts an in-memory MongoDB)
+cd frontend && npm test    # Vitest
+npm run lint               # in the repository root: ESLint, errors must be 0
+npm run test:e2e           # in the repository root: Playwright end-to-end tests (see e2e/README.md)
 ```
+
+**Team conventions.** Every change goes through a branch and a pull request into `main` (the PR template in `.github/pull_request_template.md` lists the checks). Format the files you create or rewrite with `npm run format -- <file> <file>` in the root (Prettier settings: `.prettierrc.json`; editor basics: `.editorconfig`).
 
 ---
 
@@ -130,6 +146,26 @@ cd client && npm run test  # Vitest
 - Tests pass and the setup steps work on a fresh clone
 
 ---
+
+## Sprint 1 — remaining plan items (domain list, starting members, photo storage, team setup)
+
+These close the Sprint 1 plan lines that were still open after Sprint 4.
+
+**Domain from an agreed fixed list (line E).** The API now only accepts these domains: Developer tools, Education, Climate tech, Research, Design systems, Backend, Community, Other (`backend/src/lib/projectSetup.js`, same list as the create form in `frontend/src/domains.js`). Matching ignores letter case and spaces and stores the listed spelling; a missing domain becomes **Other**; anything else answers **400** `Domain must be one of: …`. On edit (`PATCH /api/projects/:id`) a new domain must be listed, but sending back a project's current domain unchanged is allowed, so projects saved before the list (e.g. "General") can still be edited.
+
+**Optional starting members and roles (line E).** The create-project form has **Starting members (optional)**: add rows of *email or @username* + role (**Admin, Contributor, Viewer**; default Contributor; up to 20). `POST /api/projects` accepts them as `members: [{ identifier, role }]` and adds them straight away, like adding a member (US-09); each one gets a `member.added` feed entry. The whole list is checked before anything is saved: an unknown person (**404**, with `unknown: [...]`), the creator, the same person twice, the Owner role or a bad role (**400**) means **no project is created**. The response also has `startingMembers: [{ userId, name, username, role }]`.
+
+**Profile photos in persistent storage (line D).** Photos were saved in `backend/uploads/avatars`, which Render wipes on every redeploy. They are now stored in **MongoDB GridFS** (bucket `avatars`), like project files (US-37). Rules (JPEG/PNG, 2 MB, checked by file signature) and the URL format `/uploads/avatars/<name>` are unchanged, so the frontend did not change. The server reads photos from GridFS first and falls back to the old folder for photos uploaded before the change. Replacing or removing a photo deletes it from GridFS (and from the old folder if it is there).
+
+**Team setup (line A).**
+- **Pull-request template:** `.github/pull_request_template.md` (what, stories, how to test, checklist).
+- **Lint rules:** `eslint.config.mjs` (ESLint core rules that catch real mistakes; no style rules). Run `npm run lint` in the root; it must show **0 errors** (a few warnings for unused imports in older files are expected).
+- **Format rules:** `.prettierrc.json`, `.prettierignore`, `.editorconfig`. Existing files were not reformatted, to avoid huge diffs; format the files you create or rewrite.
+- **Database setup / seed:** `npm run seed` in `backend/` (see Getting Started). Code: `backend/src/seed/seedData.js`, `backend/scripts/seed.js`.
+
+**Files:** `backend/src/lib/projectSetup.js` (new), `backend/src/routes/projects.js`, `backend/src/models/Project.js` (default domain Other), `backend/src/lib/avatar.js`, `backend/src/app.js` (photo route), `backend/src/seed/seedData.js` + `backend/scripts/seed.js` (new), `frontend/src/domains.js` (new), `frontend/src/components/AppShell.jsx`, `frontend/src/styles.css`; root `package.json`, `eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`, `.editorconfig`, `.github/pull_request_template.md`. Two one-line lint fixes in `frontend/src/pages/ProjectPage.jsx` (duplicate import) and `frontend/src/components/markdown.jsx` (intended control-character check). `e2e/package.json` / `e2e/package-lock.json` no longer link the root folder as a dependency (`devorbit-workspace: file:..`, added by accident earlier); with the root now having its own dev tools, that link could make `npm ci` in `e2e/` fail.
+
+**Tests:** `backend/test/projectSetup.test.js` (rules, no database), `backend/test/projectCreate.test.js` (API: domain list, edit, starting members, nothing created on a bad list), `backend/test/seed.test.js`, `backend/test/profile.test.js` (photos stored in GridFS, old folder still served, replace/remove clean up), `backend/test/avatar-lib.test.js`, `frontend/src/components/CreateProject.test.jsx`.
 
 ## Sprint 2 — Milestones and activity (Pair C)
 

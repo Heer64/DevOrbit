@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember } from '../lib/permissions.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { revokeProjectAccess } from '../lib/realtime.js'; // [Sprint 3 · M3] US-13, US-14
+import { domainTags, matchStartingMembers, readDomain, readStartingMembers, startingMemberLookup } from '../lib/projectSetup.js'; // [Sprint 1 · gaps] fixed domain list, starting members
 import { checkCompletionChange, completionFields, reopenFields, touchesCompletion, OWNER_ONLY_MESSAGE, ALREADY_COMPLETED_MESSAGE, NOT_COMPLETED_MESSAGE } from '../lib/projectCompletion.js'; // [Sprint 4 · M8] US-15
 
 const router = Router();
@@ -59,26 +60,47 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// POST /api/projects   { name, description?, domain?, visibility?, members? }
+// [Sprint 1 · gaps] domain must come from the agreed list (lib/projectSetup.js PROJECT_DOMAINS; left out -> "Other").
+// members (optional): starting members [{ identifier: email | username, role: Admin | Contributor | Viewer }],
+// added straight away with those roles, like "add a member" (US-09). The whole list is checked first:
+// one unknown person, a duplicate or a bad role answers 400/404 and nothing is created.
+// -> 201 { project, startingMembers: [{ userId, name, username, role }] }
 router.post('/', async (req, res, next) => {
   try {
     const name = String(req.body.name || '').trim();
     const description = String(req.body.description || '').trim();
-    const domain = String(req.body.domain || 'General').trim();
     const visibility = req.body.visibility === undefined ? 'Public' : req.body.visibility;
     if (!name) return res.status(400).json({ message: 'Project name is required.' });
     if (!['Public', 'Private'].includes(visibility)) return res.status(400).json({ message: 'Visibility must be Public or Private.' });
-    if (domain.length > 80) return res.status(400).json({ message: 'Domain must be 80 characters or fewer.' });
     if (name.length > 80) return res.status(400).json({ message: 'Project name must be 80 characters or fewer.' });
     if (description.length > 2000) return res.status(400).json({ message: 'Description must be 2,000 characters or fewer.' });
+    const domainCheck = readDomain(req.body.domain);
+    if (!domainCheck.ok) return res.status(400).json({ message: domainCheck.message });
+    const domain = domainCheck.value;
+
+    const listed = readStartingMembers(req.body.members);
+    if (!listed.ok) return res.status(400).json({ message: listed.message });
+    let startingMembers = [];
+    if (listed.members.length) {
+      const users = await User.find(startingMemberLookup(listed.members)).select('_id name username email').lean();
+      const matched = matchStartingMembers(listed.members, users, req.user.id);
+      if (!matched.ok) return res.status(matched.status).json({ message: matched.message, ...(matched.unknown ? { unknown: matched.unknown } : {}) });
+      startingMembers = matched.resolved;
+    }
+
     const color = ['violet', 'mint', 'orange', 'blue'][Math.floor(Math.random() * 4)];
     const project = await Project.create({
       name,
       description,
-      domain: domain || 'General',
+      domain,
       visibility,
       color,
-      members: [{ user: req.user.id, role: 'Owner' }],
-      tags: domain && domain !== 'General' ? [domain] : [],
+      members: [
+        { user: req.user.id, role: 'Owner' },
+        ...startingMembers.map(({ user, role }) => ({ user: user._id, role })),
+      ],
+      tags: domainTags(domain),
     });
     await logActivity({
       project: project._id,
@@ -87,7 +109,22 @@ router.post('/', async (req, res, next) => {
       summary: `created the project ${quote(project.name)}`,
       targetLabel: project.name,
     });
-    return res.status(201).json({ project });
+    for (const { user, role } of startingMembers) {
+      await logActivity({
+        project: project._id,
+        actor: req.user.id,
+        type: 'member.added',
+        summary: `added ${user.name} as ${role}`,
+        targetType: 'member',
+        targetId: user._id,
+        targetLabel: user.name,
+        meta: { role, startingMember: true },
+      });
+    }
+    return res.status(201).json({
+      project,
+      startingMembers: startingMembers.map(({ user, role }) => ({ userId: user._id, name: user.name, username: user.username, role })),
+    });
   } catch (error) {
     return next(error);
   }
@@ -125,6 +162,13 @@ router.patch('/:id', async (req, res, next) => {
       if (!update.name || update.name.length > 80) return res.status(400).json({ message: 'Project name is required and must be 80 characters or fewer.' });
     }
     if (update.description !== undefined && String(update.description).length > 2000) return res.status(400).json({ message: 'Description must be 2,000 characters or fewer.' });
+    // [Sprint 1 · gaps] A new domain must come from the agreed list. Sending back the project's current
+    // domain unchanged is always fine, so projects created before the list existed can still be edited.
+    if (update.domain !== undefined && update.domain !== project.domain) {
+      const domainCheck = readDomain(update.domain, { required: true });
+      if (!domainCheck.ok) return res.status(400).json({ message: domainCheck.message });
+      update.domain = domainCheck.value;
+    }
     if (update.tags !== undefined && (!Array.isArray(update.tags) || update.tags.length > 20)) return res.status(400).json({ message: 'Project tags must be a list of at most 20 items.' });
     if (update.progress !== undefined && (!Number.isFinite(Number(update.progress)) || Number(update.progress) < 0 || Number(update.progress) > 100)) return res.status(400).json({ message: 'Progress must be between 0 and 100.' });
     // [Sprint 4 · M8] US-15: moving into or out of Completed is Owner-only and goes through

@@ -12,7 +12,9 @@ const projectSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 80 },
     description: { type: String, trim: true, maxlength: 2000, default: '' },
-    domain: { type: String, trim: true, maxlength: 80, default: 'General' },
+    // [Sprint 1 · gaps] New projects use the agreed list in lib/projectSetup.js (checked by the API).
+    // No enum here: projects saved before the list existed keep their old domain and can still be saved.
+    domain: { type: String, trim: true, maxlength: 80, default: 'Other' },
     visibility: { type: String, enum: ['Public', 'Private'], default: 'Public' },
     status: { type: String, enum: ['Planning', 'In progress', 'Completed'], default: 'Planning' },
     tags: { type: [{ type: String, trim: true, maxlength: 40 }], default: [] },

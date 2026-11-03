@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, Moon, Plus, Search, Sun, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, Moon, Plus, Search, Sun, UserPlus, UserRound, X } from 'lucide-react';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { projectApi, toProjectCard } from '../api';
 import NotificationBell from './NotificationBell'; // [Sprint 3 · M7 Part 2] US-30
+import { MAX_STARTING_MEMBERS, PROJECT_DOMAINS as DOMAINS, STARTING_MEMBER_ROLES, startingMembersPayload } from '../domains'; // [Sprint 1 · gaps]
+import { ROLE_HELP } from '../roles';
 
-const DOMAINS = ['Developer tools', 'Education', 'Climate tech', 'Research', 'Design systems', 'Backend', 'Community', 'Other'];
 const VISIBILITIES = [
   { value: 'Private', label: 'Private', hint: 'Only members can open it', icon: Lock },
   { value: 'Public', label: 'Public', hint: 'Anyone signed in can find it', icon: Globe2 },
@@ -24,6 +25,7 @@ export default function AppShell() {
   const [projectDescription, setProjectDescription] = useState('');
   const [projectDomain, setProjectDomain] = useState(DOMAINS[0]);
   const [projectVisibility, setProjectVisibility] = useState('Private');
+  const [startingMembers, setStartingMembers] = useState([]); // [Sprint 1 · gaps] [{ key, identifier, role }]
   const [creating, setCreating] = useState(false);
   const [projectCreated, setProjectCreated] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -63,10 +65,11 @@ export default function AppShell() {
     setCreateError('');
     setCreating(true);
     const details = { name, description: projectDescription.trim(), domain: projectDomain, visibility: projectVisibility };
+    const members = startingMembersPayload(startingMembers);
     const draft = { id: `local-${Date.now()}`, ...details, members: 1, progress: 0, color: 'violet', tag: details.domain };
     try {
       if (user && !user.isDemo) {
-        const result = await projectApi.create(details);
+        const result = await projectApi.create(members.length ? { ...details, members } : details);
         const created = result.project || result;
         const mapped = toProjectCard(created, user);
         setWorkspaceProjects((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)]);
@@ -81,6 +84,7 @@ export default function AppShell() {
       setProjectDescription('');
       setProjectDomain(DOMAINS[0]);
       setProjectVisibility('Private');
+      setStartingMembers([]);
       setTimeout(() => { setShowCreate(false); setProjectCreated(false); navigate('/dashboard'); }, 800);
     } catch (error) {
       setCreateError(error?.message || 'Could not reach the backend. Check your server and database, or use demo mode.');
@@ -90,6 +94,11 @@ export default function AppShell() {
   };
 
   const openCreate = () => { setCreateError(''); setShowCreate(true); };
+
+  // [Sprint 1 · gaps] Optional starting members on the create form.
+  const addStartingMember = () => setStartingMembers((rows) => (rows.length >= MAX_STARTING_MEMBERS ? rows : [...rows, { key: `${Date.now()}-${rows.length}`, identifier: '', role: 'Contributor' }]));
+  const updateStartingMember = (key, field, value) => setStartingMembers((rows) => rows.map((row) => (row.key === key ? { ...row, [field]: value } : row)));
+  const removeStartingMember = (key) => setStartingMembers((rows) => rows.filter((row) => row.key !== key));
 
   const navItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -159,10 +168,10 @@ export default function AppShell() {
 
       {showCreate && (
         <div className="modal-back" onClick={() => setShowCreate(false)}>
-          <form className="modal" onSubmit={createProject} onClick={(e) => e.stopPropagation()}>
+          <form className="modal create-modal" onSubmit={createProject} onClick={(e) => e.stopPropagation()}>
             <div className="modal-top"><span className="modal-icon"><FolderKanban size={19} /></span><button type="button" className="iconbtn" aria-label="Close" onClick={() => setShowCreate(false)}><X size={17} /></button></div>
             <h2>Create a project</h2>
-            <p>Give your next idea a home. You will be its Owner and can add teammates and set their roles afterwards.</p>
+            <p>Give your next idea a home. You will be its Owner. Add teammates and their roles now, or later from the Team panel.</p>
             <label>Project name<input className="field-input" autoFocus value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. CampusConnect" required maxLength={80} /></label>
             <label>Description
               <textarea className="field-input" rows={3} value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder="What are you building, and who is it for?" maxLength={2000} />
@@ -183,6 +192,25 @@ export default function AppShell() {
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="starting-members" role="group" aria-label="Starting members">
+              <div className="starting-members-head">
+                <span>Starting members <small>optional</small></span>
+                {startingMembers.length < MAX_STARTING_MEMBERS && (
+                  <button type="button" className="link" onClick={addStartingMember}><UserPlus size={14} /> Add a member</button>
+                )}
+              </div>
+              {startingMembers.length === 0 && <p className="tiny-note">Add people who already have a DevOrbit account, by email or username.</p>}
+              {startingMembers.map((row, index) => (
+                <div className="starting-member-row" key={row.key}>
+                  <input className="field-input" value={row.identifier} onChange={(e) => updateStartingMember(row.key, 'identifier', e.target.value)} placeholder="Email or @username" aria-label={`Starting member ${index + 1} email or username`} maxLength={254} />
+                  <select className="field-input" value={row.role} onChange={(e) => updateStartingMember(row.key, 'role', e.target.value)} aria-label={`Starting member ${index + 1} role`} title={ROLE_HELP[row.role]}>
+                    {STARTING_MEMBER_ROLES.map((role) => <option key={role}>{role}</option>)}
+                  </select>
+                  <button type="button" className="iconbtn" aria-label={`Remove starting member ${index + 1}`} onClick={() => removeStartingMember(row.key)}><X size={14} /></button>
+                </div>
+              ))}
+              {user?.isDemo && startingMembers.length > 0 && <p className="tiny-note">Demo mode: starting members are only saved for real accounts.</p>}
             </div>
             {createError && <div className="form-error" role="alert">{createError}</div>}
             <button className="btn full" type="submit" disabled={creating}>{projectCreated ? 'Project added ✓' : creating ? 'Creating…' : 'Create workspace'} <Plus size={16} /></button>
