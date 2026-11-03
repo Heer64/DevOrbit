@@ -8,6 +8,10 @@ These tests run the **real** app: the Express API with a real MongoDB, plus the 
 | `tests/tasks-kanban.spec.js` | Create a project, add a labelled task, move it on the Kanban board, check it was saved and logged in Activity, edit the label |
 | `tests/dashboard.spec.js` | A task due tomorrow and assigned to me shows in Upcoming deadlines, My tasks and "Assigned to me"; completing a task updates "Tasks completed" |
 | `tests/discover.spec.js` | A second user finds a Public project and its owner on Discover, never a Private one, and can open it |
+| `tests/project-dashboard.spec.js` | Sprint 4 · M7 (US-39): the Dashboard tab shows open tasks and tasks due in the next 7 days |
+| `tests/project-files.spec.js` | Sprint 4 · M5 (US-37): upload a file, see it listed with the uploader, download it with the same content, still there after reload; a file of 10 MB + 1 byte is refused |
+| `tests/project-docs.spec.js` | Sprint 4 · M6 (US-38): write a Markdown page (live counter, Preview), read it formatted, HTML shown as text and never run, edit and reload; 10,001 characters cannot be saved |
+| `tests/project-completion-health.spec.js` | Sprint 4 · M8 (US-40, US-15): health lists an overdue and a blocked task and shows activity level Low; the Owner marks the project Completed (saved and in Activity) and reopens it |
 
 `tests/helpers.js` has the shared steps (`signUp`, `logIn`, `createProject`, `addTask`, …).
 
@@ -43,6 +47,8 @@ The `e2e` job in `.github/workflows/ci.yml` runs after the unit-test job passes.
 Commit `e2e/package-lock.json` after your first `npm install --prefix e2e`, so CI installs exactly the same versions.
 
 ## Adding tests each sprint
+
+The GitHub parts of Sprint 4 (M1–M4: OAuth, repository, webhooks, disconnect) are not in these tests, because they need a real GitHub account and repository. They are checked by hand with the Sprint 4 exit checks.
 
 Add 1–2 tests for each sprint's main feature, for example Sprint 3: send a chat message, see the @mention notification. Keep E2E to **important user journeys**. Detailed rules and edge cases belong in the backend and Vitest unit tests.
 
