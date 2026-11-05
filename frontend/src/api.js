@@ -126,6 +126,25 @@ export const profileApi = {
   removeAvatar: () => api('/profile/me/avatar', { method: 'DELETE' }),
 };
 
+// [Sprint 5 · M1] US-45: Discover for everyone, logged in or not. Contract: backend/src/routes/publicProjects.js
+//   projects({ q, domain, tag, status, page }) -> { projects, page, pageSize, total, filters }
+//     each project: { _id, name, description, domain, tags, status, memberCount, createdAt, updatedAt }
+//   filters() -> { domains, statuses, tags }
+// skipAuthRefresh: a visitor has no session, so these never try to refresh one or end it.
+export const PUBLIC_PROJECT_FILTER_KEYS = ['q', 'domain', 'tag', 'status', 'page'];
+export const publicApi = {
+  projects: (params = {}) => {
+    const query = new URLSearchParams();
+    for (const key of PUBLIC_PROJECT_FILTER_KEYS) {
+      const value = params[key];
+      if (value !== undefined && value !== null && String(value).trim() !== '' && !(key === 'page' && Number(value) === 1)) query.set(key, String(value).trim());
+    }
+    const text = query.toString();
+    return api(`/public/projects${text ? `?${text}` : ''}`, { skipAuthRefresh: true });
+  },
+  filters: () => api('/public/projects/filters', { skipAuthRefresh: true }),
+};
+
 export const projectApi = {
   list: () => api('/projects'),
   create: (payload) => api('/projects', { method: 'POST', body: JSON.stringify(payload) }),
