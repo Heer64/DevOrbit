@@ -629,3 +629,25 @@ textarea.field-input{resize:vertical;min-height:90px}
 .starting-member-row{display:grid;grid-template-columns:minmax(0,1fr) 124px 36px;gap:8px;align-items:center}
 .starting-member-row .field-input{padding:10px 11px}
 @media (max-width:480px){.starting-member-row{grid-template-columns:minmax(0,1fr) 104px 36px}}
+
+/* [Sprint 5 · M5] US-49 portfolio */
+.portfolio{display:flex;flex-direction:column;gap:14px}
+.portfolio-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.portfolio-stat{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2);color:var(--muted)}
+.portfolio-stat b{font-size:18px;color:var(--text)}
+.portfolio-stat small{font-size:10px}
+.portfolio-projects{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.portfolio-project{border:1px solid var(--line);border-radius:12px;padding:14px}
+.portfolio-project h3{margin:0;font-size:14px;display:flex;align-items:center;gap:6px}
+.portfolio-project h3 a{color:inherit}
+.portfolio-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 0;font-size:10px;color:var(--muted)}
+.portfolio-description{font-size:11px;color:var(--muted);margin:10px 0 0;line-height:1.6}
+.portfolio-project .portfolio-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.portfolio-updated{margin:0;text-align:left}
+.portfolio-share{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:14px}
+.portfolio-share .btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.portfolio-header{display:flex;align-items:center;gap:16px}
+.portfolio-header h1{margin:4px 0;font-size:22px}
+.portfolio-unavailable h2{margin:8px 0}
+.my-portfolio{margin-bottom:18px}
+@media (max-width:640px){.portfolio-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.portfolio-share{grid-template-columns:1fr}.portfolio-project .portfolio-stats{grid-template-columns:1fr}}

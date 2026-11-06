@@ -145,6 +145,15 @@ export const publicApi = {
   filters: () => api('/public/projects/filters', { skipAuthRefresh: true }),
 };
 
+// [Sprint 5 · M5] US-49 portfolio. Contract: backend/src/routes/portfolio.js
+//   mine()         login: { user, projects, totals, statsUpdatedAt, isPublic, sharePath }
+//   shared(name)   no login, read-only: { user, projects, totals, statsUpdatedAt }
+//                  404 "This portfolio is not available." when it is turned off or the user does not exist.
+export const portfolioApi = {
+  mine: () => api('/portfolio/me'),
+  shared: (username) => api(`/public/portfolio/${encodeURIComponent(String(username || ''))}`, { skipAuthRefresh: true }),
+};
+
 export const projectApi = {
   list: () => api('/projects'),
   create: (payload) => api('/projects', { method: 'POST', body: JSON.stringify(payload) }),
