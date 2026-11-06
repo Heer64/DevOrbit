@@ -22,6 +22,7 @@ import dashboardRoutes from './routes/dashboard.js'; // [Sprint 4 · M7] US-39
 import healthRoutes from './routes/health.js'; // [Sprint 4 · M8] US-40
 import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US-37
 import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
+import publicProjectRoutes from './routes/publicProjects.js'; // [Sprint 5 · M1] US-45 public Discover (no login)
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 
@@ -136,6 +137,7 @@ export function createApp() {
   app.use('/api/projects/:id/health', healthRoutes); // [Sprint 4 · M8] US-40 project health
   app.use('/api/projects/:id/files', projectFileRoutes); // [Sprint 4 · M5] US-37 project files (stored in GridFS)
   app.use('/api/projects/:id/docs', docRoutes); // [Sprint 4 · M6] US-38 documentation pages
+  app.use('/api/public/projects', publicProjectRoutes); // [Sprint 5 · M1] US-45 Discover: no login, Public projects only
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });
