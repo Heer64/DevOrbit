@@ -736,3 +736,40 @@ Title: required, up to 120 characters. Content: required Markdown. **400** missi
 **Files:** `backend/src/lib/publicDiscovery.js`, `backend/src/routes/publicProjects.js`; one marked mount in `app.js`. Frontend: `components/PublicShell.jsx`, `lib/publicLinks.js`; marked changes in `App.jsx` (`PublicOrAppShell`, `/discover` moved out of the protected routes), `api.js` (`publicApi`), `pages/DiscoverPage.jsx` (server-side filters in the URL, paging, visitor states).
 
 **Tests:** `backend/test/publicDiscoveryRules.test.js` (every query rule; no database), `backend/test/publicProjects.test.js` (all three acceptance criteria with no token, private projects never listed whatever the filters, safe fields only, 400s, paging, garbage tokens, old endpoint unchanged), `frontend/src/pages/DiscoverPage.test.jsx` (updated for the public API + visitor, filter, URL, paging and card tests), `frontend/src/App.discover.test.jsx` (logged-out vs logged-in routing), `e2e/tests/discover-public.spec.js` (a logged-out visitor searches and filters in a real browser).
+
+## Sprint 5 — M5: Generate my portfolio (US-49, FR-21, NFR-12)
+
+A registered user's portfolio lists the projects they belong to that are marked **Completed**, with their **role** and their **contribution numbers** per project, and can be shared by link.
+
+**Where to find it**
+- **Profile page → My portfolio:** your Completed projects (each links to its workspace), totals, and the share link with **Copy link** / **Open**.
+- **Shared link `/portfolio/<username>`:** opens for anyone, logged in or not, read-only (logged-out visitors get the public frame from Sprint 5 · M1).
+
+**Per-project numbers (AC2)**
+
+| Number | Counted as |
+|---|---|
+| Tasks completed | tasks in that project assigned to you whose status is Done |
+| Decisions recorded | decisions you recorded in that project |
+| Messages posted | channel messages and thread replies you posted in that project |
+
+**At most 24 hours old (NFR-12).** Numbers are saved in `PortfolioStat` with the time they were counted, and counted again whenever a portfolio is opened and they are 24 hours old or older (or dated in the future). The page shows "Contribution numbers updated …".
+
+**Privacy**
+- Public or not is `User.portfolioPublic` (the switch belongs to the privacy settings, Sprint 5 · M3 / US-07). When it is off, the link answers **"This portfolio is not available."** (the same answer as for an unknown username), while you still see your own portfolio.
+- The shared view never contains email, project IDs or other members. A **Private** project is still listed with your role, domain, date and numbers, but its name shows as "Private project" and its description and tags are hidden, because the other members never made them public.
+
+**API**
+
+| Call | Who | Answer |
+|---|---|---|
+| `GET /api/portfolio/me` | logged in | `{ user, projects, totals, statsUpdatedAt, isPublic, sharePath }` |
+| `GET /api/public/portfolio/:username` | anyone (no login) | `{ user, projects, totals, statsUpdatedAt }`, or 404 "This portfolio is not available." |
+
+Each project: `name, description, domain, tags, role, completedAt, visibility, isPrivate, stats { tasksCompleted, decisionsRecorded, messagesPosted, computedAt }` (plus `_id` in your own view only).
+
+**For M3 (US-06 other user's profile):** show a portfolio with `<PortfolioView portfolio={data} />` from `frontend/src/components/PortfolioView.jsx`, loading `data` with `portfolioApi.shared(username)`.
+
+**Files:** `backend/src/lib/portfolio.js`, `backend/src/lib/portfolioRules.js`, `backend/src/models/PortfolioStat.js`, `backend/src/routes/portfolio.js`, `backend/src/app.js` (2 routes); `frontend/src/components/PortfolioView.jsx`, `frontend/src/components/MyPortfolioPanel.jsx`, `frontend/src/pages/PortfolioPage.jsx`, `frontend/src/App.jsx` (route), `frontend/src/pages/ProfilePage.jsx` (one line), `portfolioApi` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/portfolio.test.js` (all three acceptance criteria, 24-hour recount, private-project hiding, "not available", no leaks, concurrent loads), `backend/test/portfolioRules.test.js` (rules, no database), `frontend/src/components/MyPortfolioPanel.test.jsx`, `frontend/src/pages/PortfolioPage.test.jsx`, `frontend/src/App.portfolio.test.jsx`.

@@ -4,6 +4,7 @@ import { ArrowUpRight, CalendarDays, Camera, Check, Code2, Edit3, ExternalLink, 
 import { useAuth } from '../context/AuthContext';
 import { profileApi, projectApi, toProfileProject } from '../api';
 import { Avatar, Btn, Heading, tone } from '../components/ui';
+import MyPortfolioPanel from '../components/MyPortfolioPanel'; // [Sprint 5 · M5] US-49
 
 const initialProjects = [
   { name: 'Orbit dashboard', role: 'Frontend & product', tech: ['React', 'CSS'], color: 'violet', status: 'In progress', progress: 72 },
@@ -165,6 +166,9 @@ export default function ProfilePage() {
         </section>
       )}
       {saved && !editing && <p className="success-inline">Profile updated successfully.</p>}
+
+      {/* [Sprint 5 · M5] US-49: my Completed projects, roles, contribution numbers and share link. */}
+      {!user?.isDemo && <MyPortfolioPanel />}
 
       <div className="profile-columns">
         <div className="stack-col">

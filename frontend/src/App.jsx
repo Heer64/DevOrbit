@@ -8,6 +8,7 @@ import ProfilePage from './pages/ProfilePage';
 import DiscoverPage from './pages/DiscoverPage';
 import ProjectPage from './pages/ProjectPage';
 import PublicShell from './components/PublicShell'; // [Sprint 5 · M1] US-45
+import PortfolioPage from './pages/PortfolioPage'; // [Sprint 5 · M5] US-49
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
 // visitors get the light PublicShell; logged-in users keep the normal AppShell around the same page.
@@ -45,6 +46,10 @@ export default function App() {
       {/* [Sprint 5 · M1] US-45: Discover works logged out (PublicShell) and logged in (AppShell). */}
       <Route path="/discover" element={<PublicOrAppShell />}>
         <Route index element={<DiscoverPage />} />
+      </Route>
+      {/* [Sprint 5 · M5] US-49 AC3: a shared portfolio link opens for anyone, read-only. */}
+      <Route path="/portfolio/:username" element={<PublicOrAppShell />}>
+        <Route index element={<PortfolioPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
