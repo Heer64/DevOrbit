@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { profileApi, projectApi, toProfileProject } from '../api';
 import { Avatar, Btn, Heading, tone } from '../components/ui';
 import MyPortfolioPanel from '../components/MyPortfolioPanel'; // [Sprint 5 · M5] US-49
+import PrivacySettings from '../components/PrivacySettings'; // [Sprint 5 · M3] US-07
 
 const initialProjects = [
   { name: 'Orbit dashboard', role: 'Frontend & product', tech: ['React', 'CSS'], color: 'violet', status: 'In progress', progress: 72 },
@@ -167,8 +168,14 @@ export default function ProfilePage() {
       )}
       {saved && !editing && <p className="success-inline">Profile updated successfully.</p>}
 
+      {/* [Sprint 5 · M3] US-07: appear in collaborator search, public portfolio. */}
+      <PrivacySettings user={user} onSaved={updateUser} />
+      {/* [Sprint 5 · M3] How other people see me (US-06). */}
+      {!user?.isDemo && user?.username && <p className="tiny-note profile-preview-link"><button className="link" onClick={() => navigate(`/people/${encodeURIComponent(user.username)}`)}>See how others view your profile <ArrowUpRight size={12} /></button></p>}
+
       {/* [Sprint 5 · M5] US-49: my Completed projects, roles, contribution numbers and share link. */}
-      {!user?.isDemo && <MyPortfolioPanel />}
+      {/* [Sprint 5 · M3] key: reloads the panel after the "Public portfolio" switch is saved. */}
+      {!user?.isDemo && <MyPortfolioPanel key={String(user?.portfolioPublic !== false)} />}
 
       <div className="profile-columns">
         <div className="stack-col">
