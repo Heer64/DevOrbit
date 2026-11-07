@@ -10,6 +10,7 @@ import ProjectPage from './pages/ProjectPage';
 import PublicShell from './components/PublicShell'; // [Sprint 5 · M1] US-45
 import PortfolioPage from './pages/PortfolioPage'; // [Sprint 5 · M5] US-49
 import UserProfilePage from './pages/UserProfilePage'; // [Sprint 5 · M3] US-06
+import FeedPage from './pages/FeedPage'; // [Sprint 5 · M6] US-50, US-51
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
 // visitors get the light PublicShell; logged-in users keep the normal AppShell around the same page.
@@ -45,6 +46,8 @@ export default function App() {
         <Route path="project/:id" element={<ProjectPage />} />
         {/* [Sprint 5 · M3] US-06 (Actor: Registered User): another user's read-only profile, login required. */}
         <Route path="people/:username" element={<UserProfilePage />} />
+        {/* [Sprint 5 · M6] US-50/US-51: community feed (public posts). Logged-in users only. */}
+        <Route path="feed" element={<FeedPage />} />
       </Route>
       {/* [Sprint 5 · M1] US-45: Discover works logged out (PublicShell) and logged in (AppShell). */}
       <Route path="/discover" element={<PublicOrAppShell />}>
