@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { setup, teardown, signup, authed } from './helpers.js';
 import Post from '../src/models/Post.js';
+import PostCreateLog from '../src/models/PostCreateLog.js';
 import PostVote from '../src/models/PostVote.js';
 import PostVoteLog from '../src/models/PostVoteLog.js';
 import { recountPostVotes } from '../src/lib/postVotes.js';
@@ -35,6 +36,9 @@ const counters = async (postId) => {
   return { upvotes: post.upvotes, downvotes: post.downvotes, score: post.score };
 };
 const newPost = async (account = author, text = 'Vote on me') => {
+  // This file creates more than 10 posts. The M6 limit (10 posts per hour, tested in posts.test.js)
+  // is not what is tested here, so the author's post-limit slots are cleared first.
+  await PostCreateLog.deleteMany({ user: account.user.id });
   const res = await as(account).post('/api/posts').send({ text });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   return res.body.post._id;
