@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import Project from '../models/Project.js';
 import { requireAuth } from '../middleware/auth.js';
 import { MAX_AVATAR_BYTES, detectImageType, saveAvatar, removeAvatarFile } from '../lib/avatar.js';
+import { loadUserProfile } from '../lib/userProfile.js'; // [Sprint 5 · M3] US-06
+import { PRIVACY_SETTING_MESSAGE, USER_NOT_FOUND_MESSAGE, badPrivacySetting } from '../lib/userProfileRules.js'; // [Sprint 5 · M3] US-06, US-07
 
 const router = Router();
 router.use(requireAuth);
@@ -53,6 +55,8 @@ router.patch('/me', async (req, res, next) => {
     for (const field of allowed) {
       if (req.body[field] !== undefined) update[field] = req.body[field];
     }
+    // [Sprint 5 · M3] US-07: the two privacy switches must be true or false (NFR-21).
+    if (badPrivacySetting(update)) return res.status(400).json({ message: PRIVACY_SETTING_MESSAGE });
 
     if (update.name !== undefined) {
       update.name = String(update.name).trim();
@@ -119,6 +123,28 @@ router.delete('/me/avatar', async (req, res, next) => {
   }
 });
 
+/*
+ * [Sprint 5 · M3] US-06 View another user's profile (login required: this router uses requireAuth).
+ *   GET /api/profile/users/:username
+ *     200 { profile: { name, username, headline, bio, avatarUrl, skills, followerCount, publicScore,
+ *                      portfolio: { available, path }, isMe } }
+ *     404 { message: "User not found." }
+ *   Never sends email, password data, IDs or the privacy switches themselves. A portfolio that was
+ *   turned off (US-07) comes back as portfolio.available = false and no path.
+ *   Rules: lib/userProfileRules.js. Follower count and score: lib/userProfile.js.
+ */
+router.get('/users/:username', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const profile = await loadUserProfile(req.params.username, req.user.id);
+    if (!profile) return res.status(404).json({ message: USER_NOT_FOUND_MESSAGE });
+    return res.json({ profile });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// US-07 AC1: people who turned off "appear in collaborator search" are never returned here.
 router.get('/people', async (req, res, next) => {
   try {
     const query = String(req.query.q || '').trim();

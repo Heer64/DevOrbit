@@ -651,3 +651,23 @@ textarea.field-input{resize:vertical;min-height:90px}
 .portfolio-unavailable h2{margin:8px 0}
 .my-portfolio{margin-bottom:18px}
 @media (max-width:640px){.portfolio-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.portfolio-share{grid-template-columns:1fr}.portfolio-project .portfolio-stats{grid-template-columns:1fr}}
+/* [Sprint 5 · M3] US-06 other user's profile, US-07 privacy settings */
+.user-profile .identity h1.user-profile-name{font:800 20px Manrope;margin:0}
+.user-profile .profile-stats small{display:flex;align-items:center;gap:4px}
+.portfolio-off{display:flex;align-items:center;gap:6px}
+.person-profile-btn{margin-bottom:8px}
+.privacy-settings{margin-bottom:12px}
+.privacy-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
+.privacy-row span b,.privacy-row span small{display:block}
+.privacy-row span b{font-size:11px}
+.privacy-row span small{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.5}
+.privacy-row input[type=checkbox]{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;flex:none;cursor:pointer;transition:background .15s;margin:0}
+.privacy-row input[type=checkbox]::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.privacy-row input[type=checkbox]:checked{background:var(--accent2)}
+.privacy-row input[type=checkbox]:checked::after{left:19px}
+.privacy-row input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.privacy-row input[type=checkbox]:disabled{opacity:.6;cursor:default}
+.privacy-settings .form-error,.privacy-settings .success-inline{margin:10px 0 0}
+.privacy-footer{display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
+.profile-preview-link{margin:0 0 15px;text-align:left}
+.user-profile .tiny-note{font-size:9px;color:var(--muted);margin:6px 0 0}.user-profile .tiny-note a{color:var(--accent)}

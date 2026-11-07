@@ -56,6 +56,7 @@ export function toDiscoverPerson(person = {}) {
     id: String(person.id || person._id || ''),
     name: person.name || 'DevOrbit member',
     handle: person.username ? `@${person.username}` : '',
+    username: person.username || '', // [Sprint 5 · M3] US-06: opens /people/:username
     role: person.role || 'DevOrbit member',
     location: '',
     skills: Array.isArray(person.skills) ? person.skills : [],
@@ -404,6 +405,8 @@ export default function DiscoverPage() {
                   <span><BriefcaseBusiness size={13} />{p.projects} project{p.projects === 1 ? '' : 's'}</span>
                   {p.followers !== null && <span><Users size={13} />{p.followers + (followed.includes(p.handle) ? 1 : 0)} followers</span>}
                 </div>
+                {/* [Sprint 5 · M3] US-06: real people open their read-only profile. */}
+                {live && p.username && <Btn secondary className="full person-profile-btn" onClick={() => navigate(`/people/${encodeURIComponent(p.username)}`)}>View profile <ArrowUpRight size={14} /></Btn>}
                 {live
                   ? p.githubUrl && <a className="btn secondary full" href={/^https?:\/\//i.test(p.githubUrl) ? p.githubUrl : `https://${p.githubUrl}`} target="_blank" rel="noreferrer"><Github size={14} /> GitHub profile</a>
                   : <Btn secondary className="full" onClick={() => navigate('/profile')}>View profile <ArrowUpRight size={14} /></Btn>}

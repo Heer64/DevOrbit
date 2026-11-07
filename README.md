@@ -773,3 +773,37 @@ Each project: `name, description, domain, tags, role, completedAt, visibility, i
 **Files:** `backend/src/lib/portfolio.js`, `backend/src/lib/portfolioRules.js`, `backend/src/models/PortfolioStat.js`, `backend/src/routes/portfolio.js`, `backend/src/app.js` (2 routes); `frontend/src/components/PortfolioView.jsx`, `frontend/src/components/MyPortfolioPanel.jsx`, `frontend/src/pages/PortfolioPage.jsx`, `frontend/src/App.jsx` (route), `frontend/src/pages/ProfilePage.jsx` (one line), `portfolioApi` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
 
 **Tests:** `backend/test/portfolio.test.js` (all three acceptance criteria, 24-hour recount, private-project hiding, "not available", no leaks, concurrent loads), `backend/test/portfolioRules.test.js` (rules, no database), `frontend/src/components/MyPortfolioPanel.test.jsx`, `frontend/src/pages/PortfolioPage.test.jsx`, `frontend/src/App.portfolio.test.jsx`.
+
+## Sprint 5 — M3: View another user's profile and set privacy (US-06, US-07, FR-19, FR-21, FR-26)
+
+A registered user can open another user's profile read-only, and every user controls two privacy switches.
+
+**Where to find it**
+- **Discover → People → View profile** opens `/people/<username>` (login required; logged-out visitors are sent to log in).
+- **Profile page → Privacy settings:** two switches and **Save privacy settings**. Under them, **See how others view your profile** opens your own `/people/<username>`.
+
+**US-06 View another user's profile**
+- Shows **photo, bio, skill tags, follower count and score** (AC1), plus name, username and headline.
+- **Hidden fields are never exposed (AC2).** The API builds the profile from an allow-list (`profileView` in `backend/src/lib/userProfileRules.js`) and only reads `name username headline bio avatarUrl skills portfolioPublic` from the database. Email, password data, login counters, the user ID and the privacy switches themselves are never sent.
+- The portfolio (Sprint 5 · M5) is shown read-only when it is public. When its owner turned it off, the page says **"This portfolio is not available."** and the portfolio is never loaded.
+- **Follower count and score (FR-26):** following (US-54) and posts with votes (US-50, US-52) are built in a later sprint and have no models yet, so both are 0 for now. When they are added, only `socialCountsFor` in `backend/src/lib/userProfile.js` changes.
+
+**US-07 Set privacy preferences**
+
+| Switch | Field | When off |
+|---|---|---|
+| Appear in collaborator search | `User.profileDiscoverable` | not returned by `GET /api/profile/people`, by name or skill tag (AC1). The profile still opens from a direct link. |
+| Public portfolio | `User.portfolioPublic` | `/portfolio/<username>` shows "This portfolio is not available." (AC2), and the profile page shows the same. |
+
+Both are on by default. They are saved with `PATCH /api/profile/me`. A value that is not `true` or `false` is refused with 400 "Privacy settings must be true or false." and nothing is saved (NFR-21). Saving shows "Privacy settings saved." or the error (NFR-26).
+
+**API**
+
+| Call | Who | Answer |
+|---|---|---|
+| `GET /api/profile/users/:username` | logged in | `{ profile: { name, username, headline, bio, avatarUrl, skills, followerCount, publicScore, portfolio: { available, path }, isMe } }`, or 404 "User not found." |
+| `PATCH /api/profile/me` | logged in | also accepts `profileDiscoverable` and `portfolioPublic` (true/false) |
+
+**Files:** `backend/src/lib/userProfileRules.js`, `backend/src/lib/userProfile.js`, `backend/src/routes/profile.js` (new route + privacy check); `frontend/src/pages/UserProfilePage.jsx`, `frontend/src/components/PrivacySettings.jsx`, `frontend/src/App.jsx` (route), `frontend/src/pages/ProfilePage.jsx` (privacy panel, preview link), `frontend/src/pages/DiscoverPage.jsx` (View profile button), `profileApi.user` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/userProfile.test.js` (both stories' acceptance criteria, no leaks, login required, bad values refused), `backend/test/userProfileRules.test.js` (rules, no database), `frontend/src/pages/UserProfilePage.test.jsx`, `frontend/src/components/PrivacySettings.test.jsx`, `frontend/src/App.userProfile.test.jsx`, `frontend/src/pages/DiscoverPage.profileLink.test.jsx`.

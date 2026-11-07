@@ -124,6 +124,9 @@ export const profileApi = {
     return api('/profile/me/avatar', { method: 'POST', body: form });
   },
   removeAvatar: () => api('/profile/me/avatar', { method: 'DELETE' }),
+  // [Sprint 5 · M3] US-06: another user's read-only profile. Contract: backend/src/routes/profile.js
+  //   -> { profile: { name, username, headline, bio, avatarUrl, skills, followerCount, publicScore, portfolio: { available, path }, isMe } }
+  user: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}`),
 };
 
 // [Sprint 5 · M1] US-45: Discover for everyone, logged in or not. Contract: backend/src/routes/publicProjects.js
