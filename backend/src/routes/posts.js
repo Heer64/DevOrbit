@@ -25,6 +25,7 @@ import {
   readPostText,
 } from '../lib/postRules.js';
 import { deletePostImage, openPostImage, postImageExists, storePostImage } from '../lib/postImages.js';
+import { attachMyVotes, deleteVotesForPost } from '../lib/postVotes.js'; // [Sprint 5 · M7] US-52
 
 /*
  * [Sprint 5 · M6] Public posts (US-50 Create a public post, US-51 Edit or delete my post;
@@ -51,7 +52,8 @@ import { deletePostImage, openPostImage, postImageExists, storePostImage } from 
  * GET    /:postId/image        NO login needed (an <img> tag cannot send the Bearer token)
  *        -> the image bytes with their checked type; 404 when the post or image is gone
  *
- * Each post: see postView() in lib/postRules.js.
+ * Each post: see postView() in lib/postRules.js, plus myVote (1, -1 or 0) for the logged-in user.
+ * [Sprint 5 · M7] Voting (US-52) lives in routes/postVotes.js: PUT/DELETE /api/posts/:postId/vote.
  */
 
 const router = Router();
@@ -114,7 +116,8 @@ async function findOwnPost(req, res) {
 
 async function viewOf(postId, viewerId) {
   const saved = await Post.findById(postId).populate('author', AUTHOR_FIELDS).lean();
-  return postView(saved, viewerId);
+  const [view] = await attachMyVotes([postView(saved, viewerId)], viewerId); // [Sprint 5 · M7] myVote
+  return view;
 }
 
 // --- Image: before requireAuth on purpose (see the header) --------------------------------------
@@ -175,7 +178,7 @@ router.get('/', async (req, res, next) => {
 
     const page = rows.slice(0, limit);
     return res.json({
-      posts: page.map((post) => postView(post, req.user.id)),
+      posts: await attachMyVotes(page.map((post) => postView(post, req.user.id)), req.user.id), // [Sprint 5 · M7] myVote
       nextBefore: rows.length > limit ? String(page[page.length - 1]._id) : null,
     });
   } catch (error) {
@@ -287,8 +290,8 @@ router.delete('/:postId', async (req, res, next) => {
     if (!removed) return res.status(404).json({ message: POST_NOT_FOUND_MESSAGE });
     await deletePostImage(removed.image?.storageId);
     // AC2 "its votes no longer count": the score lives on the post, which is gone, so it drops out
-    // of every feed and every total. [Sprint 5 · M7] If votes get their own collection, remove this
-    // post's votes here too.
+    // of every feed and every total. [Sprint 5 · M7] The vote rows of the post are removed too.
+    await deleteVotesForPost(removed._id);
 
     return res.json({ postId: String(removed._id), message: POST_DELETED_MESSAGE });
   } catch (error) {

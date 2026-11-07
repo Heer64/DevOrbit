@@ -705,3 +705,19 @@ textarea.field-input{resize:vertical;min-height:90px}
 .post-image img{display:block;width:100%;max-height:480px;object-fit:contain;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
 .feed-more{align-self:center}
 @media(max-width:560px){.post-composer-bar .post-hint{flex-basis:100%;order:3}.post-composer-bar .btn[type=submit]{margin-left:auto}}
+
+/* [Sprint 5 · M7] Vote on a post (US-52): up/down arrows and the score */
+.post-foot{display:flex;align-items:center;gap:10px;padding-top:2px}
+.post-votes-wrap{display:flex;flex-direction:column;gap:6px;min-width:0}
+.post-votes{display:inline-flex;align-items:center;gap:2px;align-self:flex-start;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--panel2)}
+.vote-btn{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+.vote-btn:hover{background:var(--soft);color:var(--text)}
+.vote-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.vote-btn.up.on{color:var(--green);background:color-mix(in srgb,var(--green) 16%,transparent)}
+.vote-btn.down.on{color:var(--danger);background:color-mix(in srgb,var(--danger) 16%,transparent)}
+.vote-btn.on svg{fill:currentColor}
+.vote-score{min-width:28px;text-align:center;font:700 12px Manrope;font-variant-numeric:tabular-nums;color:var(--text)}
+.vote-score.positive{color:var(--green)}
+.vote-score.negative{color:var(--danger)}
+.post-votes[aria-busy=true]{opacity:.85}
+.vote-error{font-size:10px}

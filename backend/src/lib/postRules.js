@@ -141,7 +141,8 @@ export function readPageLimit(raw) {
  *   { _id, author { _id, name, username, avatarUrl } | null, text, imageUrl | null,
  *     image { contentType, size } | null, edited, editedAt, createdAt, updatedAt,
  *     upvotes, downvotes, score, isMine }
- * upvotes / downvotes / score are 0 until Sprint 5 M7 (US-52 voting) fills them in.
+ * upvotes / downvotes / score are kept up to date by the vote engine (Sprint 5 · M7, lib/postVotes.js).
+ * The routes add myVote (the viewer's own vote: 1, -1 or 0) with attachMyVotes().
  */
 export function postView(post, viewerId = null) {
   const author = post.author && typeof post.author === 'object' && post.author.name !== undefined
