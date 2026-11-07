@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { MAX_AVATAR_BYTES, detectImageType, saveAvatar, removeAvatarFile } from '../lib/avatar.js';
 import { loadUserProfile } from '../lib/userProfile.js'; // [Sprint 5 · M3] US-06
 import { PRIVACY_SETTING_MESSAGE, USER_NOT_FOUND_MESSAGE, badPrivacySetting } from '../lib/userProfileRules.js'; // [Sprint 5 · M3] US-06, US-07
+import { SKILL_SEARCH_LIMIT, parseSkillTags, rankBySkillMatch, skillTagFilter } from '../lib/skillSearchRules.js'; // [Sprint 5 · M4] US-48
 
 const router = Router();
 router.use(requireAuth);
@@ -145,8 +146,18 @@ router.get('/users/:username', async (req, res, next) => {
 });
 
 // US-07 AC1: people who turned off "appear in collaborator search" are never returned here.
+/*
+ * [Sprint 5 · M4] US-48 Find a collaborator by skill.
+ *   GET /api/profile/people?skills=react,css[&q=text]
+ *   Users with at least one of the tags (whole tag, any case), most matching tags first, then by name.
+ *   Each row also gets matchedSkills (their own spelling) and matchCount. Opted-out users and you are
+ *   still never returned. Without ?skills= the free-text search below works exactly as before.
+ *   400 for more than 10 tags or a tag over 40 characters. Rules: lib/skillSearchRules.js.
+ */
 router.get('/people', async (req, res, next) => {
   try {
+    const { tags: skillTags, error: skillTagsError } = parseSkillTags(req.query.skills); // [Sprint 5 · M4] US-48
+    if (skillTagsError) return res.status(400).json({ message: skillTagsError }); // [Sprint 5 · M4]
     const query = String(req.query.q || '').trim();
     const filter = { _id: { $ne: req.user.id }, profileDiscoverable: true };
     if (query) {
@@ -154,11 +165,13 @@ router.get('/people', async (req, res, next) => {
       const pattern = new RegExp(escaped, 'i');
       filter.$or = [{ name: pattern }, { username: pattern }, { headline: pattern }, { skills: pattern }];
     }
-    const users = await User.find(filter)
+    if (skillTags.length) filter.skills = skillTagFilter(skillTags); // [Sprint 5 · M4] US-48 AC1: at least one tag
+    let users = await User.find(filter) // [Sprint 5 · M4] let: re-ordered below for a skill search
       .select('name username headline avatarUrl skills githubUrl linkedinUrl')
       .sort({ updatedAt: -1 })
-      .limit(60)
+      .limit(skillTags.length ? 0 : 60) // [Sprint 5 · M4] a skill search ranks every match first, then keeps the top 60
       .lean();
+    if (skillTags.length) users = rankBySkillMatch(users, skillTags).slice(0, SKILL_SEARCH_LIMIT); // [Sprint 5 · M4] US-48 AC1: most matching tags first
     const counts = await Project.aggregate([
       { $unwind: '$members' },
       { $match: { 'members.user': { $in: users.map((user) => user._id) } } },
@@ -176,6 +189,7 @@ router.get('/people', async (req, res, next) => {
       color: 'violet',
       githubUrl: user.githubUrl || '',
       linkedinUrl: user.linkedinUrl || '',
+      ...(skillTags.length ? { matchedSkills: user.matchedSkills, matchCount: user.matchCount } : {}), // [Sprint 5 · M4] US-48
     })) });
   } catch (error) {
     return next(error);
