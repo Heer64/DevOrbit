@@ -146,6 +146,10 @@ export const publicApi = {
     return api(`/public/projects${text ? `?${text}` : ''}`, { skipAuthRefresh: true });
   },
   filters: () => api('/public/projects/filters', { skipAuthRefresh: true }),
+  // [Sprint 5 · M2] US-46: one Public project's read-only page, no login.
+  //   project(id) -> { project: { _id, name, description, domain, status, memberNames } }
+  //   404 "This project is not public or does not exist." for Private or missing projects.
+  project: (id) => api(`/public/projects/${encodeURIComponent(String(id || ''))}`, { skipAuthRefresh: true }),
 };
 
 // [Sprint 5 · M5] US-49 portfolio. Contract: backend/src/routes/portfolio.js

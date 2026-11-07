@@ -9,6 +9,8 @@ import {
   sortedTags,
   toPublicProject,
 } from '../lib/publicDiscovery.js';
+import { PUBLIC_PAGE_BAD_ID, PUBLIC_PAGE_NOT_FOUND, toPublicProjectPage } from '../lib/publicProjectPage.js'; // [Sprint 5 · M2] US-46
+import { validId } from '../lib/projectAccess.js';
 
 /*
  * [Sprint 5 · M1] US-45 Browse and filter public projects (FR-18, FR-30). Mounted at
@@ -25,8 +27,12 @@ import {
  * This router never reads the Authorization header, so a missing, expired or garbage token
  * makes no difference: everyone gets the same public answer.
  *
- * For M2 (US-46 public project page): add the read-only page as GET /:projectId in this same
- * router so every no-login project URL lives under /api/public/projects.
+ * [Sprint 5 · M2] US-46 public read-only project page:
+ * GET /:projectId  -> { project: { _id, name, description, domain, status, memberNames } }
+ *                  Public projects only. A Private project answers exactly like a missing one
+ *                  (404 "This project is not public or does not exist."), so its existence is not revealed.
+ *                  400 for an ID that is not a valid project ID. Read-only: this router has no write routes.
+ *                  Channels, messages, tasks and files are never included (they stay members-only).
  */
 
 const router = Router();
@@ -74,6 +80,26 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// [Sprint 5 · M2] US-46: the public read-only page of one project. Kept after '/filters' so that word
+// is never read as a project ID.
+router.get('/:projectId', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    if (!validId(projectId)) return res.status(400).json({ message: PUBLIC_PAGE_BAD_ID });
+
+    // visibility is part of the query itself, so a Private project is never even loaded.
+    const project = await Project.findOne({ _id: projectId, visibility: 'Public' })
+      .select('name description domain status members.user')
+      .populate('members.user', 'name')
+      .lean();
+    if (!project) return res.status(404).json({ message: PUBLIC_PAGE_NOT_FOUND });
+
+    return res.json({ project: toPublicProjectPage(project) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router;
 
 /*
@@ -82,5 +108,6 @@ export default router;
  * No-login API for the Discover page: lists Public projects with keyword,
  * domain, skill-tag and status filters and paging, and returns the filter
  * choices. Only whitelisted, non-personal project fields are sent.
+ * [Sprint 5 · M2] Also serves one Public project's read-only page (US-46).
  * ---------------------------------------------------------------------------
  */

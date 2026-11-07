@@ -78,6 +78,10 @@ async function loadProject(req, res) {
   return { project, role, member };
 }
 
+// [Sprint 5 · M2] US-46 AC2: tasks are never shown to non-members, even on a Public project.
+// A visitor sees only the public project page (GET /api/public/projects/:projectId).
+export const TASKS_MEMBERS_ONLY = 'Tasks are visible to project members only.';
+
 async function validateAssignee(project, assignee) {
   if (assignee === null || assignee === undefined || assignee === '') {
     return { valid: true, value: null };
@@ -295,6 +299,8 @@ async function logTaskChanges(req, project, task, before) {
  *   ?assignee=unassigned
  *   ?milestone=<milestoneId>
  *   ?milestone=none
+ *
+ * [Sprint 5 · M2] US-46 AC2: members only (403 for anyone else, also on a Public project).
  */
 router.get('/', async (req, res, next) => {
   try {
@@ -302,6 +308,10 @@ router.get('/', async (req, res, next) => {
 
     if (!loaded) {
       return;
+    }
+
+    if (!loaded.member) {
+      return res.status(403).json({ message: TASKS_MEMBERS_ONLY });
     }
 
     const { project, member } = loaded;
@@ -369,6 +379,7 @@ router.get('/', async (req, res, next) => {
  *
  * One task, populated like the list. Readable by anyone who can read the project's tasks.
  * The Kanban board uses it to fetch the latest state after a conflict.
+ * [Sprint 5 · M2] US-46 AC2: members only, like the list.
  */
 router.get('/:taskId', async (req, res, next) => {
   try {
@@ -376,6 +387,10 @@ router.get('/:taskId', async (req, res, next) => {
 
     if (!loaded) {
       return;
+    }
+
+    if (!loaded.member) {
+      return res.status(403).json({ message: TASKS_MEMBERS_ONLY });
     }
 
     if (!validId(req.params.taskId)) {
