@@ -188,7 +188,7 @@ test('Members get replies live with the new reply count; visitors of a Public pr
   const member = await open(viewer.token);
   const visitor = await open(outsider.token);
   assert.equal((await join(member, projectId)).ok, true);
-  assert.equal((await join(visitor, projectId)).ok, true);
+  assert.equal((await join(visitor, projectId)).ok, false); // [Sprint 5 · M2] US-46 AC2: members only
 
   const arrived = nextEvent(member, 'message:reply', 1000);
   const notForVisitor = noEvent(visitor, 'message:reply', 400);

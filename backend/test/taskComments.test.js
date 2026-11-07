@@ -188,7 +188,7 @@ test('Members get new comments live; visitors of a Public project do not', async
   const member = await open(viewer.token);
   const visitor = await open(outsider.token);
   assert.equal((await join(member, projectId)).ok, true);
-  assert.equal((await join(visitor, projectId)).ok, true);
+  assert.equal((await join(visitor, projectId)).ok, false); // [Sprint 5 · M2] US-46 AC2: members only
 
   const arrived = nextEvent(member, 'comment:created', 1000);
   const notForVisitor = noEvent(visitor, 'comment:created', 400);

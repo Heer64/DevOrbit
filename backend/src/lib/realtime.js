@@ -25,8 +25,9 @@ import { memberRole, validId } from './projectAccess.js';
  *              Every authenticated socket is put in its own user room on connect (no join needed),
  *              so these reach all of the recipient's open tabs and nobody else.
  *
- * Who may join a project room: the same people who may read its tasks
- * (members of any project, and anyone for a Public project). Only reading happens here;
+ * Who may join a project room: the same people who may read its tasks, which since
+ * [Sprint 5 · M2] US-46 AC2 means project members only (Public or Private). Visitors of a Public
+ * project see the public page instead and get no live task events. Only reading happens here;
  * every change still goes through the REST API and its permission checks.
  *
  * This is the shared socket server. Other features (e.g. channel messages) should add their
@@ -36,8 +37,8 @@ import { memberRole, validId } from './projectAccess.js';
 let io = null;
 
 export const projectRoom = (projectId) => `project:${projectId}`;
-// [Sprint 2 final] Members-only room. Chat messages go here, because visitors of a Public
-// project may watch its task board (projectRoom) but must not read the team's channels.
+// [Sprint 2 final] Members-only room. Chat messages go here.
+// [Sprint 5 · M2] US-46 AC2: projectRoom is members-only now too; both rooms are kept so existing events stay unchanged.
 export const memberRoom = (projectId) => `project:${projectId}:members`;
 // [Sprint 3 · M7 Part 2] One private room per signed-in user, for their own notifications.
 export const userRoom = (userId) => `user:${userId}`;
@@ -89,7 +90,8 @@ export function initRealtime(httpServer, { origins = [] } = {}) {
         if (!project) return reply({ ok: false, message: 'Project not found.' });
 
         const role = memberRole(project, socket.data.userId);
-        if (!role && project.visibility === 'Private') {
+        // [Sprint 5 · M2] US-46 AC2: members only. Visitors of a Public project no longer watch the board.
+        if (!role) {
           return reply({ ok: false, message: 'You do not have access to this project.' });
         }
 
@@ -197,8 +199,8 @@ export function emitActivityCreated(activity) {
 
 /*
  * [Sprint 3 · M3] US-13 / US-14: someone was removed from a project or left it.
- * Their open browser tabs stop receiving the project's members-only events (chat, activity) right away,
- * and for a Private project its task events too. A Public project's board stays watchable, as for any visitor.
+ * Their open browser tabs stop receiving the project's events (chat, activity and tasks) right away.
+ * [Sprint 5 · M2] US-46 AC2: this now holds for Public projects too, since tasks are members-only.
  * Each of their sockets also gets:
  *   'project:access-removed' { projectId, reason: 'removed' | 'left' }
  * so the page can tell them and reload. Never throws: the removal itself has already been saved.
@@ -213,7 +215,7 @@ export async function revokeProjectAccess(projectId, userId, { visibility = 'Pri
     for (const socket of sockets) {
       if (String(socket.data?.userId) !== uid) continue;
       socket.leave(memberRoom(pid));
-      if (visibility !== 'Public') socket.leave(projectRoom(pid));
+      socket.leave(projectRoom(pid)); // [Sprint 5 · M2] US-46 AC2: Public projects too
       socket.emit('project:access-removed', { projectId: pid, reason });
     }
   } catch (error) {

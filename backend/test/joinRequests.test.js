@@ -237,7 +237,8 @@ test('Rejecting does not add the person, and blocks a new request for 7 days', a
   assert.equal(res.body.joinRequest.status, 'Rejected');
   assert.equal(res.body.joinRequest.role, null);
   assert.equal(await roleIn(visitor), null);
-  assert.equal((await as(visitor).get(`/api/projects/${publicId}/tasks`)).status, 200, 'public tasks stay readable');
+  // [Sprint 5 · M2] US-46 AC2: tasks are members-only, even on a Public project.
+  assert.equal((await as(visitor).get(`/api/projects/${publicId}/tasks`)).status, 403, 'tasks stay members-only');
   assert.equal((await as(visitor).get(`/api/projects/${publicId}/activity`)).status, 403, 'but members-only pages do not');
   assert.ok((await feedTypes()).includes('join_request.rejected'));
 

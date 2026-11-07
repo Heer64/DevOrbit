@@ -29,6 +29,12 @@ function ProjectProbe() {
   return <p>Project page {id}</p>;
 }
 
+// [Sprint 5 · M2] US-46: the public project page.
+function PublicProjectProbe() {
+  const { projectId } = useParams();
+  return <p>Public project page {projectId}</p>;
+}
+
 // [Sprint 5 · M1] Shows the current URL query, to check the filters are kept in the link.
 function UrlProbe() {
   const location = useLocation();
@@ -41,6 +47,8 @@ function renderDiscover(route = '/discover') {
       <Routes>
         <Route path="/discover" element={<><DiscoverPage /><UrlProbe /></>} />
         <Route path="/project/:id" element={<ProjectProbe />} />
+        {/* [Sprint 5 · M2] US-46 */}
+        <Route path="/discover/:projectId" element={<PublicProjectProbe />} />
         <Route path="/login" element={<p>Login page</p>} />
       </Routes>
     </MemoryRouter>
@@ -250,7 +258,16 @@ describe('Discover for visitors and filters (US-45)', () => {
     expect(within(card).getByText('Completed')).toBeTruthy();
     expect(within(card).queryByText('Progress')).toBeNull();
     fireEvent.click(within(card).getByRole('button', { name: 'View Air Map' }));
-    expect(screen.getByText('Project page p9')).toBeTruthy(); // publicProjectPath -> /project/:id for now
+    expect(screen.getByText('Project page p9')).toBeTruthy(); // not a real project ID -> demo workspace page
+  });
+
+  // [Sprint 5 · M2] US-46: real project cards open the public read-only project page.
+  it('a real project card opens its public project page at /discover/:id', async () => {
+    const realId = '0123456789abcdef01234567';
+    mocks.publicApi.projects.mockResolvedValue({ projects: [{ _id: realId, name: 'Real Garden', description: '', domain: 'Community', tags: [], status: 'Planning', memberCount: 1 }], total: 1, page: 1, pageSize: 24 });
+    renderDiscover();
+    fireEvent.click(await screen.findByRole('button', { name: 'View Real Garden' }));
+    expect(screen.getByText(`Public project page ${realId}`)).toBeTruthy();
   });
 });
 

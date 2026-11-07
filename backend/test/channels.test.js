@@ -142,7 +142,8 @@ test('Members watching the project get the message live (< 1 s); visitors of a P
   const member = await open(viewer.token);
   const visitor = await open(outsider.token);
   assert.equal((await join(member, projectId)).ok, true);
-  assert.equal((await join(visitor, projectId)).ok, true); // may watch the public task board...
+  // [Sprint 5 · M2] US-46 AC2: visitors of a Public project cannot join the project room at all now.
+  assert.equal((await join(visitor, projectId)).ok, false);
 
   const started = Date.now();
   const arrived = nextEvent(member, 'message:created', 1000);
@@ -154,7 +155,7 @@ test('Members watching the project get the message live (< 1 s); visitors of a P
   assert.equal(payload.projectId, projectId);
   assert.equal(payload.channelId, generalId);
   assert.equal(payload.message.body, 'Live hello');
-  await notForVisitor; // ...but never receives chat messages
+  await notForVisitor; // and never receives chat messages
 });
 
 // [US-29] Chat messages in the Activity Feed.
@@ -253,7 +254,7 @@ test('US-29: live activity reaches members but not visitors of a Public project'
   const member = await open(viewer.token);
   const visitor = await open(outsider.token);
   assert.equal((await join(member, projectId)).ok, true);
-  assert.equal((await join(visitor, projectId)).ok, true); // Public: visitors may watch the board
+  assert.equal((await join(visitor, projectId)).ok, false); // [Sprint 5 · M2] US-46 AC2: members only
 
   const received = nextEvent(member, 'activity:created');
   const silent = noEvent(visitor, 'activity:created', 400);
@@ -264,7 +265,7 @@ test('US-29: live activity reaches members but not visitors of a Public project'
   assert.equal(payload.projectId, projectId);
   assert.equal(payload.activity.type, 'message.posted');
   assert.equal(payload.activity.actor.name, 'Chat Contributor');
-  await silent; // ...but never receives feed events
+  await silent; // and never receives feed events
 });
 
 /*

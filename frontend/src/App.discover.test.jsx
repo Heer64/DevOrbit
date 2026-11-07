@@ -9,6 +9,11 @@ vi.mock('./context/AuthContext', () => ({ useAuth: () => auth }));
 // The pages themselves are tested elsewhere; here only the routing matters.
 vi.mock('./components/AppShell', () => ({ default: () => <div><p>App shell</p><Outlet /></div> }));
 vi.mock('./pages/DiscoverPage', () => ({ default: () => <p>Discover page</p> }));
+// [Sprint 5 · M2] US-46: the public project page is tested in pages/PublicProjectPage.test.jsx.
+vi.mock('./pages/PublicProjectPage', async () => {
+  const { useParams } = await import('react-router-dom');
+  return { default: function PublicProjectProbe() { return <p>Public project page {useParams().projectId}</p>; } };
+});
 vi.mock('./pages/DashboardPage', () => ({ default: () => <p>Dashboard page</p> }));
 vi.mock('./pages/ProfilePage', () => ({ default: () => <p>Profile page</p> }));
 vi.mock('./pages/ProjectPage', () => ({ default: () => <p>Project page</p> }));
@@ -65,5 +70,37 @@ describe('/discover routing (US-45)', () => {
     renderAt('/dashboard');
     expect(screen.getByText(/Login page/)).toBeTruthy();
     expect(screen.queryByText('Dashboard page')).toBeNull();
+  });
+});
+
+// [Sprint 5 · M2] US-46 (Actor: Visitor): a Public project's page opens without logging in.
+describe('/discover/:projectId routing (US-46)', () => {
+  const ID = '0123456789abcdef01234567';
+
+  it('a logged-out visitor opens the public project page in the public frame, not the login page', () => {
+    renderAt(`/discover/${ID}`);
+    expect(screen.getByText(`Public project page ${ID}`)).toBeTruthy();
+    expect(screen.queryByText(/Login page/)).toBeNull();
+    expect(screen.queryByText('App shell')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Log in' })).toBeTruthy();
+  });
+
+  it('"Log in" in the public frame comes back to the project page', () => {
+    renderAt(`/discover/${ID}`);
+    fireEvent.click(screen.getByRole('link', { name: 'Log in' }));
+    expect(screen.getByText(`Login page from /discover/${ID}`)).toBeTruthy();
+  });
+
+  it('a logged-in user sees the public project page inside the app shell', () => {
+    auth.user = { id: 'u1', name: 'Riya Kapoor', isDemo: false };
+    renderAt(`/discover/${ID}`);
+    expect(screen.getByText('App shell')).toBeTruthy();
+    expect(screen.getByText(`Public project page ${ID}`)).toBeTruthy();
+  });
+
+  it('the member workspace (/project/:id) still needs a login', () => {
+    renderAt(`/project/${ID}`);
+    expect(screen.getByText(/Login page/)).toBeTruthy();
+    expect(screen.queryByText('Project page')).toBeNull();
   });
 });
