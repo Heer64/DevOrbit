@@ -833,3 +833,87 @@ Both are on by default. They are saved with `PATCH /api/profile/me`. A value tha
 **Files:** `backend/src/lib/publicProjectPage.js` (new, rules), `backend/src/routes/publicProjects.js` (new route), `backend/src/routes/tasks.js` (task reads members-only), `backend/src/lib/realtime.js` (live room members-only); `frontend/src/pages/PublicProjectPage.jsx` (new), `frontend/src/App.jsx` (route), `frontend/src/lib/publicLinks.js` (Discover cards → `/discover/:id`), `frontend/src/pages/ProjectPage.jsx` (non-members sent to the public page), `frontend/src/components/JoinRequestCard.jsx` (optional `onStatus`), `publicApi.project` in `frontend/src/api.js`.
 
 **Tests:** `backend/test/publicProjectPage.test.js` (US-46 and US-47 acceptance criteria end to end), `backend/test/publicProjectPageRules.test.js` (rules, no database), `frontend/src/pages/PublicProjectPage.test.jsx`, `frontend/src/lib/publicLinks.test.js`, new cases in `frontend/src/App.discover.test.jsx` and `frontend/src/pages/DiscoverPage.test.jsx`, `e2e/tests/public-project-page.spec.js`. Existing tests that expected non-members to read a Public project's tasks or join its live room were updated to the members-only rule (`channels`, `joinRequests`, `removeLeave`, `taskComments`, `threads`).
+## Sprint 5 — M6: Create, edit and delete public posts (US-50, US-51, FR-23, NFR-16, NFR-26)
+
+A logged-in user can publish a public post that belongs to **no project**, and can edit or delete their own posts.
+
+**Where to find it:** sidebar → **Community feed** (`/feed`). Posts are listed newest first; Sprint 5 M8 switches the feed to the trending order (US-53) and M7 adds voting (US-52).
+
+**Rules (the same numbers are used by the server, the browser and the tests)**
+
+| Rule | Value | When broken |
+|---|---|---|
+| Text | required, 1–500 characters after trimming (line breaks kept) | 400 with the reason |
+| Image | optional, **one** JPEG, PNG or WebP image, decided by the file's real bytes (not its name or Content-Type) | 400 "Only JPEG, PNG or WebP images…" |
+| Image size | at most **5 MB** | 413 "Images must be 5 MB or smaller." (nothing is stored) |
+| Rate limit | at most **10 posts per user in any rolling hour** | 429 "You can create up to 10 posts per hour. Please try again in N minutes." + `Retry-After` |
+| Edit / delete | the **author only** | 403 "You can only edit or delete your own posts." |
+
+- Refused posts do not use up the hourly limit. Deleting a post does **not** give the slot back (so delete-and-repost cannot flood the feed). Edits do not count.
+- An edited post shows **"edited"**. Saving the same text again is not an edit.
+- Delete asks for confirmation in the app; the post and its image are removed, so it leaves every feed and its votes no longer count.
+- Images are stored in MongoDB GridFS (bucket `postImages`), like project files, so they survive a redeploy. They are served with their checked type, `nosniff` and a sandbox CSP.
+- Post text is shown as plain text, so HTML in a post is displayed, never run.
+
+**API** (login needed except for the image)
+
+| Call | Who | Answer |
+|---|---|---|
+| `GET /api/posts?limit=&before=&author=` | logged in | `{ posts, nextBefore }` newest first, 20 per page (max 50) |
+| `GET /api/posts/:postId` | logged in | `{ post }` |
+| `POST /api/posts` | logged in | multipart `text` + optional `image`, or JSON `{ text }` → 201 `{ post, message: "Your post is published." }` |
+| `PATCH /api/posts/:postId` | author | JSON `{ text }` → `{ post, message }` with `edited: true` |
+| `DELETE /api/posts/:postId` | author | `{ postId, message }` |
+| `GET /api/posts/:postId/image` | anyone | the image bytes (404 once the post is deleted) |
+
+Each post: `_id, author { _id, name, username, avatarUrl }, text, imageUrl, image { contentType, size }, edited, editedAt, createdAt, updatedAt, upvotes, downvotes, score, isMine`.
+
+**For M7 (US-52 voting):** `Post` already has `upvotes`, `downvotes` and `score` (all 0). Keep `score = upvotes − downvotes`. If votes get their own collection, delete a post's votes in `DELETE /api/posts/:postId` (marked in `backend/src/routes/posts.js`). Add the vote buttons to `frontend/src/components/PostCard.jsx`.
+**For M8 (US-53 trending, US-54 total vote score):** add the trending order to `GET /api/posts` (or a new `/api/posts/trending`); a user's total vote score is the sum of `score` over `Post.find({ author })`.
+
+**Files:** `backend/src/lib/postRules.js`, `backend/src/lib/postImages.js`, `backend/src/models/Post.js`, `backend/src/models/PostCreateLog.js`, `backend/src/routes/posts.js`, `backend/src/app.js` (1 route); `frontend/src/posts.js`, `frontend/src/components/PostComposer.jsx`, `frontend/src/components/PostCard.jsx`, `frontend/src/pages/FeedPage.jsx`, `frontend/src/App.jsx` (route), `frontend/src/components/AppShell.jsx` (sidebar link), `postApi` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/posts.test.js` (all acceptance criteria of US-50 and US-51, 5 MB edge, fake image types, concurrent posting, pages), `backend/test/postRules.test.js` (rules, no database), `frontend/src/components/PostComposer.test.jsx`, `frontend/src/components/PostCard.test.jsx`, `frontend/src/pages/FeedPage.test.jsx`.
+
+## Sprint 5 — M7: Vote on a post (US-52, FR-24, NFR-13, NFR-14, NFR-16)
+
+A logged-in user can **upvote or downvote** any public post, **change** the vote, or **take it back**. A user has at most **one active vote per post**, and a post's **score = upvotes − downvotes**.
+
+**Where to find it:** Community feed (`/feed`). Every post card has ▲ score ▼ at the bottom.
+- Click ▲ or ▼ to vote. The score changes at once and the server's numbers replace it when it answers.
+- Click the **other** arrow to change the vote, or the **lit** arrow again to remove it.
+- If the server refuses (deleted post, rate limit), the old score comes back and the reason is shown.
+
+**Rules (the same numbers are used by the server, the browser and the tests)**
+
+| Rule | Value | When broken |
+|---|---|---|
+| Value | exactly `1` (up), `-1` (down) or `0` (remove) | 400 "Send "value": 1 to upvote, -1 to downvote or 0 to remove your vote." |
+| One vote per user per post | unique index on `PostVote { post, user }` | a second vote **replaces** the first; voting the same way again changes nothing |
+| Rate limit | at most **30 vote requests per user in any rolling minute** (casting, changing and removing all count) | 429 "You can vote up to 30 times per minute. Please try again in N seconds." + `Retry-After` |
+| Who | any logged-in user, on any post (their own included; FR-24 has no exception) | 401 without login, 404 unknown or deleted post |
+
+**How the count stays right when many votes arrive at once (NFR-13, NFR-14)**
+
+1. The user's vote is a `PostVote` row. Changing it is a **compare-and-swap**: the write only happens if the row is still exactly what was read (same `_id` and same `value`). A first vote is an insert, and the unique index refuses a second one.
+2. **Only the request whose write succeeded** moves the post's counters, with **one atomic `$inc`** of `upvotes`, `downvotes` and `score` together.
+3. A request that lost the race reads the row again and decides again. So the same vote sent 10 times at once is counted once, and 24 users voting at once are each counted exactly once.
+
+No MongoDB transaction is needed, so it works on the in-memory test server and on Atlas alike. `recountPostVotes(postId)` in `backend/src/lib/postVotes.js` recounts a post from its vote rows. The tests use it to check the counters, and it can repair a post after restoring a backup.
+
+Deleting a post (US-51) also removes its votes.
+
+**API** (login needed)
+
+| Call | Body | Answer |
+|---|---|---|
+| `PUT /api/posts/:postId/vote` | JSON `{ value: 1 \| -1 \| 0 }` | `{ post, vote, previous, outcome, message }` |
+| `DELETE /api/posts/:postId/vote` | none | same as `PUT { value: 0 }` |
+
+`outcome` is `cast`, `changed`, `retracted` or `unchanged` (the same vote again: nothing was counted). `post` has the new `upvotes`, `downvotes`, `score` and `myVote`. Every post returned by `GET /api/posts` and `GET /api/posts/:postId` now also has **`myVote`** (`1`, `-1` or `0`): the logged-in user's own vote.
+
+**For M8 (US-53 trending, US-54 total vote score):** `Post.score` is always up to date, so the trending score can read it directly, and a user's total vote score is the sum of `score` over their posts. The `socialCountsFor` function in `backend/src/lib/userProfile.js` is still 0 and is M8's to fill.
+
+**Files:** `backend/src/lib/voteRules.js`, `backend/src/lib/voteEngine.js`, `backend/src/lib/postVotes.js`, `backend/src/models/PostVote.js`, `backend/src/models/PostVoteLog.js`, `backend/src/routes/postVotes.js`, `backend/src/app.js` (1 route), `backend/src/routes/posts.js` (`myVote` on posts, votes removed on delete); `frontend/src/votes.js`, `frontend/src/components/PostVotes.jsx`, `frontend/src/components/PostCard.jsx` (vote bar), `postApi.vote` / `postApi.unvote` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/postVotes.test.js` (all three acceptance criteria against MongoDB: a first vote moves the score by one, a repeated vote is counted once, many users at the same moment; also change, retract, `myVote`, bad values, deleted posts, the 30-per-minute limit and bursts), `backend/test/voteEngine.test.js` (the race logic without a database: thousands of interleaved votes in random orders), `backend/test/voteRules.test.js` (rules), `frontend/src/components/PostVotes.test.jsx`.

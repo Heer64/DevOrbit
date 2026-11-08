@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, Moon, Plus, Search, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessagesSquare, Moon, Plus, Search, Sun, UserPlus, UserRound, X } from 'lucide-react';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
@@ -103,6 +103,7 @@ export default function AppShell() {
   const navItems = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { to: '/discover', label: 'Find projects & people', icon: Compass },
+    { to: '/feed', label: 'Community feed', icon: MessagesSquare }, // [Sprint 5 · M6] US-50/US-51
     { to: '/profile', label: 'My profile', icon: UserRound },
   ];
   const displayName = user?.name || 'Demo user';
@@ -226,5 +227,6 @@ function pageTitle(path) {
   if (path.startsWith('/project')) return 'Project workspace';
   if (path === '/profile') return 'My profile';
   if (path === '/discover') return 'Discover';
+  if (path === '/feed') return 'Community feed'; // [Sprint 5 · M6]
   return 'Overview';
 }
