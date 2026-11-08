@@ -45,7 +45,8 @@ const postSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // Reserved for Sprint 5 M7 (US-52). M6 never changes them.
+    // [Sprint 5 · M7] US-52: moved only by lib/postVotes.js with one atomic $inc per vote change.
+    // The votes themselves are PostVote rows (one per user per post).
     upvotes: { type: Number, default: 0, min: 0 },
     downvotes: { type: Number, default: 0, min: 0 },
     score: { type: Number, default: 0 },

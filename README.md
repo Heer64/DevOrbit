@@ -848,3 +848,46 @@ Each post: `_id, author { _id, name, username, avatarUrl }, text, imageUrl, imag
 **Files:** `backend/src/lib/postRules.js`, `backend/src/lib/postImages.js`, `backend/src/models/Post.js`, `backend/src/models/PostCreateLog.js`, `backend/src/routes/posts.js`, `backend/src/app.js` (1 route); `frontend/src/posts.js`, `frontend/src/components/PostComposer.jsx`, `frontend/src/components/PostCard.jsx`, `frontend/src/pages/FeedPage.jsx`, `frontend/src/App.jsx` (route), `frontend/src/components/AppShell.jsx` (sidebar link), `postApi` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
 
 **Tests:** `backend/test/posts.test.js` (all acceptance criteria of US-50 and US-51, 5 MB edge, fake image types, concurrent posting, pages), `backend/test/postRules.test.js` (rules, no database), `frontend/src/components/PostComposer.test.jsx`, `frontend/src/components/PostCard.test.jsx`, `frontend/src/pages/FeedPage.test.jsx`.
+
+## Sprint 5 — M7: Vote on a post (US-52, FR-24, NFR-13, NFR-14, NFR-16)
+
+A logged-in user can **upvote or downvote** any public post, **change** the vote, or **take it back**. A user has at most **one active vote per post**, and a post's **score = upvotes − downvotes**.
+
+**Where to find it:** Community feed (`/feed`). Every post card has ▲ score ▼ at the bottom.
+- Click ▲ or ▼ to vote. The score changes at once and the server's numbers replace it when it answers.
+- Click the **other** arrow to change the vote, or the **lit** arrow again to remove it.
+- If the server refuses (deleted post, rate limit), the old score comes back and the reason is shown.
+
+**Rules (the same numbers are used by the server, the browser and the tests)**
+
+| Rule | Value | When broken |
+|---|---|---|
+| Value | exactly `1` (up), `-1` (down) or `0` (remove) | 400 "Send "value": 1 to upvote, -1 to downvote or 0 to remove your vote." |
+| One vote per user per post | unique index on `PostVote { post, user }` | a second vote **replaces** the first; voting the same way again changes nothing |
+| Rate limit | at most **30 vote requests per user in any rolling minute** (casting, changing and removing all count) | 429 "You can vote up to 30 times per minute. Please try again in N seconds." + `Retry-After` |
+| Who | any logged-in user, on any post (their own included; FR-24 has no exception) | 401 without login, 404 unknown or deleted post |
+
+**How the count stays right when many votes arrive at once (NFR-13, NFR-14)**
+
+1. The user's vote is a `PostVote` row. Changing it is a **compare-and-swap**: the write only happens if the row is still exactly what was read (same `_id` and same `value`). A first vote is an insert, and the unique index refuses a second one.
+2. **Only the request whose write succeeded** moves the post's counters, with **one atomic `$inc`** of `upvotes`, `downvotes` and `score` together.
+3. A request that lost the race reads the row again and decides again. So the same vote sent 10 times at once is counted once, and 24 users voting at once are each counted exactly once.
+
+No MongoDB transaction is needed, so it works on the in-memory test server and on Atlas alike. `recountPostVotes(postId)` in `backend/src/lib/postVotes.js` recounts a post from its vote rows. The tests use it to check the counters, and it can repair a post after restoring a backup.
+
+Deleting a post (US-51) also removes its votes.
+
+**API** (login needed)
+
+| Call | Body | Answer |
+|---|---|---|
+| `PUT /api/posts/:postId/vote` | JSON `{ value: 1 \| -1 \| 0 }` | `{ post, vote, previous, outcome, message }` |
+| `DELETE /api/posts/:postId/vote` | none | same as `PUT { value: 0 }` |
+
+`outcome` is `cast`, `changed`, `retracted` or `unchanged` (the same vote again: nothing was counted). `post` has the new `upvotes`, `downvotes`, `score` and `myVote`. Every post returned by `GET /api/posts` and `GET /api/posts/:postId` now also has **`myVote`** (`1`, `-1` or `0`): the logged-in user's own vote.
+
+**For M8 (US-53 trending, US-54 total vote score):** `Post.score` is always up to date, so the trending score can read it directly, and a user's total vote score is the sum of `score` over their posts. The `socialCountsFor` function in `backend/src/lib/userProfile.js` is still 0 and is M8's to fill.
+
+**Files:** `backend/src/lib/voteRules.js`, `backend/src/lib/voteEngine.js`, `backend/src/lib/postVotes.js`, `backend/src/models/PostVote.js`, `backend/src/models/PostVoteLog.js`, `backend/src/routes/postVotes.js`, `backend/src/app.js` (1 route), `backend/src/routes/posts.js` (`myVote` on posts, votes removed on delete); `frontend/src/votes.js`, `frontend/src/components/PostVotes.jsx`, `frontend/src/components/PostCard.jsx` (vote bar), `postApi.vote` / `postApi.unvote` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/postVotes.test.js` (all three acceptance criteria against MongoDB: a first vote moves the score by one, a repeated vote is counted once, many users at the same moment; also change, retract, `myVote`, bad values, deleted posts, the 30-per-minute limit and bursts), `backend/test/voteEngine.test.js` (the race logic without a database: thousands of interleaved votes in random orders), `backend/test/voteRules.test.js` (rules), `frontend/src/components/PostVotes.test.jsx`.

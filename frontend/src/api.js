@@ -163,8 +163,14 @@ export const portfolioApi = {
 //                                       429 { message, retryAfterSeconds } after 10 posts in an hour
 //   update(postId, { text })        -> { post, message }   author only (403 otherwise); post.edited = true
 //   remove(postId)                  -> { postId, message } author only (403 otherwise)
+//   vote(postId, value)             -> { post, vote, previous, outcome, message }   [Sprint 5 · M7] US-52
+//                                       value 1 = upvote, -1 = downvote, 0 = remove; outcome
+//                                       cast | changed | retracted | unchanged (same vote again)
+//                                       429 { message, retryAfterSeconds } after 30 votes in a minute
+//   unvote(postId)                  -> same answer as vote(postId, 0)
 // Each post: { _id, author { _id, name, username, avatarUrl }, text, imageUrl | null, edited, editedAt,
-//              createdAt, upvotes, downvotes, score, isMine }   (imageUrl is a path: pass it to assetUrl)
+//              createdAt, upvotes, downvotes, score, myVote (1 | -1 | 0), isMine }
+//              (imageUrl is a path: pass it to assetUrl)
 const postPath = (postId = '') => `/posts${postId ? `/${encodeURIComponent(postId)}` : ''}`;
 export const postApi = {
   list: ({ before, author, limit } = {}) => {
@@ -185,6 +191,8 @@ export const postApi = {
   },
   update: (postId, { text }) => api(postPath(postId), { method: 'PATCH', body: JSON.stringify({ text }) }),
   remove: (postId) => api(postPath(postId), { method: 'DELETE' }),
+  vote: (postId, value) => api(`${postPath(postId)}/vote`, { method: 'PUT', body: JSON.stringify({ value }) }), // [Sprint 5 · M7]
+  unvote: (postId) => api(`${postPath(postId)}/vote`, { method: 'DELETE' }), // [Sprint 5 · M7]
 };
 
 export const projectApi = {

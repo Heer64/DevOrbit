@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { assetUrl, postApi } from '../api';
 import { Avatar, initialsOf } from './ui';
 import ConfirmDialog from './ConfirmDialog';
+import PostVotes from './PostVotes'; // [Sprint 5 · M7] US-52
 import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTimeAgo } from '../posts';
 
 /*
@@ -12,7 +13,10 @@ import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTim
  *   AC3 only the author sees Edit/Delete; if someone else tries anyway the server answers 403
  *       and the message is shown here
  *
- * Props: post (API shape, see api.js postApi), api, onUpdated(post), onDeleted(postId), now (tests).
+ * [Sprint 5 · M7] US-52: the vote buttons and score (PostVotes) sit at the bottom of every card.
+ *
+ * Props: post (API shape, see api.js postApi), api, onUpdated(post) (also called after a vote),
+ *        onDeleted(postId), now (tests).
  */
 export default function PostCard({ post, api = postApi, onUpdated, onDeleted, now }) {
   const [editing, setEditing] = useState(false);
@@ -113,6 +117,10 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
           <img src={assetUrl(post.imageUrl)} alt={`Image shared by ${author.name}`} loading="lazy" />
         </div>
       )}
+
+      <footer className="post-foot">
+        <PostVotes post={post} api={api} onVoted={onUpdated} />
+      </footer>
 
       <ConfirmDialog
         open={confirming}

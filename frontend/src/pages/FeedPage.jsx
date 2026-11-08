@@ -9,7 +9,8 @@ import { postErrorMessage } from '../posts';
 /*
  * [Sprint 5 · M6] Community feed page at /feed (US-50 create a post, US-51 edit or delete my post).
  * Shows the composer and the public posts, newest first. Sprint 5 M8 changes the order to
- * trending (US-53) and M7 adds voting (US-52) to each PostCard.
+ * trending (US-53). [Sprint 5 · M7] Each PostCard has vote buttons (US-52); a vote result comes
+ * back through onUpdated, so the list keeps the new score.
  *
  * Props: api (postApi, swapped in tests).
  */
