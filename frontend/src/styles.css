@@ -680,3 +680,53 @@ textarea.field-input{resize:vertical;min-height:90px}
 .skill-filter .tiny-note{flex-basis:100%;margin:0;font-size:8px;color:var(--muted)}
 .person .skill-cloud span.matched{color:var(--accent);border-color:var(--accent);background:var(--soft);font-weight:700}
 .skill-match-count{font-size:8px !important;color:var(--accent) !important;margin:8px 0 0 !important;font-weight:700}
+
+/* [Sprint 5 · M6] Community feed: create, edit and delete public posts (US-50, US-51) */
+.feed-page{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.feed-page .heading{margin-bottom:2px}
+.post-composer{display:flex;flex-direction:column;gap:10px}
+.post-composer .panel-head{margin-bottom:0}
+.post-text{width:100%;min-height:96px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:12px;line-height:1.6}
+.post-text[aria-invalid=true]{border-color:var(--danger)}
+.post-composer-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.post-composer-bar .post-hint{flex:1;min-width:0;margin:0;font-size:10px;color:var(--muted)}
+.post-composer-bar .char-count{align-self:center;font-size:10px}
+.char-count.over{color:var(--danger);font-weight:700}
+.post-composer .success-inline,.post-composer .form-error{margin:0}
+.post-preview{position:relative;align-self:flex-start;max-width:100%}
+.post-preview img{display:block;width:180px;height:130px;max-width:100%;border-radius:10px;border:1px solid var(--line);object-fit:cover;background:var(--panel2)}
+.post-preview .iconbtn{position:absolute;top:6px;right:6px;width:28px;height:28px}
+.post-image-name{display:flex;align-items:center;gap:8px;margin:0;font-size:10px;color:var(--muted)}
+.feed-list{display:flex;flex-direction:column;gap:12px}
+.feed-list-head{display:flex;align-items:center;justify-content:space-between}
+.feed-list-head h2{font:700 15px Manrope;margin:0}
+.post-card{display:flex;flex-direction:column;gap:10px}
+.post-head{display:flex;align-items:center;gap:10px}
+.post-author{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.post-author b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post-author small{font-size:10px;color:var(--muted)}
+.post-edited{font-style:italic}
+.post-actions{display:flex;gap:6px}
+.post-actions .iconbtn{width:30px;height:30px}
+.post-body{margin:0;font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-edit{display:flex;flex-direction:column;gap:8px}
+.post-edit .post-composer-bar{justify-content:flex-end}
+.post-image img{display:block;width:100%;max-height:480px;object-fit:contain;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
+.feed-more{align-self:center}
+@media(max-width:560px){.post-composer-bar .post-hint{flex-basis:100%;order:3}.post-composer-bar .btn[type=submit]{margin-left:auto}}
+
+/* [Sprint 5 · M7] Vote on a post (US-52): up/down arrows and the score */
+.post-foot{display:flex;align-items:center;gap:10px;padding-top:2px}
+.post-votes-wrap{display:flex;flex-direction:column;gap:6px;min-width:0}
+.post-votes{display:inline-flex;align-items:center;gap:2px;align-self:flex-start;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--panel2)}
+.vote-btn{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+.vote-btn:hover{background:var(--soft);color:var(--text)}
+.vote-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.vote-btn.up.on{color:var(--green);background:color-mix(in srgb,var(--green) 16%,transparent)}
+.vote-btn.down.on{color:var(--danger);background:color-mix(in srgb,var(--danger) 16%,transparent)}
+.vote-btn.on svg{fill:currentColor}
+.vote-score{min-width:28px;text-align:center;font:700 12px Manrope;font-variant-numeric:tabular-nums;color:var(--text)}
+.vote-score.positive{color:var(--green)}
+.vote-score.negative{color:var(--danger)}
+.post-votes[aria-busy=true]{opacity:.85}
+.vote-error{font-size:10px}
