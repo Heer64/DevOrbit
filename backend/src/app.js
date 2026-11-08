@@ -24,6 +24,7 @@ import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US
 import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
 import publicProjectRoutes from './routes/publicProjects.js'; // [Sprint 5 · M1] US-45 public Discover (no login)
 import { portfolioRoutes, publicPortfolioRoutes } from './routes/portfolio.js'; // [Sprint 5 · M5] US-49 portfolio
+import postRoutes from './routes/posts.js'; // [Sprint 5 · M6] US-50, US-51 public posts
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 
@@ -141,6 +142,7 @@ export function createApp() {
   app.use('/api/public/projects', publicProjectRoutes); // [Sprint 5 · M1] US-45 Discover: no login, Public projects only
   app.use('/api/portfolio', portfolioRoutes); // [Sprint 5 · M5] US-49 my portfolio (login)
   app.use('/api/public/portfolio', publicPortfolioRoutes); // [Sprint 5 · M5] US-49 shared portfolio link (no login, read-only)
+  app.use('/api/posts', postRoutes); // [Sprint 5 · M6] US-50/US-51 public posts (login; only /:postId/image is open)
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });

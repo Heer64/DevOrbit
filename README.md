@@ -807,3 +807,44 @@ Both are on by default. They are saved with `PATCH /api/profile/me`. A value tha
 **Files:** `backend/src/lib/userProfileRules.js`, `backend/src/lib/userProfile.js`, `backend/src/routes/profile.js` (new route + privacy check); `frontend/src/pages/UserProfilePage.jsx`, `frontend/src/components/PrivacySettings.jsx`, `frontend/src/App.jsx` (route), `frontend/src/pages/ProfilePage.jsx` (privacy panel, preview link), `frontend/src/pages/DiscoverPage.jsx` (View profile button), `profileApi.user` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
 
 **Tests:** `backend/test/userProfile.test.js` (both stories' acceptance criteria, no leaks, login required, bad values refused), `backend/test/userProfileRules.test.js` (rules, no database), `frontend/src/pages/UserProfilePage.test.jsx`, `frontend/src/components/PrivacySettings.test.jsx`, `frontend/src/App.userProfile.test.jsx`, `frontend/src/pages/DiscoverPage.profileLink.test.jsx`.
+## Sprint 5 — M6: Create, edit and delete public posts (US-50, US-51, FR-23, NFR-16, NFR-26)
+
+A logged-in user can publish a public post that belongs to **no project**, and can edit or delete their own posts.
+
+**Where to find it:** sidebar → **Community feed** (`/feed`). Posts are listed newest first; Sprint 5 M8 switches the feed to the trending order (US-53) and M7 adds voting (US-52).
+
+**Rules (the same numbers are used by the server, the browser and the tests)**
+
+| Rule | Value | When broken |
+|---|---|---|
+| Text | required, 1–500 characters after trimming (line breaks kept) | 400 with the reason |
+| Image | optional, **one** JPEG, PNG or WebP image, decided by the file's real bytes (not its name or Content-Type) | 400 "Only JPEG, PNG or WebP images…" |
+| Image size | at most **5 MB** | 413 "Images must be 5 MB or smaller." (nothing is stored) |
+| Rate limit | at most **10 posts per user in any rolling hour** | 429 "You can create up to 10 posts per hour. Please try again in N minutes." + `Retry-After` |
+| Edit / delete | the **author only** | 403 "You can only edit or delete your own posts." |
+
+- Refused posts do not use up the hourly limit. Deleting a post does **not** give the slot back (so delete-and-repost cannot flood the feed). Edits do not count.
+- An edited post shows **"edited"**. Saving the same text again is not an edit.
+- Delete asks for confirmation in the app; the post and its image are removed, so it leaves every feed and its votes no longer count.
+- Images are stored in MongoDB GridFS (bucket `postImages`), like project files, so they survive a redeploy. They are served with their checked type, `nosniff` and a sandbox CSP.
+- Post text is shown as plain text, so HTML in a post is displayed, never run.
+
+**API** (login needed except for the image)
+
+| Call | Who | Answer |
+|---|---|---|
+| `GET /api/posts?limit=&before=&author=` | logged in | `{ posts, nextBefore }` newest first, 20 per page (max 50) |
+| `GET /api/posts/:postId` | logged in | `{ post }` |
+| `POST /api/posts` | logged in | multipart `text` + optional `image`, or JSON `{ text }` → 201 `{ post, message: "Your post is published." }` |
+| `PATCH /api/posts/:postId` | author | JSON `{ text }` → `{ post, message }` with `edited: true` |
+| `DELETE /api/posts/:postId` | author | `{ postId, message }` |
+| `GET /api/posts/:postId/image` | anyone | the image bytes (404 once the post is deleted) |
+
+Each post: `_id, author { _id, name, username, avatarUrl }, text, imageUrl, image { contentType, size }, edited, editedAt, createdAt, updatedAt, upvotes, downvotes, score, isMine`.
+
+**For M7 (US-52 voting):** `Post` already has `upvotes`, `downvotes` and `score` (all 0). Keep `score = upvotes − downvotes`. If votes get their own collection, delete a post's votes in `DELETE /api/posts/:postId` (marked in `backend/src/routes/posts.js`). Add the vote buttons to `frontend/src/components/PostCard.jsx`.
+**For M8 (US-53 trending, US-54 total vote score):** add the trending order to `GET /api/posts` (or a new `/api/posts/trending`); a user's total vote score is the sum of `score` over `Post.find({ author })`.
+
+**Files:** `backend/src/lib/postRules.js`, `backend/src/lib/postImages.js`, `backend/src/models/Post.js`, `backend/src/models/PostCreateLog.js`, `backend/src/routes/posts.js`, `backend/src/app.js` (1 route); `frontend/src/posts.js`, `frontend/src/components/PostComposer.jsx`, `frontend/src/components/PostCard.jsx`, `frontend/src/pages/FeedPage.jsx`, `frontend/src/App.jsx` (route), `frontend/src/components/AppShell.jsx` (sidebar link), `postApi` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
+
+**Tests:** `backend/test/posts.test.js` (all acceptance criteria of US-50 and US-51, 5 MB edge, fake image types, concurrent posting, pages), `backend/test/postRules.test.js` (rules, no database), `frontend/src/components/PostComposer.test.jsx`, `frontend/src/components/PostCard.test.jsx`, `frontend/src/pages/FeedPage.test.jsx`.
