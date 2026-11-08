@@ -9,7 +9,8 @@ import DiscoverPage from './pages/DiscoverPage';
 import ProjectPage from './pages/ProjectPage';
 import PublicShell from './components/PublicShell'; // [Sprint 5 · M1] US-45
 import PortfolioPage from './pages/PortfolioPage'; // [Sprint 5 · M5] US-49
-import UserProfilePage from './pages/UserProfilePage'; // [Sprint 5 · M3] US-06import PublicProjectPage from './pages/PublicProjectPage'; // [Sprint 5 · M2] US-46
+import UserProfilePage from './pages/UserProfilePage'; // [Sprint 5 · M3] US-06
+import PublicProjectPage from './pages/PublicProjectPage'; // [Sprint 5 · M2] US-46
 import FeedPage from './pages/FeedPage'; // [Sprint 5 · M6] US-50, US-51
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
