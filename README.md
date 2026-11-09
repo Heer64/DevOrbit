@@ -891,3 +891,33 @@ Deleting a post (US-51) also removes its votes.
 **Files:** `backend/src/lib/voteRules.js`, `backend/src/lib/voteEngine.js`, `backend/src/lib/postVotes.js`, `backend/src/models/PostVote.js`, `backend/src/models/PostVoteLog.js`, `backend/src/routes/postVotes.js`, `backend/src/app.js` (1 route), `backend/src/routes/posts.js` (`myVote` on posts, votes removed on delete); `frontend/src/votes.js`, `frontend/src/components/PostVotes.jsx`, `frontend/src/components/PostCard.jsx` (vote bar), `postApi.vote` / `postApi.unvote` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
 
 **Tests:** `backend/test/postVotes.test.js` (all three acceptance criteria against MongoDB: a first vote moves the score by one, a repeated vote is counted once, many users at the same moment; also change, retract, `myVote`, bad values, deleted posts, the 30-per-minute limit and bursts), `backend/test/voteEngine.test.js` (the race logic without a database: thousands of interleaved votes in random orders), `backend/test/voteRules.test.js` (rules), `frontend/src/components/PostVotes.test.jsx`.
+
+## Sprint 5 — M8: Trending feed, follow users, total vote score (US-53, US-54, FR-25, FR-26, NFR-1a, NFR-15)
+
+**Trending feed (US-53).** The Community feed (`/feed`) opens on **Trending**; **Latest** is M6's newest-first list, unchanged.
+
+- `trendingScore = (upvotes − downvotes) / (ageHours + 2)^1.5`, highest first; equal scores → the **newer** post first (`createdAt`, then `_id`). The votes are M7's counters on `Post` (US-52); M8 only reads them.
+- The score depends on the clock, so it is stored on each post (`Post.trendingScore`, index `{ trendingScore: -1, createdAt: -1, _id: -1 }`) and recalculated by `lib/trending.js`: once at server start, **every 4 minutes**, and by the feed itself first when the last run is **5 minutes** old or missing (NFR-15). Concurrent requests share one run; a failed run never breaks the feed.
+- Votes cast after the last run show on the post straight away (its score), and move it in the ranking at the next recalculation (US-53 AC2).
+- Speed (NFR-1a): one indexed, limited query per page + one author populate + one "my votes" query. The API test loads the first page for 100 users at once over 2,000 posts in under 3 s.
+
+| Call | Who | Response |
+|---|---|---|
+| `GET /api/posts/trending?limit=1..50&cursor=` | logged in | `{ posts: [post + myVote + trendingScore], nextCursor, rankedAt, maxRankAgeSeconds: 300, recalculatedEverySeconds: 240 }`; 400 bad cursor |
+
+**Follow users and see public counts (US-54).** Other people's profiles (`/people/:username`) get a **Follow / Unfollow** button. The profile shows the real follower count and the **total vote score**: the sum of the net scores (upvotes − downvotes) of all the user's posts. It is never "likes" (corrected FR-26, NFR-27; the older US-54 story text said "total likes").
+
+| Call | Who | Response |
+|---|---|---|
+| `PUT /api/profile/users/:username/follow` | logged in | `{ following: true, followerCount, changed, message }`; 400 `self_follow`, 404 unknown user |
+| `DELETE /api/profile/users/:username/follow` | logged in | `{ following: false, followerCount, changed, message }` |
+| `GET /api/profile/users/:username` (M3) | logged in | now with the real `followerCount` and `publicScore` (= total vote score), plus `isFollowing` |
+
+- One `Follow` row per pair, unique index `{ follower, following }`. Following is an atomic upsert, so repeating it or sending it twice at once never counts twice (`changed: false`). Unfollowing twice is harmless. You cannot follow yourself.
+- Privacy (M3): anyone logged in can open a profile by its link, so they can follow it; "appear in collaborator search" only affects search. Followers are counted, never listed, and no user IDs or emails are sent.
+- **From a post to a profile:** on every post card (Trending and Latest) the author's photo, name and @username open `/people/:username`, where they can be followed (`PostCard.jsx`). A deleted author stays plain text.
+- The vote buttons show 👍 (upvote) and 👎 (downvote) instead of arrows (`PostVotes.jsx`). Behaviour and the names "Upvote" / "Downvote" are unchanged; it is still a **vote score**, never "likes".
+
+**Files:** `backend/src/lib/trendingRules.js`, `lib/trendingRanker.js`, `lib/trending.js`, `routes/trending.js`, `models/Follow.js`, `lib/followRules.js`, `lib/follows.js`, `routes/follows.js`; integration edits in `models/Post.js` (`trendingScore` + index), `lib/userProfile.js` (real counts, `isFollowing`), `app.js`, `server.js`, `seed/seedData.js` (removes seed users' follows). Frontend: `components/TrendingFeed.jsx`, `components/FollowButton.jsx`, the author links in `components/PostCard.jsx` (M6), the 👍/👎 symbols in `components/PostVotes.jsx` (M7), the tabs in `pages/FeedPage.jsx`, the button and "Total vote score" in `pages/UserProfilePage.jsx`, `postApi.trending`, `profileApi.follow` / `unfollow`.
+
+**Tests:** `backend/test/trendingRules.test.js`, `trendingRanker.test.js`, `followRules.test.js` (no database), `trending.test.js`, `follows.test.js` (API + MongoDB), `frontend/src/components/TrendingFeed.test.jsx`, `frontend/src/pages/UserProfilePage.follow.test.jsx`, `frontend/src/components/PostCard.profileLink.test.jsx`.

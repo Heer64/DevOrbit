@@ -50,6 +50,9 @@ const postSchema = new mongoose.Schema(
     upvotes: { type: Number, default: 0, min: 0 },
     downvotes: { type: Number, default: 0, min: 0 },
     score: { type: Number, default: 0 },
+    // [Sprint 5 · M8] US-53: score / (ageHours + 2)^1.5, written only by lib/trending.js at least every
+    // 5 minutes (FR-25, NFR-15). A new post starts at 0, which is its true value (no votes yet).
+    trendingScore: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
@@ -57,5 +60,7 @@ const postSchema = new mongoose.Schema(
 // Newest-first feed, and "posts by this user" (portfolio/profile, M8's total vote score).
 postSchema.index({ createdAt: -1, _id: -1 });
 postSchema.index({ author: 1, createdAt: -1 });
+// [Sprint 5 · M8] US-53: the trending feed reads posts in this exact order (newer post first on ties).
+postSchema.index({ trendingScore: -1, createdAt: -1, _id: -1 });
 
 export default mongoose.model('Post', postSchema);

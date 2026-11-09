@@ -4,6 +4,7 @@ import { Award, Lock, Users } from 'lucide-react';
 import { assetUrl, portfolioApi, profileApi } from '../api';
 import { Avatar, initialsOf } from '../components/ui';
 import PortfolioView from '../components/PortfolioView';
+import FollowButton from '../components/FollowButton'; // [Sprint 5 · M8] US-54
 
 /*
  * [Sprint 5 · M3] US-06 View another user's profile, read-only, at /people/:username (login required).
@@ -11,6 +12,10 @@ import PortfolioView from '../components/PortfolioView';
  * shown, and the API never sends hidden fields (AC2). The portfolio (Sprint 5 · M5) is shown when it
  * is public; when its owner turned it off (US-07) the page says "This portfolio is not available."
  * Contract: GET /api/profile/users/:username (backend/src/routes/profile.js).
+ *
+ * [Sprint 5 · M8] US-54: a Follow / Unfollow button on other people's profiles (not your own). The
+ * follower count updates from the server's answer. "Score" is the total vote score: the sum of the
+ * net scores (upvotes - downvotes) of the user's posts, never "likes" (FR-26, NFR-27).
  */
 
 export const PORTFOLIO_NOT_AVAILABLE = 'This portfolio is not available.';
@@ -19,6 +24,7 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
   const { username } = useParams();
   const [state, setState] = useState({ loading: true, profile: null, error: '' });
   const [portfolio, setPortfolio] = useState({ loading: false, data: null, error: '' });
+  const [social, setSocial] = useState({ followerCount: 0, isFollowing: false }); // [Sprint 5 · M8]
 
   useEffect(() => {
     let active = true;
@@ -29,6 +35,7 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
         if (!active) return;
         const profile = result.profile;
         setState({ loading: false, profile, error: '' });
+        setSocial({ followerCount: profile?.followerCount ?? 0, isFollowing: Boolean(profile?.isFollowing) }); // [Sprint 5 · M8]
         if (!profile?.portfolio?.available) return;
         setPortfolio({ loading: true, data: null, error: '' });
         portfolios.shared(profile.username)
@@ -72,10 +79,24 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
             <p>@{profile.username}{profile.headline ? ` · ${profile.headline}` : ''}</p>
             <p className="bio">{profile.bio || `${profile.name} has not added a bio yet.`}</p>
             {profile.isMe && <p className="tiny-note">This is how other people see your profile. <Link to="/profile">Edit your profile</Link></p>}
+            {/* [Sprint 5 · M8] US-54 */}
+            {!profile.isMe && (
+              <FollowButton
+                username={profile.username}
+                name={profile.name}
+                following={social.isFollowing}
+                api={api}
+                onChange={(next) => setSocial((current) => ({
+                  isFollowing: next.following,
+                  followerCount: Number.isFinite(next.followerCount) ? next.followerCount : current.followerCount,
+                }))}
+              />
+            )}
           </div>
           <div className="profile-stats" aria-label="Public stats">
-            <b>{profile.followerCount}<small><Users size={9} /> {profile.followerCount === 1 ? 'Follower' : 'Followers'}</small></b>
-            <b>{profile.publicScore}<small><Award size={9} /> Score</small></b>
+            <b>{social.followerCount}<small><Users size={9} /> {social.followerCount === 1 ? 'Follower' : 'Followers'}</small></b>
+            {/* [Sprint 5 · M8] FR-26: total vote score = sum of net post scores */}
+            <b title="Sum of the net vote scores (upvotes minus downvotes) of this user's posts">{profile.publicScore}<small><Award size={9} /> Total vote score</small></b>
           </div>
         </div>
       </section>

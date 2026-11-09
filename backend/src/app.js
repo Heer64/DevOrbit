@@ -26,6 +26,8 @@ import publicProjectRoutes from './routes/publicProjects.js'; // [Sprint 5 · M1
 import { portfolioRoutes, publicPortfolioRoutes } from './routes/portfolio.js'; // [Sprint 5 · M5] US-49 portfolio
 import postRoutes from './routes/posts.js'; // [Sprint 5 · M6] US-50, US-51 public posts
 import postVoteRoutes from './routes/postVotes.js'; // [Sprint 5 · M7] US-52 vote on a post
+import trendingRoutes from './routes/trending.js'; // [Sprint 5 · M8] US-53 trending feed
+import followRoutes from './routes/follows.js'; // [Sprint 5 · M8] US-54 follow / unfollow
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 
@@ -121,6 +123,7 @@ export function createApp() {
   app.use('/api/projects/:id/milestones', milestoneRoutes);
   app.use('/api/projects/:id/activity', projectActivityRoutes);
   app.use('/api/activity', myActivityRoutes);
+  app.use('/api/profile/users/:username/follow', followRoutes); // [Sprint 5 · M8] US-54 (before /api/profile)
   app.use('/api/profile', profileRoutes);
   // [Sprint 3] US-17. Mounted before the channel routes so only thread URLs reach it.
   app.use('/api/projects/:id/channels/:channelId/messages/:messageId/replies', threadRoutes);
@@ -144,6 +147,7 @@ export function createApp() {
   app.use('/api/portfolio', portfolioRoutes); // [Sprint 5 · M5] US-49 my portfolio (login)
   app.use('/api/public/portfolio', publicPortfolioRoutes); // [Sprint 5 · M5] US-49 shared portfolio link (no login, read-only)
   // [Sprint 5 · M7] US-52. Mounted before the post routes so only vote URLs reach it.
+  app.use('/api/posts/trending', trendingRoutes); // [Sprint 5 · M8] US-53 (before /api/posts, so "trending" is not a post ID)
   app.use('/api/posts/:postId/vote', postVoteRoutes);
   app.use('/api/posts', postRoutes); // [Sprint 5 · M6] US-50/US-51 public posts (login; only /:postId/image is open)
 

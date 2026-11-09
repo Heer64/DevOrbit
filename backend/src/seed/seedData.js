@@ -7,6 +7,7 @@ import Milestone from '../models/Milestone.js';
 import Channel from '../models/Channel.js';
 import Message from '../models/Message.js';
 import Activity from '../models/Activity.js';
+import Follow from '../models/Follow.js'; // [Sprint 5 · M8] US-54
 import { ensureDefaultChannel } from '../lib/channels.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { domainTags } from '../lib/projectSetup.js';
@@ -184,6 +185,8 @@ export async function removeSeedData() {
   await Project.deleteMany({ _id: { $in: projectIds } });
   // Seed users may also have joined other people's projects while someone tested: take them out.
   await Project.updateMany({ 'members.user': { $in: userIds } }, { $pull: { members: { user: { $in: userIds } } } });
+  // [Sprint 5 · M8] US-54: follows to or from removed seed accounts would inflate follower counts.
+  await Follow.deleteMany({ $or: [{ follower: { $in: userIds } }, { following: { $in: userIds } }] });
   await User.deleteMany({ _id: { $in: userIds } });
   return { users: users.length, projects: projectIds.length };
 }

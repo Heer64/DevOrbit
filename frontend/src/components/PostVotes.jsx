@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowBigDown, ArrowBigUp } from 'lucide-react';
 import { postApi } from '../api';
 import { VOTE_DOWN, VOTE_NONE, VOTE_UP, nextVote, voteErrorMessage, voteSummary, withVote } from '../votes';
 
@@ -15,6 +14,10 @@ import { VOTE_DOWN, VOTE_NONE, VOTE_UP, nextVote, voteErrorMessage, voteSummary,
  *
  * Props: post (API shape with upvotes, downvotes, score, myVote), api (postApi; tests pass a fake),
  *        onVoted(post) gets the post as the server returned it.
+ *
+ * [Sprint 5 · M8] The buttons show 👍 (upvote) and 👎 (downvote) instead of arrows (team request).
+ * Only the symbol changed: names, behaviour and the score are as before, and the screen-reader
+ * names stay "Upvote" / "Downvote" (never "like", NFR-27).
  */
 export default function PostVotes({ post, api = postApi, onVoted }) {
   const [optimistic, setOptimistic] = useState(null);
@@ -61,7 +64,7 @@ export default function PostVotes({ post, api = postApi, onVoted }) {
           title={upOn ? 'Remove upvote' : 'Upvote'}
           onClick={() => click(VOTE_UP)}
         >
-          <ArrowBigUp size={17} />
+          <span className="vote-emoji" aria-hidden="true">👍</span>
         </button>
         <span className={`vote-score ${tone}`} title={voteSummary(shown)} aria-live="polite" aria-label={`Score ${shown.score}`}>
           {shown.score}
@@ -74,7 +77,7 @@ export default function PostVotes({ post, api = postApi, onVoted }) {
           title={downOn ? 'Remove downvote' : 'Downvote'}
           onClick={() => click(VOTE_DOWN)}
         >
-          <ArrowBigDown size={17} />
+          <span className="vote-emoji" aria-hidden="true">👎</span>
         </button>
       </div>
       {error && <p className="form-error vote-error" role="alert">{error}</p>}
