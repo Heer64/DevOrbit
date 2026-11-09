@@ -163,7 +163,8 @@ test('US-13 someone removed from a Public project keeps the public read-only vie
   const page = await as(leo).get(`/api/projects/${id}`);
   assert.equal(page.status, 200);
   assert.equal(page.body.membershipRole, null, 'now a visitor');
-  assert.equal((await as(leo).get(`/api/projects/${id}/tasks`)).status, 200, 'public tasks are readable by anyone');
+  // [Sprint 5 · M2] US-46 AC2: tasks are members-only, even on a Public project.
+  assert.equal((await as(leo).get(`/api/projects/${id}/tasks`)).status, 403, 'tasks are members-only');
   assert.equal((await as(leo).post(`/api/projects/${id}/tasks`).send({ title: 'No' })).status, 403);
   assert.equal((await as(leo).get(`/api/projects/${id}/channels`)).status, 403);
   assert.equal((await as(leo).get(`/api/projects/${id}/activity`)).status, 403);
@@ -247,7 +248,8 @@ test('A removed member stops receiving live chat and private task updates; other
   assert.equal((await join(leoSocket, id)).ok, false);
 });
 
-test('Someone who leaves a Public project stops getting chat but can still watch the public board', async () => {
+// [Sprint 5 · M2] US-46 AC2: was "can still watch the public board"; tasks are members-only now.
+test('Someone who leaves a Public project stops getting chat and task updates', async () => {
   const [owner, nia] = await Promise.all(['Vik Owner', 'Noa Contributor'].map((n) => signup(app, n)));
   const id = await newProject(owner, 'Live Public', 'Public', [[nia, 'Contributor']]);
   const channelId = await generalChannel(owner, id);
@@ -264,9 +266,12 @@ test('Someone who leaves a Public project stops getting chat but can still watch
   await as(owner).post(`/api/projects/${id}/channels/${channelId}/messages`).send({ body: 'Members only' });
   await missesMessage;
 
-  const seesTask = nextEvent(niaSocket, 'task:created');
+  const missesTask = noEvent(niaSocket, 'task:created');
   await as(owner).post(`/api/projects/${id}/tasks`).send({ title: 'Public task' });
-  assert.equal((await seesTask).task.title, 'Public task');
+  await missesTask;
+
+  // And she cannot simply join the room again.
+  assert.equal((await join(niaSocket, id)).ok, false);
 });
 
 test('A refused removal sends no access-removed event', async () => {

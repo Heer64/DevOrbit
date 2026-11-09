@@ -21,6 +21,7 @@ import ProjectHealth from '../components/ProjectHealth'; // [Sprint 4 · M8] US-
 import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompletion'; // [Sprint 4 · M8] US-15
 import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
 import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
+import { publicProjectPath } from '../lib/publicLinks'; // [Sprint 5 · M2] US-46
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -83,10 +84,20 @@ export default function ProjectPage() {
       return () => { active = false; };
     }
     projectApi.get(id)
-      .then((result) => { if (active) { setLiveProject(toWorkspaceProject(result.project || result, user)); setMembershipRole(result.membershipRole || null); setTeam(null); setProjectLoadError(''); } })
+      .then((result) => {
+        if (!active) return;
+        const loaded = result.project || result;
+        // [Sprint 5 · M2] US-46: non-members of a Public project get its public read-only page instead of
+        // the workspace (AC2: no channels, messages, tasks or files). That page also has "Request to join".
+        if (!result.membershipRole && loaded?.visibility === 'Public') {
+          navigate(publicProjectPath(id), { replace: true });
+          return;
+        }
+        setLiveProject(toWorkspaceProject(loaded, user)); setMembershipRole(result.membershipRole || null); setTeam(null); setProjectLoadError('');
+      })
       .catch((error) => { if (active) { setLiveProject(null); setMembershipRole(null); setProjectLoadError(error.message || 'Could not load project details.'); } });
     return () => { active = false; };
-  }, [id, user, accessVersion]);
+  }, [id, user, accessVersion, navigate]);
 
   const project = liveProject || projects[id] || (localProject
     ? { ...localProject, domain: localProject.domain || 'Developer tools', repo: localProject.repo || 'your-team/new-repo', members: ['AM'], health: 'Just getting started', goal: 'Bring your project idea to life.' }
@@ -237,7 +248,11 @@ export default function ProjectPage() {
             <div className="task-empty"><Circle size={20} /><p>The dashboard is available in real projects. Sign in and open one of your projects to see milestone progress and upcoming deadlines.</p></div>
           )}
           {/* Kept mounted (just hidden) so tasks are not re-fetched on every tab switch. */}
-          <div hidden={activeTab !== 'Tasks'}>
+          {/* [Sprint 5 · M2] US-46 AC2: tasks are for members only (non-members of a Public project are sent to its public page). */}
+          {isLive && liveProject && !membershipRole && activeTab === 'Tasks' && (
+            <div className="task-empty"><Circle size={20} /><p>Tasks are visible to project members only.</p></div>
+          )}
+          {(!isLive || membershipRole) && <div hidden={activeTab !== 'Tasks'}>
             <TasksPanel
               projectId={id}
               myRole={taskRole}
@@ -252,7 +267,7 @@ export default function ProjectPage() {
               openTaskId={activeTab === 'Tasks' ? openTaskId : ''}
               onCloseTask={() => { if (openTaskId) setActiveTab('Tasks'); }}
             />
-          </div>
+          </div>}
           {/* [Sprint 2 final] Project channels (US-16). Members only. */}
           {activeTab === 'Chat' && isLive && membershipRole && (
             <ChatPanel

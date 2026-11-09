@@ -807,6 +807,32 @@ Both are on by default. They are saved with `PATCH /api/profile/me`. A value tha
 **Files:** `backend/src/lib/userProfileRules.js`, `backend/src/lib/userProfile.js`, `backend/src/routes/profile.js` (new route + privacy check); `frontend/src/pages/UserProfilePage.jsx`, `frontend/src/components/PrivacySettings.jsx`, `frontend/src/App.jsx` (route), `frontend/src/pages/ProfilePage.jsx` (privacy panel, preview link), `frontend/src/pages/DiscoverPage.jsx` (View profile button), `profileApi.user` in `frontend/src/api.js`, styles in `frontend/src/styles.css`.
 
 **Tests:** `backend/test/userProfile.test.js` (both stories' acceptance criteria, no leaks, login required, bad values refused), `backend/test/userProfileRules.test.js` (rules, no database), `frontend/src/pages/UserProfilePage.test.jsx`, `frontend/src/components/PrivacySettings.test.jsx`, `frontend/src/App.userProfile.test.jsx`, `frontend/src/pages/DiscoverPage.profileLink.test.jsx`.
+
+## Sprint 5 — M2: Public project page and Request to join (US-46, US-47, FR-20)
+
+**Where to find it**
+- **Discover → View project** on any real project opens `/discover/<projectId>`. It opens for anyone: logged-out visitors get the public frame (Sprint 5 · M1), logged-in users the normal app.
+- A logged-in non-member who opens `/project/<id>` of a Public project is sent to `/discover/<id>` instead of the workspace.
+
+**US-46 View a public project page**
+- Shows only the project's **name, description, domain, status and member names** (AC1). Nothing on the page can be edited, and the public API has no write routes.
+- **Channels, messages, tasks and files are not shown to non-members (AC2).** The public API never sends them, and the member APIs refuse non-members with 403, also on a Public project. Tasks were readable by any logged-in non-member of a Public project before; `GET /api/projects/:id/tasks` and `/tasks/:taskId` are now members-only ("Tasks are visible to project members only."), and only members can join a project's live room (Socket.IO `project:join`), so non-members get no live task events either.
+- A Private project answers exactly like a missing one (404 "This project is not public or does not exist."), so a visitor cannot tell it exists. The page then says **"This project is not available."**
+
+**US-47 Request to join (on the public page)**
+- **Not logged in:** "Request to join" opens the login page, then comes back to the project page (AC3).
+- **Logged in, not a member:** the Sprint 3 join request card: one pending request with an optional message (AC1); a second request is refused with "You already have a pending request for this project." (AC2). The Owner/Admin approves or rejects it in the workspace (Sprint 3 · M2).
+- **Member:** an **Open workspace** link instead.
+
+**API**
+
+| Call | Who | Answer |
+|---|---|---|
+| `GET /api/public/projects/:projectId` | anyone (no login) | `{ project: { _id, name, description, domain, status, memberNames } }`; 404 for Private or missing; 400 for an invalid ID |
+
+**Files:** `backend/src/lib/publicProjectPage.js` (new, rules), `backend/src/routes/publicProjects.js` (new route), `backend/src/routes/tasks.js` (task reads members-only), `backend/src/lib/realtime.js` (live room members-only); `frontend/src/pages/PublicProjectPage.jsx` (new), `frontend/src/App.jsx` (route), `frontend/src/lib/publicLinks.js` (Discover cards → `/discover/:id`), `frontend/src/pages/ProjectPage.jsx` (non-members sent to the public page), `frontend/src/components/JoinRequestCard.jsx` (optional `onStatus`), `publicApi.project` in `frontend/src/api.js`.
+
+**Tests:** `backend/test/publicProjectPage.test.js` (US-46 and US-47 acceptance criteria end to end), `backend/test/publicProjectPageRules.test.js` (rules, no database), `frontend/src/pages/PublicProjectPage.test.jsx`, `frontend/src/lib/publicLinks.test.js`, new cases in `frontend/src/App.discover.test.jsx` and `frontend/src/pages/DiscoverPage.test.jsx`, `e2e/tests/public-project-page.spec.js`. Existing tests that expected non-members to read a Public project's tasks or join its live room were updated to the members-only rule (`channels`, `joinRequests`, `removeLeave`, `taskComments`, `threads`).
 ## Sprint 5 — M6: Create, edit and delete public posts (US-50, US-51, FR-23, NFR-16, NFR-26)
 
 A logged-in user can publish a public post that belongs to **no project**, and can edit or delete their own posts.

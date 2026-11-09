@@ -10,6 +10,7 @@ import ProjectPage from './pages/ProjectPage';
 import PublicShell from './components/PublicShell'; // [Sprint 5 · M1] US-45
 import PortfolioPage from './pages/PortfolioPage'; // [Sprint 5 · M5] US-49
 import UserProfilePage from './pages/UserProfilePage'; // [Sprint 5 · M3] US-06
+import PublicProjectPage from './pages/PublicProjectPage'; // [Sprint 5 · M2] US-46
 import FeedPage from './pages/FeedPage'; // [Sprint 5 · M6] US-50, US-51
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
@@ -52,6 +53,8 @@ export default function App() {
       {/* [Sprint 5 · M1] US-45: Discover works logged out (PublicShell) and logged in (AppShell). */}
       <Route path="/discover" element={<PublicOrAppShell />}>
         <Route index element={<DiscoverPage />} />
+        {/* [Sprint 5 · M2] US-46: a Public project's read-only page, for visitors and logged-in users. */}
+        <Route path=":projectId" element={<PublicProjectPage />} />
       </Route>
       {/* [Sprint 5 · M5] US-49 AC3: a shared portfolio link opens for anyone, read-only. */}
       <Route path="/portfolio/:username" element={<PublicOrAppShell />}>

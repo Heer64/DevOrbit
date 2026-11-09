@@ -20,7 +20,9 @@ export function joinState({ joinRequest, canRequestAgainAt } = {}, now = Date.no
   return 'form';
 }
 
-export default function JoinRequestCard({ projectId, api = joinRequestApi }) {
+// [Sprint 5 · M2] US-46/US-47: onStatus (optional) receives the GET /me answer, so the public project
+// page can show "Open workspace" to members (this card renders nothing for them).
+export default function JoinRequestCard({ projectId, api = joinRequestApi, onStatus }) {
   const [status, setStatus] = useState(null); // GET /me answer
   const [loadError, setLoadError] = useState('');
   const [message, setMessage] = useState('');
@@ -31,7 +33,7 @@ export default function JoinRequestCard({ projectId, api = joinRequestApi }) {
     let active = true;
     setStatus(null); setLoadError(''); setError('');
     api.mine(projectId)
-      .then((result) => { if (active) setStatus(result); })
+      .then((result) => { if (active) { setStatus(result); onStatus?.(result); } })
       .catch((e) => { if (active) setLoadError(e.message || 'Could not load your join request.'); });
     return () => { active = false; };
   }, [projectId, api]);
