@@ -671,6 +671,15 @@ textarea.field-input{resize:vertical;min-height:90px}
 .privacy-footer{display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
 .profile-preview-link{margin:0 0 15px;text-align:left}
 .user-profile .tiny-note{font-size:9px;color:var(--muted);margin:6px 0 0}.user-profile .tiny-note a{color:var(--accent)}
+/* [Sprint 5 · M4] US-48 Find a collaborator by skill: tag picker on Discover → People. */
+.skill-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;margin:0 0 14px}
+.skill-filter-box{flex:1;min-width:240px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--muted)}
+.skill-filter-box input{flex:1;min-width:160px;border:0;outline:0;background:transparent;color:var(--text);font-size:10px;padding:5px 2px}
+.skill-chip{display:inline-flex;align-items:center;gap:5px;font-size:9px;color:var(--accent);padding:5px 7px;border:1px solid var(--accent);border-radius:6px;background:var(--soft)}
+.skill-chip button{border:0;background:transparent;color:inherit;padding:0 1px;font-size:11px;line-height:1;cursor:pointer}
+.skill-filter .tiny-note{flex-basis:100%;margin:0;font-size:8px;color:var(--muted)}
+.person .skill-cloud span.matched{color:var(--accent);border-color:var(--accent);background:var(--soft);font-weight:700}
+.skill-match-count{font-size:8px !important;color:var(--accent) !important;margin:8px 0 0 !important;font-weight:700}
 
 /* [Sprint 5 · M6] Community feed: create, edit and delete public posts (US-50, US-51) */
 .feed-page{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}

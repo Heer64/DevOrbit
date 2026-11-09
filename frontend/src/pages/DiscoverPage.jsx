@@ -66,7 +66,40 @@ export function toDiscoverPerson(person = {}) {
     followers: null,
     bio: '',
     githubUrl: person.githubUrl || '',
+    matchedSkills: Array.isArray(person.matchedSkills) ? person.matchedSkills : [], // [Sprint 5 · M4] US-48
+    matchCount: Number(person.matchCount || 0), // [Sprint 5 · M4] US-48
   };
+}
+
+/*
+ * [Sprint 5 · M4] US-48 Find a collaborator by skill.
+ * On People, a signed-in user picks up to 10 skill tags; the server returns users with at least one
+ * of them (any case), most matching tags first (GET /api/profile/people?skills=). Opted-out users are
+ * never returned by the server.
+ */
+export const MAX_SKILL_TAGS = 10;
+export const MAX_SKILL_TAG_LENGTH = 40;
+
+// Adds the typed text (one tag, or several separated by commas) to the selected tags.
+// Empty tags, tags already chosen (any case) and anything past 10 tags are skipped; long tags are cut to 40.
+export function addSkillTags(current, text) {
+  const next = [...current];
+  for (const raw of String(text || '').split(',')) {
+    const tag = raw.trim().slice(0, MAX_SKILL_TAG_LENGTH);
+    if (!tag || next.length >= MAX_SKILL_TAGS) continue;
+    if (next.some((chosen) => chosen.toLowerCase() === tag.toLowerCase())) continue;
+    next.push(tag);
+  }
+  return next;
+}
+
+// The people list reloads when this text changes: the typed search alone, or the search plus tags.
+const SKILL_SEARCH_PREFIX = '\u0000skills:';
+export const peopleSearchKey = (q, skills = []) => (skills.length ? `${SKILL_SEARCH_PREFIX}${JSON.stringify({ q, skills })}` : q);
+export function loadPeopleSearch(key) {
+  if (!key.startsWith(SKILL_SEARCH_PREFIX)) return userApi.search(key);
+  const { q, skills } = JSON.parse(key.slice(SKILL_SEARCH_PREFIX.length));
+  return userApi.searchBySkills(skills, q);
 }
 
 // Waits until the user stops typing before the value changes.
@@ -108,7 +141,7 @@ function useDiscoverList(enabled, query, load, map) {
 
 const loadProjects = (q) => projectApi.discover(q);
 const mapProjects = (result) => (result.projects || []).map(toDiscoverProject);
-const loadPeople = (q) => userApi.search(q);
+const loadPeople = loadPeopleSearch; // [Sprint 5 · M4] US-48: was (q) => userApi.search(q); plain text still goes there
 const mapPeople = (result) => (result.people || []).map(toDiscoverPerson);
 
 // [Sprint 5 · M1] US-45 Browse and filter public projects (Actor: Visitor).
@@ -185,6 +218,8 @@ export default function DiscoverPage() {
   const [query, setQuery] = useState(params.get('q') || '');
   const [domain, setDomain] = useState(ALL_DOMAINS);
   const [followed, setFollowed] = useState([]);
+  const [skillTags, setSkillTags] = useState([]); // [Sprint 5 · M4] US-48
+  const [tagDraft, setTagDraft] = useState(''); // [Sprint 5 · M4] US-48
   const [saved, setSaved] = useState([]);
   // [Sprint 5 · M1] Public lists (visitors too) have no trending score, so they sort like real users' lists.
   const sortOptions = live || !user ? ['Recently active', 'Alphabetical'] : ['Trending', 'Alphabetical'];
@@ -221,7 +256,7 @@ export default function DiscoverPage() {
   const filtersApplied = Boolean(urlFilters.q || urlFilters.domain || urlFilters.tag || urlFilters.status);
   const clearFilters = () => { setQuery(''); setFilters({ q: '', domain: '', tag: '', status: '' }); };
   const pageCount = Math.max(1, Math.ceil(liveProjects.total / (liveProjects.pageSize || 24)));
-  const livePeople = useDiscoverList(live && tab === 'people', apiQuery, loadPeople, mapPeople);
+  const livePeople = useDiscoverList(live && tab === 'people', peopleSearchKey(apiQuery, skillTags), loadPeople, mapPeople); // [Sprint 5 · M4] + skill tags
   const active = tab === 'projects' ? liveProjects : livePeople;
 
   const allProjects = publicList ? liveProjects.items : sampleProjects; // [Sprint 5 · M1] was `live`
@@ -249,6 +284,20 @@ export default function DiscoverPage() {
     () => allPeople.filter((p) => textMatch(`${p.name} ${p.role} ${p.skills.join(' ')}`)),
     [allPeople, query, live]
   );
+
+  // [Sprint 5 · M4] US-48: Enter or a comma adds the typed tag; Backspace in an empty box removes the last one.
+  const commitTagDraft = () => { setSkillTags((old) => addSkillTags(old, tagDraft)); setTagDraft(''); };
+  const onTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitTagDraft(); }
+    else if (e.key === 'Backspace' && !tagDraft && skillTags.length) setSkillTags((old) => old.slice(0, -1));
+  };
+  const onTagChange = (value) => {
+    if (!value.includes(',')) return setTagDraft(value);
+    const parts = value.split(',');
+    setSkillTags((old) => addSkillTags(old, parts.slice(0, -1).join(',')));
+    return setTagDraft(parts.at(-1));
+  };
+  const removeSkillTag = (tag) => setSkillTags((old) => old.filter((chosen) => chosen !== tag));
 
   const toggle = (list, setList, id) => setList((old) => (old.includes(id) ? old.filter((x) => x !== id) : [...old, id]));
   const nextSort = () => setSort(sortOptions[(sortOptions.indexOf(sort) + 1) % sortOptions.length]);
@@ -388,6 +437,29 @@ export default function DiscoverPage() {
       {!showLoading && !showError && tab === 'people' && !visitor && (
         <>
           <div className="section-head"><div><h2>Meet your next collaborator <span>{filteredPeople.length}</span></h2><p>Find people by the things they know and the things they love to build.</p></div><span className="match-note"><Sparkles size={13} /> Skill-based discovery</span></div>
+          {/* [Sprint 5 · M4] US-48 Find a collaborator by skill: pick tags, most matching tags first. */}
+          {live && (
+            <div className="skill-filter panel" role="group" aria-label="Find people by skill tags">
+              <label className="skill-filter-box">
+                <Tag size={14} />
+                {skillTags.map((tag) => (
+                  <span className="skill-chip" key={tag}>{tag}<button type="button" onClick={() => removeSkillTag(tag)} aria-label={`Remove ${tag}`}>×</button></span>
+                ))}
+                <input
+                  value={tagDraft}
+                  onChange={(e) => onTagChange(e.target.value)}
+                  onKeyDown={onTagKeyDown}
+                  onBlur={() => tagDraft.trim() && commitTagDraft()}
+                  placeholder={skillTags.length >= MAX_SKILL_TAGS ? 'Up to 10 skill tags' : skillTags.length ? 'Add another skill tag' : 'Type a skill tag and press Enter, e.g. React'}
+                  disabled={skillTags.length >= MAX_SKILL_TAGS}
+                  maxLength={MAX_SKILL_TAG_LENGTH * MAX_SKILL_TAGS}
+                  aria-label="Add a skill tag"
+                />
+              </label>
+              {skillTags.length > 0 && <button type="button" className="link" onClick={() => setSkillTags([])}>Clear tags</button>}
+              {skillTags.length > 0 && <p className="tiny-note">Showing people with at least one of these tags, most matches first.</p>}
+            </div>
+          )}
           <div className="people-grid">
             {filteredPeople.map((p) => (
               <article className="panel person" key={p.id || p.handle}>
@@ -400,7 +472,8 @@ export default function DiscoverPage() {
                 <p className="role">{p.role}</p>
                 {p.bio && <p className="bio">{p.bio}</p>}
                 {p.location && <p className="place"><MapPin size={12} /> {p.location}</p>}
-                <div className="skill-cloud">{p.skills.length ? p.skills.map((s) => <span key={s}>{s}</span>) : <small className="muted">No skills listed yet.</small>}</div>
+                <div className="skill-cloud">{p.skills.length ? p.skills.map((s) => <span key={s} className={p.matchedSkills?.includes(s) ? 'matched' : undefined}>{s}</span>) : <small className="muted">No skills listed yet.</small>}</div>
+                {p.matchCount > 0 && <p className="skill-match-count">Matches {p.matchCount} skill tag{p.matchCount === 1 ? '' : 's'}</p>}{/* [Sprint 5 · M4] US-48 */}
                 <div className="person-foot">
                   <span><BriefcaseBusiness size={13} />{p.projects} project{p.projects === 1 ? '' : 's'}</span>
                   {p.followers !== null && <span><Users size={13} />{p.followers + (followed.includes(p.handle) ? 1 : 0)} followers</span>}
@@ -413,7 +486,8 @@ export default function DiscoverPage() {
               </article>
             ))}
           </div>
-          {filteredPeople.length === 0 && <EmptyPanel icon={Search} title="Nothing in this orbit yet" text={live && !query ? 'No one else has a discoverable profile yet.' : 'No people match that search yet.'} onReset={query ? () => setQuery('') : undefined} resetLabel="Clear search" />}
+          {filteredPeople.length === 0 && skillTags.length > 0 && <EmptyPanel icon={Tag} title="No collaborators with those skills yet" text="No one who appears in collaborator search has any of these skill tags." onReset={() => setSkillTags([])} resetLabel="Clear tags" />}{/* [Sprint 5 · M4] US-48 */}
+          {filteredPeople.length === 0 && !skillTags.length && <EmptyPanel icon={Search} title="Nothing in this orbit yet" text={live && !query ? 'No one else has a discoverable profile yet.' : 'No people match that search yet.'} onReset={query ? () => setQuery('') : undefined} resetLabel="Clear search" />}
         </>
       )}
 

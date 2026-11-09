@@ -553,6 +553,8 @@ export const invitationApi = {
 
 export const userApi = {
   search: (q = '') => api(`/profile/people?q=${encodeURIComponent(q)}`),
+  // [Sprint 5 · M4] US-48: users with at least one of the skill tags, most matching tags first.
+  searchBySkills: (skills = [], q = '') => api(`/profile/people?q=${encodeURIComponent(q)}&skills=${encodeURIComponent(skills.join(','))}`),
 };
 
 // Uploaded photos are stored by the API as "/uploads/avatars/<file>"; turn that into a full URL.
