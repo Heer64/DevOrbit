@@ -114,6 +114,7 @@ npm run test:e2e           # in the repository root: Playwright end-to-end tests
 - **Frontend:** hosted on Vercel
 - **Backend:** hosted on Render
 - **Database:** MongoDB Atlas
+- **Render environment:** set `TRUST_PROXY=1` on the API service (Render puts one proxy in front of it). Without it, every user shares one rate-limit bucket. See *Sprint 6 — M1* below.
 
 ---
 
@@ -947,3 +948,50 @@ Deleting a post (US-51) also removes its votes.
 **Files:** `backend/src/lib/trendingRules.js`, `lib/trendingRanker.js`, `lib/trending.js`, `routes/trending.js`, `models/Follow.js`, `lib/followRules.js`, `lib/follows.js`, `routes/follows.js`; integration edits in `models/Post.js` (`trendingScore` + index), `lib/userProfile.js` (real counts, `isFollowing`), `app.js`, `server.js`, `seed/seedData.js` (removes seed users' follows). Frontend: `components/TrendingFeed.jsx`, `components/FollowButton.jsx`, the author links in `components/PostCard.jsx` (M6), the 👍/👎 symbols in `components/PostVotes.jsx` (M7), the tabs in `pages/FeedPage.jsx`, the button and "Total vote score" in `pages/UserProfilePage.jsx`, `postApi.trending`, `profileApi.follow` / `unfollow`.
 
 **Tests:** `backend/test/trendingRules.test.js`, `trendingRanker.test.js`, `followRules.test.js` (no database), `trending.test.js`, `follows.test.js` (API + MongoDB), `frontend/src/components/TrendingFeed.test.jsx`, `frontend/src/pages/UserProfilePage.follow.test.jsx`, `frontend/src/components/PostCard.profileLink.test.jsx`.
+
+---
+
+## Sprint 6 — M1: fixes D1 (`trust proxy`) and D2 (issue title)
+
+Both defects come from the **Sprint 4 GitHub exit checks** (`Documents/Sprint4-Final-Testing/sprint4-exit-checks.pdf`, section *Observations and defects found*).
+
+### D1 (Medium): rate limits behind a proxy
+
+**Problem.** When a request comes through a proxy (Render's load balancer, or smee forwarding GitHub deliveries), the client's real address is in the `X-Forwarded-For` header. Express did not trust that header, so `req.ip` was the **proxy's** address: every user shared one rate-limit bucket (120 requests per minute for the whole site, 30 logins per 15 minutes for everyone), and `express-rate-limit` logged `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`.
+
+**Fix.** `createApp()` now calls `app.set('trust proxy', …)` before any middleware, with the value read from the new `TRUST_PROXY` environment variable by `backend/src/lib/trustProxy.js`:
+
+| `TRUST_PROXY` | Express setting | When |
+|---|---|---|
+| not set, `false`, `0` | `false` (default, unchanged behaviour) | local development, nothing in front of the API |
+| `1` … `10` | that many proxy hops | **Render: `1`** |
+| `loopback` | trust proxies on the same machine | local testing with smee-client / ngrok |
+| `10.0.0.0/8,127.0.0.1` | a list of IPs / subnets | a proxy with known addresses |
+
+`TRUST_PROXY=true` is **refused** (logged, falls back to `false`): it would trust any `X-Forwarded-For` value, so a client could pick a new fake IP on every request and never be rate limited. Anything else the parser does not understand also falls back to `false` with a warning in the log, so a typo never makes the API less safe.
+
+**Set it on Render:** *Dashboard → the API service → Environment → Add Environment Variable* → `TRUST_PROXY` = `1` → *Save Changes* (Render redeploys).
+
+### D2 (Low): "GitHub issue updated" on an issue that was opened
+
+**Problem.** The Activity title came only from the entry type, so every issue entry said *GitHub issue updated* (and every pull request *Pull request updated*), even when the sentence below said *opened issue #1*.
+
+**Fix.** `activityLook()` in `frontend/src/components/activityDisplay.js` now uses `meta.action`, which the backend already stores for every GitHub entry (`backend/src/lib/githubEvents.js`). No backend or database change, so existing entries get the right title too.
+
+| Type | `meta.action` → title |
+|---|---|
+| `github.issue` | opened → *GitHub issue opened*, edited → *GitHub issue updated*, closed → *GitHub issue closed*, reopened → *GitHub issue reopened* |
+| `github.pull_request` | opened → *Pull request opened*, edited / synchronize → *Pull request updated*, closed → *Pull request closed*, merged → *Pull request merged*, reopened → *Pull request reopened* |
+
+A missing or unknown action shows the neutral *GitHub issue* / *Pull request*, which is also what the Activity type filter lists. Pull requests had the same wording problem, so they were fixed the same way.
+
+### Tests
+
+- `backend/test/trustProxy.test.js`: the parser (off values, hop counts, `true` refused, lists, bad input), and the real app: with `TRUST_PROXY=1` or `loopback`, one client using up the 120-request limit does **not** block a second client behind the same proxy, and no `ERR_ERL_…` error is logged. Needs no MongoDB.
+- `frontend/src/components/GithubEvents.test.jsx`: titles by action, neutral fallback, and the exact exit-check case (an opened issue shows *GitHub issue opened*).
+
+```
+npm test --prefix backend -- test/trustProxy.test.js
+npm test --prefix frontend -- GithubEvents
+```
+
