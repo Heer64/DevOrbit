@@ -730,3 +730,26 @@ textarea.field-input{resize:vertical;min-height:90px}
 .vote-score.negative{color:var(--danger)}
 .post-votes[aria-busy=true]{opacity:.85}
 .vote-error{font-size:10px}
+
+/* ===== Sprint 5 · M8: trending feed (US-53) and follow (US-54) ===== */
+.feed-tabs{display:flex;gap:18px;border-bottom:1px solid var(--line)}
+.feed-tabs button{padding:0 1px 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:11px;white-space:nowrap;cursor:pointer}
+.feed-tabs button.active{color:var(--accent);border-color:var(--accent);font-weight:700}
+.feed-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.trending-note{margin:4px 0 0;font-size:9px;color:var(--muted)}
+.follow-control{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px}
+.follow-button{display:inline-flex;align-items:center;gap:6px}
+.follow-button:disabled{opacity:.65;cursor:default}
+.follow-notice{margin:0}
+.follow-error{margin:0}
+/* [Sprint 5 · M8] post author opens their profile; 👍 / 👎 vote symbols */
+.post-author-photo{display:inline-flex;flex:none;border-radius:999px;text-decoration:none}
+.post-author-photo:hover{opacity:.85}
+.post-author-name{color:inherit;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post-author-name:hover b,.post-author-name:focus-visible b{color:var(--accent);text-decoration:underline}
+.post-author-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.post-author-handle{color:inherit;text-decoration:none}
+.post-author-handle:hover{color:var(--accent);text-decoration:underline}
+.vote-emoji{font-size:16px;line-height:1;filter:grayscale(.45);opacity:.75;transition:transform .15s,filter .15s,opacity .15s}
+.vote-btn:hover .vote-emoji{filter:none;opacity:1}
+.vote-btn.on .vote-emoji{filter:none;opacity:1;transform:scale(1.15)}

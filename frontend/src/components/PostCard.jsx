@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link, useInRouterContext } from 'react-router-dom'; // [Sprint 5 · M8]
 import { Pencil, Trash2 } from 'lucide-react';
 import { assetUrl, postApi } from '../api';
 import { Avatar, initialsOf } from './ui';
@@ -15,9 +16,23 @@ import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTim
  *
  * [Sprint 5 · M7] US-52: the vote buttons and score (PostVotes) sit at the bottom of every card.
  *
+ * [Sprint 5 · M8] US-54: the author's photo, name and @username open their profile
+ * (/people/:username), where they can be followed. Plain text for a deleted author.
+ *
  * Props: post (API shape, see api.js postApi), api, onUpdated(post) (also called after a vote),
  *        onDeleted(postId), now (tests).
  */
+
+// [Sprint 5 · M8] A link to /people/:username. Uses the router when there is one (the app), and a
+// normal link otherwise (components rendered on their own, e.g. in tests). Without a username: text.
+export function ProfileLink({ username, className, children, ...rest }) {
+  const inRouter = useInRouterContext();
+  if (!username) return <span className={className}>{children}</span>;
+  const to = `/people/${encodeURIComponent(username)}`;
+  return inRouter
+    ? <Link to={to} className={className} {...rest}>{children}</Link>
+    : <a href={to} className={className} {...rest}>{children}</a>;
+}
 export default function PostCard({ post, api = postApi, onUpdated, onDeleted, now }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.text);
@@ -72,11 +87,21 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
   return (
     <article className="panel post-card" aria-label={`Post by ${author.name}`}>
       <header className="post-head">
-        <Avatar initials={initialsOf(author.name)} src={assetUrl(author.avatarUrl)} />
+        {/* [Sprint 5 · M8] photo, name and @username open the author's profile. One tab stop: the name. */}
+        <ProfileLink username={author.username} className="post-author-photo" tabIndex={-1} aria-hidden={author.username ? true : undefined}>
+          <Avatar initials={initialsOf(author.name)} src={assetUrl(author.avatarUrl)} />
+        </ProfileLink>
         <div className="post-author">
-          <b>{author.name}</b>
+          <ProfileLink username={author.username} className="post-author-name" title={author.username ? `View ${author.name}'s profile` : undefined}>
+            <b>{author.name}</b>
+          </ProfileLink>
           <small>
-            {author.username ? `@${author.username} · ` : ''}
+            {author.username && (
+              <>
+                <ProfileLink username={author.username} className="post-author-handle" tabIndex={-1}>@{author.username}</ProfileLink>
+                {' · '}
+              </>
+            )}
             <time dateTime={post.createdAt} title={new Date(post.createdAt).toLocaleString()}>{postTimeAgo(post.createdAt, now)}</time>
             {post.edited && <span className="post-edited" title={post.editedAt ? `Edited ${new Date(post.editedAt).toLocaleString()}` : 'Edited'}> · edited</span>}
           </small>

@@ -127,6 +127,11 @@ export const profileApi = {
   // [Sprint 5 · M3] US-06: another user's read-only profile. Contract: backend/src/routes/profile.js
   //   -> { profile: { name, username, headline, bio, avatarUrl, skills, followerCount, publicScore, portfolio: { available, path }, isMe } }
   user: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}`),
+  // [Sprint 5 · M8] US-54 follow / unfollow by username. Contract: backend/src/routes/follows.js
+  //   -> { following, followerCount, changed, message }   400 { code: 'self_follow' }, 404 unknown user
+  //   The profile (user() above) now also has isFollowing, and publicScore = total vote score (sum of net post scores).
+  follow: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/follow`, { method: 'PUT' }),
+  unfollow: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/follow`, { method: 'DELETE' }),
 };
 
 // [Sprint 5 · M1] US-45: Discover for everyone, logged in or not. Contract: backend/src/routes/publicProjects.js
@@ -197,6 +202,16 @@ export const postApi = {
   remove: (postId) => api(postPath(postId), { method: 'DELETE' }),
   vote: (postId, value) => api(`${postPath(postId)}/vote`, { method: 'PUT', body: JSON.stringify({ value }) }), // [Sprint 5 · M7]
   unvote: (postId) => api(`${postPath(postId)}/vote`, { method: 'DELETE' }), // [Sprint 5 · M7]
+  // [Sprint 5 · M8] US-53 trending feed. Contract: backend/src/routes/trending.js
+  //   trending({ cursor, limit }) -> { posts (each + trendingScore), nextCursor, rankedAt, maxRankAgeSeconds }
+  //   Order: (up - down) / (ageHours + 2)^1.5 highest first, newer post on ties; re-ranked at least every 5 minutes.
+  trending: ({ cursor, limit } = {}) => {
+    const query = new URLSearchParams();
+    if (cursor) query.set('cursor', cursor);
+    if (limit) query.set('limit', String(limit));
+    const text = query.toString();
+    return api(`/posts/trending${text ? `?${text}` : ''}`);
+  },
 };
 
 export const projectApi = {

@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { closeRealtime, initRealtime } from './lib/realtime.js';
 import { startDeadlineNotifier, stopDeadlineNotifier } from './lib/taskNotifications.js'; // [Sprint 3 · M7 Part 2]
 import { missingGithubSettings } from './lib/githubOAuth.js'; // [Sprint 4 · M1] US-31
+import { startTrendingRanker, stopTrendingRanker } from './lib/trending.js'; // [Sprint 5 · M8] US-53
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -46,6 +47,8 @@ try {
   server.listen(port, () => console.log(`DevOrbit API listening on http://localhost:${port}`));
   // [Sprint 3 · M7 Part 2] Deadline notifications for tasks due within 24 hours, checked every 5 minutes.
   startDeadlineNotifier();
+  // [Sprint 5 · M8] US-53: recalculate trending scores now and every 4 minutes (NFR-15: at least every 5).
+  startTrendingRanker();
 } catch (error) {
   console.error('MongoDB connection failed:', error.message);
   console.error('Check that MongoDB is running and that MONGODB_URI in backend/.env is correct.');
@@ -56,6 +59,7 @@ try {
 async function shutdown(signal) {
   console.log(`${signal} received. Shutting down DevOrbit API...`);
   stopDeadlineNotifier(); // [Sprint 3 · M7 Part 2]
+  stopTrendingRanker(); // [Sprint 5 · M8]
   // Closing Socket.IO also closes the HTTP server it is attached to.
   await closeRealtime();
   await mongoose.connection.close();

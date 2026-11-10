@@ -56,13 +56,14 @@ describe('UserProfilePage (US-06)', () => {
     expect(stats).toContain('3');
     expect(stats).toContain('Followers');
     expect(stats).toContain('12');
-    expect(stats).toContain('Score');
+    expect(stats).toContain('Total vote score'); // [Sprint 5 · M8] FR-26 wording (was 'Score')
   });
 
-  it('is read-only: no edit form or buttons', async () => {
+  it('is read-only: no edit form; the only button is Follow (US-54, Sprint 5 M8)', async () => {
     renderPage();
     await screen.findByText('Open Garden');
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    // [Sprint 5 · M8] US-54 AC1 adds Follow to other people's profiles; nothing else is editable.
+    expect(screen.queryAllByRole('button').map((button) => button.textContent.trim())).toEqual(['Follow']);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     expect(screen.queryByText(/This is how other people see your profile/)).toBeNull();
   });
