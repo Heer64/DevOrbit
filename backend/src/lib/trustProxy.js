@@ -48,7 +48,8 @@ export function trustProxySetting(raw) {
   if (text === 'true') {
     return {
       value: false,
-      warning: 'TRUST_PROXY=true is not allowed (any client could fake its IP). Use the number of proxies, e.g. TRUST_PROXY=1. Falling back to false.',
+      warning:
+        'TRUST_PROXY=true is not allowed (any client could fake its IP). Use the number of proxies, e.g. TRUST_PROXY=1. Falling back to false.',
     };
   }
 
@@ -61,7 +62,10 @@ export function trustProxySetting(raw) {
     };
   }
 
-  const entries = text.split(',').map((entry) => entry.trim()).filter(Boolean);
+  const entries = text
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   if (entries.length > 0 && entries.every(validAddress)) return { value: entries, warning: '' };
 
   return {

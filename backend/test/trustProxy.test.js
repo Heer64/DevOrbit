@@ -62,8 +62,12 @@ describe('createApp() with TRUST_PROXY', () => {
     // The limiters are skipped when NODE_ENV=test, and this file is about the limiters.
     process.env.NODE_ENV = 'development';
     process.env.JWT_SECRET ||= 'test-secret-test-secret-test-secret-123456';
-    console.error = (...args) => { logged.push(args); };
-    console.warn = (...args) => { logged.push(args); };
+    console.error = (...args) => {
+      logged.push(args);
+    };
+    console.warn = (...args) => {
+      logged.push(args);
+    };
     ({ createApp } = await import('../src/app.js'));
   });
 
@@ -105,7 +109,10 @@ describe('createApp() with TRUST_PROXY', () => {
     // A different user behind the same proxy is NOT blocked by the first user's requests.
     assert.equal((await health(app, '203.0.113.20')).status, 200);
     // No express-rate-limit validation error (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR) was logged.
-    assert.equal(logged.some((args) => /ERR_ERL/.test(args.map(String).join(' '))), false);
+    assert.equal(
+      logged.some((args) => /ERR_ERL/.test(args.map(String).join(' '))),
+      false
+    );
   });
 
   test('TRUST_PROXY=loopback (local smee / ngrok): forwarded clients are told apart too', async () => {
@@ -118,6 +125,9 @@ describe('createApp() with TRUST_PROXY', () => {
   test('TRUST_PROXY=true is refused and logged; the app runs with trust proxy off', () => {
     const app = appWith('true');
     assert.equal(app.get('trust proxy'), false);
-    assert.equal(logged.some((args) => /TRUST_PROXY=true is not allowed/.test(args.map(String).join(' '))), true);
+    assert.equal(
+      logged.some((args) => /TRUST_PROXY=true is not allowed/.test(args.map(String).join(' '))),
+      true
+    );
   });
 });
