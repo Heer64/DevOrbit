@@ -30,6 +30,7 @@ import trendingRoutes from './routes/trending.js'; // [Sprint 5 · M8] US-53 tre
 import followRoutes from './routes/follows.js'; // [Sprint 5 · M8] US-54 follow / unfollow
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
+import { trustProxySetting } from './lib/trustProxy.js'; // [Sprint 6 · M1] D1 fix
 
 export function createApp() {
   const app = express();
@@ -41,6 +42,11 @@ export function createApp() {
   const skip = () => process.env.NODE_ENV === 'test';
 
   app.disable('x-powered-by');
+  // [Sprint 6 · M1] D1 fix: behind Render's proxy (TRUST_PROXY=1) req.ip is the real client, so each
+  // user gets their own rate-limit bucket. Set before any middleware that reads req.ip (the limiters).
+  const trustProxy = trustProxySetting(process.env.TRUST_PROXY);
+  if (trustProxy.warning) console.warn(trustProxy.warning);
+  app.set('trust proxy', trustProxy.value);
   app.use(cors({ origin: clientOrigins, credentials: true }));
   // [Sprint 4 · M4] US-34: GitHub webhooks need the raw body for the X-Hub-Signature-256 check, so this
   // is mounted before express.json() and the /api rate limiter (it has its own limiter).

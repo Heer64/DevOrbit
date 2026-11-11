@@ -47,8 +47,38 @@ describe('activityGithubLink', () => {
 
   it('every GitHub type has its own title', () => {
     expect(activityLook({ type: 'github.commit' }).title).toBe('Commit pushed');
-    expect(activityLook({ type: 'github.issue' }).title).toBe('GitHub issue updated');
-    expect(activityLook({ type: 'github.pull_request' }).title).toBe('Pull request updated');
+    // [Sprint 6 · M1] D2: without an action the name is neutral (also what the type filter shows).
+    expect(activityLook({ type: 'github.issue' }).title).toBe('GitHub issue');
+    expect(activityLook({ type: 'github.pull_request' }).title).toBe('Pull request');
+  });
+
+  // [Sprint 6 · M1] D2 fix (Sprint 4 exit checks): an opened issue was titled "GitHub issue updated".
+  it('titles issue and pull request entries by what happened', () => {
+    const issue = (action) => activityLook({ type: 'github.issue', meta: { action } }).title;
+    expect(issue('opened')).toBe('GitHub issue opened');
+    expect(issue('edited')).toBe('GitHub issue updated');
+    expect(issue('closed')).toBe('GitHub issue closed');
+    expect(issue('reopened')).toBe('GitHub issue reopened');
+
+    const pr = (action) => activityLook({ type: 'github.pull_request', meta: { action } }).title;
+    expect(pr('opened')).toBe('Pull request opened');
+    expect(pr('edited')).toBe('Pull request updated');
+    expect(pr('synchronize')).toBe('Pull request updated');
+    expect(pr('closed')).toBe('Pull request closed');
+    expect(pr('merged')).toBe('Pull request merged');
+    expect(pr('reopened')).toBe('Pull request reopened');
+  });
+
+  it('unknown or odd actions keep the neutral title, and the icon never changes', () => {
+    expect(activityLook({ type: 'github.issue', meta: { action: 'labeled' } }).title).toBe('GitHub issue');
+    expect(activityLook({ type: 'github.issue', meta: { action: 'toString' } }).title).toBe('GitHub issue');
+    expect(activityLook({ type: 'github.issue', meta: { action: 42 } }).title).toBe('GitHub issue');
+    expect(activityLook({ type: 'github.pull_request', meta: null }).title).toBe('Pull request');
+    expect(activityLook({ type: 'github.issue', meta: { action: 'opened' } }).icon)
+      .toBe(activityLook({ type: 'github.issue' }).icon);
+    // Commits and FORGE events are not affected by meta.action.
+    expect(activityLook({ type: 'github.commit', meta: { action: 'pushed' } }).title).toBe('Commit pushed');
+    expect(activityLook({ type: 'task.created', meta: { action: 'opened' } }).title).toBe('Task created');
   });
 });
 
@@ -63,7 +93,7 @@ describe('ActivityPanel with GitHub events', () => {
     mocks.project.mockResolvedValue({
       activity: [
         githubEvent('g1', 'github.commit', 'pushed commit "Fix login bug" to main', { author: 'octocat', title: 'Fix login bug', url: COMMIT_URL }, 2),
-        githubEvent('g2', 'github.pull_request', 'merged pull request #7 "Add webhooks"', { author: 'dev-gh', title: 'Add webhooks', url: 'https://github.com/octo-owner/devorbit/pull/7' }, 1),
+        githubEvent('g2', 'github.pull_request', 'merged pull request #7 "Add webhooks"', { author: 'dev-gh', title: 'Add webhooks', url: 'https://github.com/octo-owner/devorbit/pull/7', action: 'merged' }, 1),
       ],
       nextBefore: null,
     });
@@ -72,7 +102,7 @@ describe('ActivityPanel with GitHub events', () => {
 
     expect(await screen.findByText('Commit pushed', { selector: 'b' })).toBeTruthy();
     expect(screen.getByText('octocat pushed commit "Fix login bug" to main')).toBeTruthy();
-    expect(screen.getByText('Pull request updated', { selector: 'b' })).toBeTruthy();
+    expect(screen.getByText('Pull request merged', { selector: 'b' })).toBeTruthy(); // [Sprint 6 · M1] D2
     expect(screen.getByText('dev-gh merged pull request #7 "Add webhooks"')).toBeTruthy();
 
     const links = screen.getAllByRole('link', { name: /open on github/i });
@@ -91,6 +121,20 @@ describe('ActivityPanel with GitHub events', () => {
     render(<ActivityPanel projectId="p1" />);
     expect(await screen.findByText('octocat opened issue #1 "x"')).toBeTruthy();
     expect(screen.queryByRole('link', { name: /open on github/i })).toBeNull();
+  });
+
+  // [Sprint 6 · M1] D2: the exact case from the Sprint 4 exit checks.
+  it('an opened issue is titled "GitHub issue opened", not "GitHub issue updated"', async () => {
+    mocks.project.mockResolvedValue({
+      activity: [githubEvent('g4', 'github.issue', 'opened issue #1 "Login fails"', {
+        author: 'octocat', title: 'Login fails', url: 'https://github.com/octo-owner/devorbit/issues/1', action: 'opened', number: 1,
+      })],
+      nextBefore: null,
+    });
+    render(<ActivityPanel projectId="p1" />);
+    expect(await screen.findByText('GitHub issue opened', { selector: 'b' })).toBeTruthy();
+    expect(screen.queryByText('GitHub issue updated', { selector: 'b' })).toBeNull();
+    expect(screen.getByText('octocat opened issue #1 "Login fails"')).toBeTruthy();
   });
 });
 

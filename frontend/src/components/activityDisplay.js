@@ -34,8 +34,10 @@ const LOOK = {
   'decision.created': { icon: Gavel, tone: 'purple', title: 'Decision recorded' },
   'decision.updated': { icon: Gavel, tone: 'blue', title: 'Decision updated' },
   'github.commit': { icon: GitCommitHorizontal, tone: 'green', title: 'Commit pushed' },
-  'github.issue': { icon: CircleDot, tone: 'blue', title: 'GitHub issue updated' },
-  'github.pull_request': { icon: GitPullRequest, tone: 'purple', title: 'Pull request updated' },
+  // [Sprint 6 · M1] D2 fix: neutral names here (also used by the type filter); the entry's own
+  // title comes from its action, see GITHUB_ACTION_TITLES below.
+  'github.issue': { icon: CircleDot, tone: 'blue', title: 'GitHub issue' },
+  'github.pull_request': { icon: GitPullRequest, tone: 'purple', title: 'Pull request' },
   // [Sprint 4 · M5] US-37
   'file.uploaded': { icon: FileUp, tone: 'blue', title: 'File uploaded' },
 };
@@ -43,10 +45,35 @@ const LOOK = {
 // [US-29] Every type the feed knows, in display order. Used by the Activity tab's type filter.
 export const ACTIVITY_TYPE_KEYS = Object.keys(LOOK);
 
+// [Sprint 6 · M1] D2 fix (Sprint 4 exit checks): an issue that was *opened* was titled "GitHub issue updated".
+// The backend stores what happened in meta.action (backend/src/lib/githubEvents.js), so the title follows it.
+// Unknown or missing actions keep the neutral name from LOOK.
+const GITHUB_ACTION_TITLES = {
+  'github.issue': {
+    opened: 'GitHub issue opened',
+    edited: 'GitHub issue updated',
+    closed: 'GitHub issue closed',
+    reopened: 'GitHub issue reopened',
+  },
+  'github.pull_request': {
+    opened: 'Pull request opened',
+    edited: 'Pull request updated',
+    closed: 'Pull request closed',
+    merged: 'Pull request merged',
+    reopened: 'Pull request reopened',
+    synchronize: 'Pull request updated',
+  },
+};
+
 export function activityLook(event) {
   const look = LOOK[event?.type] || { icon: Pencil, tone: 'blue', title: 'Update' };
   // A task that reached Done gets its own title, like the old sample feed.
   if (event?.type === 'task.status_changed' && event.meta?.to === 'Done') return { ...look, title: 'Task completed' };
+  const byAction = GITHUB_ACTION_TITLES[event?.type];
+  const action = event?.meta?.action;
+  if (byAction && typeof action === 'string' && Object.hasOwn(byAction, action)) {
+    return { ...look, title: byAction[action] };
+  }
   return look;
 }
 
