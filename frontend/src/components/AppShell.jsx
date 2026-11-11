@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessagesSquare, Moon, Plus, Search, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Search, Sun, UserPlus, UserRound, X } from 'lucide-react';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { projectApi, toProjectCard } from '../api';
 import NotificationBell from './NotificationBell'; // [Sprint 3 · M7 Part 2] US-30
+import DmUnreadBadge from './DmUnreadBadge'; // [Sprint 6 · M2] US-19
 import { MAX_STARTING_MEMBERS, PROJECT_DOMAINS as DOMAINS, STARTING_MEMBER_ROLES, startingMembersPayload } from '../domains'; // [Sprint 1 · gaps]
 import { ROLE_HELP } from '../roles';
 
@@ -104,6 +105,7 @@ export default function AppShell() {
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { to: '/discover', label: 'Find projects & people', icon: Compass },
     { to: '/feed', label: 'Community feed', icon: MessagesSquare }, // [Sprint 5 · M6] US-50/US-51
+    { to: '/messages', label: 'Messages', icon: MessageCircle }, // [Sprint 6 · M2] US-19 direct messages
     { to: '/profile', label: 'My profile', icon: UserRound },
   ];
   const displayName = user?.name || 'Demo user';
@@ -120,6 +122,8 @@ export default function AppShell() {
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'selected' : '')}>
               <Icon size={17} /> {label} {to === '/discover' && <span className="new">NEW</span>}
+              {/* [Sprint 6 · M2] US-19: unread direct messages (real accounts only, like the notification bell) */}
+              {to === '/messages' && user && !user.isDemo && <DmUnreadBadge />}
             </NavLink>
           ))}
         </nav>
@@ -228,5 +232,6 @@ function pageTitle(path) {
   if (path === '/profile') return 'My profile';
   if (path === '/discover') return 'Discover';
   if (path === '/feed') return 'Community feed'; // [Sprint 5 · M6]
+  if (path.startsWith('/messages')) return 'Messages'; // [Sprint 6 · M2] US-19
   return 'Overview';
 }

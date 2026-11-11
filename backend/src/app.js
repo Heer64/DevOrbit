@@ -28,6 +28,7 @@ import postRoutes from './routes/posts.js'; // [Sprint 5 · M6] US-50, US-51 pub
 import postVoteRoutes from './routes/postVotes.js'; // [Sprint 5 · M7] US-52 vote on a post
 import trendingRoutes from './routes/trending.js'; // [Sprint 5 · M8] US-53 trending feed
 import followRoutes from './routes/follows.js'; // [Sprint 5 · M8] US-54 follow / unfollow
+import directMessageRoutes from './routes/directMessages.js'; // [Sprint 6 · M2] US-19 direct messages
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 import { trustProxySetting } from './lib/trustProxy.js'; // [Sprint 6 · M1] D1 fix
@@ -156,6 +157,7 @@ export function createApp() {
   app.use('/api/posts/trending', trendingRoutes); // [Sprint 5 · M8] US-53 (before /api/posts, so "trending" is not a post ID)
   app.use('/api/posts/:postId/vote', postVoteRoutes);
   app.use('/api/posts', postRoutes); // [Sprint 5 · M6] US-50/US-51 public posts (login; only /:postId/image is open)
+  app.use('/api/direct-messages', directMessageRoutes); // [Sprint 6 · M2] US-19 direct messages (only the two participants)
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'API endpoint not found.' });

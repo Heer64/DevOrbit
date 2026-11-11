@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Award, Lock, Users } from 'lucide-react';
-import { assetUrl, portfolioApi, profileApi } from '../api';
+import { assetUrl, directMessageApi, portfolioApi, profileApi } from '../api';
 import { Avatar, initialsOf } from '../components/ui';
 import PortfolioView from '../components/PortfolioView';
 import FollowButton from '../components/FollowButton'; // [Sprint 5 · M8] US-54
+import MessageUserButton from '../components/MessageUserButton'; // [Sprint 6 · M2] US-19
 
 /*
  * [Sprint 5 · M3] US-06 View another user's profile, read-only, at /people/:username (login required).
@@ -16,11 +17,14 @@ import FollowButton from '../components/FollowButton'; // [Sprint 5 · M8] US-54
  * [Sprint 5 · M8] US-54: a Follow / Unfollow button on other people's profiles (not your own). The
  * follower count updates from the server's answer. "Score" is the total vote score: the sum of the
  * net scores (upvotes - downvotes) of the user's posts, never "likes" (FR-26, NFR-27).
+ *
+ * [Sprint 6 · M2] US-19 AC1: a Message button next to Follow (not on your own profile) opens a private
+ * direct conversation with this user at /messages/:conversationId, separate from all project channels.
  */
 
 export const PORTFOLIO_NOT_AVAILABLE = 'This portfolio is not available.';
 
-export default function UserProfilePage({ api = profileApi, portfolios = portfolioApi }) {
+export default function UserProfilePage({ api = profileApi, portfolios = portfolioApi, messages = directMessageApi }) {
   const { username } = useParams();
   const [state, setState] = useState({ loading: true, profile: null, error: '' });
   const [portfolio, setPortfolio] = useState({ loading: false, data: null, error: '' });
@@ -79,18 +83,21 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
             <p>@{profile.username}{profile.headline ? ` · ${profile.headline}` : ''}</p>
             <p className="bio">{profile.bio || `${profile.name} has not added a bio yet.`}</p>
             {profile.isMe && <p className="tiny-note">This is how other people see your profile. <Link to="/profile">Edit your profile</Link></p>}
-            {/* [Sprint 5 · M8] US-54 */}
+            {/* [Sprint 5 · M8] US-54 Follow, [Sprint 6 · M2] US-19 Message */}
             {!profile.isMe && (
-              <FollowButton
-                username={profile.username}
-                name={profile.name}
-                following={social.isFollowing}
-                api={api}
-                onChange={(next) => setSocial((current) => ({
-                  isFollowing: next.following,
-                  followerCount: Number.isFinite(next.followerCount) ? next.followerCount : current.followerCount,
-                }))}
-              />
+              <div className="profile-action-row">
+                <FollowButton
+                  username={profile.username}
+                  name={profile.name}
+                  following={social.isFollowing}
+                  api={api}
+                  onChange={(next) => setSocial((current) => ({
+                    isFollowing: next.following,
+                    followerCount: Number.isFinite(next.followerCount) ? next.followerCount : current.followerCount,
+                  }))}
+                />
+                <MessageUserButton username={profile.username} name={profile.name} api={messages} />
+              </div>
             )}
           </div>
           <div className="profile-stats" aria-label="Public stats">
