@@ -6,6 +6,7 @@ import { closeRealtime, initRealtime } from './lib/realtime.js';
 import { startDeadlineNotifier, stopDeadlineNotifier } from './lib/taskNotifications.js'; // [Sprint 3 · M7 Part 2]
 import { missingGithubSettings } from './lib/githubOAuth.js'; // [Sprint 4 · M1] US-31
 import { startTrendingRanker, stopTrendingRanker } from './lib/trending.js'; // [Sprint 5 · M8] US-53
+import { missingLlmSettings } from './lib/llmClient.js'; // [Sprint 6 · M3] US-41
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -19,6 +20,13 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
 const missingGithub = missingGithubSettings();
 if (missingGithub.length) {
   console.warn(`GitHub connect is turned off until these are set in backend/.env: ${missingGithub.join(', ')}`);
+}
+
+// [Sprint 6 · M3] US-41: names only, never values. Without them the Copilot answers "AI temporarily
+// unavailable" and everything else works as usual (NFR-9).
+const missingLlm = missingLlmSettings();
+if (missingLlm.length) {
+  console.warn(`AI Copilot is turned off until these are set in backend/.env: ${missingLlm.join(', ')}`);
 }
 
 if (!process.env.MONGODB_URI) {

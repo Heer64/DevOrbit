@@ -753,6 +753,30 @@ textarea.field-input{resize:vertical;min-height:90px}
 .vote-emoji{font-size:16px;line-height:1;filter:grayscale(.45);opacity:.75;transition:transform .15s,filter .15s,opacity .15s}
 .vote-btn:hover .vote-emoji{filter:none;opacity:1}
 .vote-btn.on .vote-emoji{filter:none;opacity:1;transform:scale(1.15)}
+/* [Sprint 6 · M3] US-41 Ask the Copilot (components/CopilotPanel.jsx) */
+.copilot-ask .panel-head{margin-bottom:12px}
+.copilot-form{display:flex;flex-direction:column;gap:7px}
+.copilot-label{font-size:10px;font-weight:600;color:var(--muted)}
+.copilot-input{min-height:74px;resize:vertical;font-size:11px;line-height:1.55}
+.copilot-input[readonly]{opacity:.7}
+.copilot-form-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.copilot-count{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+.copilot-count.near{color:var(--orange)}
+.copilot-form .btn:disabled{opacity:.55;cursor:default}
+.copilot-loading{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);font-size:10px;color:var(--muted)}
+.copilot-loading svg{color:var(--accent)}
+.copilot-unavailable{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px 11px;border:1px solid #f0bc8e40;border-radius:9px;background:var(--orange-bg);color:var(--orange);font-size:10px;line-height:1.55}
+.copilot-unavailable svg{flex:none;margin-top:1px}
+.copilot-error{margin-top:12px}
+.copilot-hint{font-size:9px;color:var(--muted);line-height:1.6;margin:12px 0 0}
+.copilot-answers{display:flex;flex-direction:column}
+.copilot-answer{padding-top:12px;margin-top:12px;border-top:1px solid var(--line)}
+.copilot-answer:first-child{border-top:0;padding-top:0}
+.copilot-asked{margin:0;font-size:10px;line-height:1.55;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}
+.copilot-asked small{display:block;font-size:7px;letter-spacing:1px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.copilot-reply{margin:9px 0 0}
+.copilot-reply p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;line-height:1.65}
+.copilot-shortened{display:block;font-size:8px;color:var(--muted);margin-top:6px}
 
 /* ===== Sprint 6 · M2: direct messages (US-19) ===== */
 .dm-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

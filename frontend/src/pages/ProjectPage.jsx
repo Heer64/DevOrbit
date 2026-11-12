@@ -22,6 +22,7 @@ import ProjectCompletion, { formatCompletedOn } from '../components/ProjectCompl
 import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
 import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
 import { publicProjectPath } from '../lib/publicLinks'; // [Sprint 5 · M2] US-46
+import CopilotPanel from '../components/CopilotPanel'; // [Sprint 6 · M3] US-41
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -382,7 +383,10 @@ export default function ProjectPage() {
             <Btn secondary className="repo-link-btn" onClick={() => setNotice('Connect GitHub OAuth and configure a repository to open live code here.')}>Connect / open repository <ExternalLink size={14} /></Btn>
           </section>
 
-          <section className="panel copilot-panel">
+          {/* [Sprint 6 · M3] US-41: real projects, members of any role, ask the Copilot. */}
+          {isLive && membershipRole && <CopilotPanel projectId={id} />}
+          {/* Demo / sample projects keep the sample commit recap (layout preview only). */}
+          {!isLive && <section className="panel copilot-panel">
             <div className="panel-head"><div><div className="eyebrow">AI PROJECT MEMORY</div><h2 className="with-icon" style={{ marginTop: 6 }}><Sparkles size={17} /> Commit recap</h2></div><span className="ai-chip">DEMO</span></div>
             <div className="ai-summary"><span><Sparkles size={14} /></span><p>Here's the story behind the <strong>last 18 commits</strong> — grouped into the changes that matter.</p></div>
             <div className="commit-list">
@@ -400,7 +404,7 @@ export default function ProjectPage() {
             </div>
             <Btn secondary className="recap-toggle" onClick={() => setShowAllCommits(!showAllCommits)}>{showAllCommits ? 'Show less' : 'View all 18 commits'} <ChevronDown size={14} className={showAllCommits ? 'rotate' : ''} /></Btn>
             <p className="disclaimer">Sample summary for layout preview. Live summaries require GitHub events and a configured AI provider.</p>
-          </section>
+          </section>}
         </aside>
       </div>
 

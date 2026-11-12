@@ -115,6 +115,7 @@ npm run test:e2e           # in the repository root: Playwright end-to-end tests
 - **Backend:** hosted on Render
 - **Database:** MongoDB Atlas
 - **Render environment:** set `TRUST_PROXY=1` on the API service (Render puts one proxy in front of it). Without it, every user shares one rate-limit bucket. See *Sprint 6 — M1* below.
+- **AI Copilot:** set `LLM_API_KEY` (and `LLM_PROVIDER` / `LLM_MODEL` if not using the defaults) on the API service. Without a key the Copilot shows *AI temporarily unavailable* and everything else works. See *Sprint 6 — M3* below.
 
 ---
 
@@ -995,6 +996,76 @@ npm test --prefix backend -- test/trustProxy.test.js
 npm test --prefix frontend -- GithubEvents
 ```
 
+---
+
+## Sprint 6 — M3: Ask the Copilot (US-41, FR-16a, NFR-9, NFR-10a, NFR-10b)
+
+Project members (every role, Viewer included) type a question of up to **500 characters** in the **Ask the Copilot** panel on the project page and get an answer, typically within 10 seconds. If the answer takes longer than **2 seconds**, a loading indicator shows until the answer or an error arrives. If the AI provider is down, slow or not set up, the panel says **AI temporarily unavailable** and chat, tasks and feeds keep working.
+
+This PR also adds the **shared LLM client** (`backend/src/lib/llmClient.js`) that M4 (US-42, US-43) and M5 (US-44 Catch Me Up) build on.
+
+### Setup (once per environment)
+
+In `backend/.env` (locally) or the Render API service's *Environment* (deployed):
+
+| Setting | Value |
+|---|---|
+| `LLM_PROVIDER` | `anthropic` (Claude, default) or `openai` (OpenAI, or any OpenAI-compatible API) |
+| `LLM_API_KEY` | the provider's API key. **Server only**, never in `frontend/.env`. Empty = AI off (the Copilot answers *AI temporarily unavailable*). |
+| `LLM_MODEL` | optional for `anthropic` (default `claude-haiku-5-5`), **required** for `openai`: the model ID from your provider's docs |
+| `LLM_BASE_URL` | only for an OpenAI-compatible provider other than OpenAI (must be `https://`) |
+| `LLM_TIMEOUT_MS` | optional, 1000–60000, default `15000` |
+| `LLM_MAX_OUTPUT_TOKENS` | optional, 50–4000, default `500` (short answers keep the reply near 10 seconds) |
+
+On start, the API logs `AI Copilot is turned off until these are set in backend/.env: …` (names only, never values) when something is missing.
+
+### API: `POST /api/projects/:id/copilot/ask`
+
+Body `{ "question": "…" }`. Signed-in project members only.
+
+| Status | Body | When |
+|---|---|---|
+| 200 | `{ question, answer, shortened, askedAt, answeredAt, durationMs }` | answered. `question` is what was sent (trimmed); `shortened` is true when the answer was cut |
+| 400 | `{ code: "QUESTION_REQUIRED", message }` | missing, empty or blank question |
+| 400 | `{ code: "QUESTION_TOO_LONG", message }` | more than 500 characters after trimming |
+| 401 / 403 / 404 | `{ message }` | not signed in / not a member (Public projects too) / no such project (400 for an invalid ID) |
+| 503 | `{ code: "AI_UNAVAILABLE", message }` + `Retry-After: 30` | the AI provider failed, timed out, refused the request, or no key is set |
+
+The Copilot **only answers**: this route writes nothing (no database change, no activity entry, no notification), and the question and answer are not stored or logged.
+
+### How the outage handling works (NFR-9)
+
+- Every request has one deadline, `LLM_TIMEOUT_MS`, for the whole reply.
+- Every failure (no key, timeout, network error, HTTP 429 / 5xx / other 4xx, empty or unreadable reply) becomes `AiUnavailableError`, which the route turns into 503.
+- After **3 failures in a row** the client **pauses for 30 seconds**: calls fail at once instead of each one waiting for the timeout, so an outage cannot tie up the API. The first call after the pause is a trial; success resumes normal calls.
+- Log lines name only the provider, the reason and the HTTP status. The API key, the question, the prompt and the answer are never logged or returned.
+
+### For M4 and M5: using the shared client
+
+```js
+import { getLlmClient, isAiUnavailable } from '../lib/llmClient.js';
+
+try {
+  const { text, truncated, usage } = await getLlmClient().complete({ system, messages: [{ role: 'user', content }] });
+} catch (error) {
+  if (isAiUnavailable(error)) return res.status(503).json({ code: 'AI_UNAVAILABLE', message: '…' });
+  throw error;
+}
+```
+
+`usage.inputTokens` / `usage.outputTokens` come from the provider. In tests, replace the client with `setLlmClient(fake)` and restore it with `setLlmClient(null)` (see `backend/test/copilot.test.js`). M4 adds the permitted project records and the 8,000-token budget where `buildCopilotPrompt()` is called in `backend/src/routes/copilot.js`; until then the prompt tells the model that no project records are attached, so it does not invent project facts.
+
+### Tests
+
+- `backend/test/llmClient.test.js` (no MongoDB): settings, both providers' request and reply formats, error → reason mapping, the timeout, the pause after 3 failures and the trial call, the API key never in errors, logs or `status()`.
+- `backend/test/copilotRules.test.js` (no MongoDB): the 500 / 501 boundary, trimming, blank and non-text questions, the prompt (question only in the user message), long answers.
+- `backend/test/copilot.test.js`: the API with a fake AI client: 401 / 400 / 404 / 403 (Public projects too), every role can ask, 200 shape, 500 vs 501 characters, 503 + `Retry-After`, **tasks, chat, activity, posts and dashboard still work while the AI is down**, the real client with no key fails fast, nothing is written to the database.
+- `frontend/src/components/CopilotPanel.test.jsx`: counter and limit, Enter / Shift+Enter, one question at a time, **no indicator before 2 s, indicator from 2 s until the answer or error**, AI-unavailable message with the question kept for a retry, plain-text answers, switching projects.
+
+```
+npm test --prefix backend -- test/llmClient.test.js test/copilotRules.test.js test/copilot.test.js
+npm test --prefix frontend -- CopilotPanel
+```
 
 ---
 
