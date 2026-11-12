@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, Gavel, Link2, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { assetUrl, channelApi, decisionApi } from '../api';
@@ -19,6 +19,8 @@ import { AVATAR_TONES, Avatar, Btn, initialsOf } from './ui';
  *   api         decisionApi (tests pass a fake)
  *   chat        channelApi (list + messages), for the "related thread" picker
  *   onChange    called after a decision is saved (the page reloads the Activity tab)
+ *   highlightId [Sprint 6 · M4] decision to scroll to and highlight, from a link such as a Copilot source
+ *               (/project/<id>?tab=decisions&decision=<decisionId>)
  */
 
 const EMPTY_FORM = { title: '', description: '', date: '', participants: [], linkType: '', taskId: '', channelId: '', messageId: '' };
@@ -96,7 +98,7 @@ function DecisionLink({ link }) {
   );
 }
 
-export default function DecisionsPanel({ projectId, myRole, members = [], tasks = [], api = decisionApi, chat = channelApi, onChange }) {
+export default function DecisionsPanel({ projectId, myRole, members = [], tasks = [], api = decisionApi, chat = channelApi, onChange, highlightId = '' }) {
   const [decisions, setDecisions] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -108,6 +110,15 @@ export default function DecisionsPanel({ projectId, myRole, members = [], tasks 
   const [threads, setThreads] = useState(null);
 
   const canWrite = canWriteDecisions(myRole);
+  const listRef = useRef(null); // [Sprint 6 · M4]
+
+  // [Sprint 6 · M4] A link to one decision (e.g. a Copilot source) scrolls it into view once the list is loaded.
+  useEffect(() => {
+    if (!highlightId || !decisions?.length) return;
+    const rows = Array.from(listRef.current?.querySelectorAll?.('[data-decision-id]') || []);
+    const target = rows.find((row) => row.getAttribute('data-decision-id') === highlightId);
+    target?.scrollIntoView?.({ block: 'center' });
+  }, [decisions, highlightId]);
 
   const load = useCallback(async () => {
     setError('');
@@ -227,11 +238,16 @@ export default function DecisionsPanel({ projectId, myRole, members = [], tasks 
         </div>
       )}
 
-      <div className="milestone-list" aria-label="Decisions">
+      <div className="milestone-list" aria-label="Decisions" ref={listRef}>
         {decisions.map((d) => {
           const edited = d.updatedBy && d.updatedAt && d.updatedAt !== d.createdAt;
           return (
-            <article className="milestone" key={d._id} data-testid="decision">
+            <article
+              className={`milestone${highlightId && String(d._id) === highlightId ? ' decision-highlight' : ''}`}
+              key={d._id}
+              data-testid="decision"
+              data-decision-id={d._id}
+            >
               <div className="milestone-status violet"><Gavel size={13} /></div>
               <div className="milestone-copy">
                 <div>
