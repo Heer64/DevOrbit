@@ -513,6 +513,14 @@ export const docApi = {
   update: (id, docId, payload) => api(docPath(id, docId), { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
+// [Sprint 6 · M3] US-41 Ask the Copilot. Contract: backend/src/routes/copilot.js
+//   ask(id, question) -> { question, answer, shortened, askedAt, answeredAt, durationMs }
+//   Members only (403 otherwise). 400 { code: 'QUESTION_REQUIRED' | 'QUESTION_TOO_LONG' } (over 500 characters).
+//   503 { code: 'AI_UNAVAILABLE', message } when the AI provider is down or not set up; nothing else is affected.
+export const copilotApi = {
+  ask: (id, question) => api(`${projectPath(id)}/copilot/ask`, { method: 'POST', body: JSON.stringify({ question }) }),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {
