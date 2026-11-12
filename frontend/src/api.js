@@ -572,6 +572,34 @@ export const userApi = {
   searchBySkills: (skills = [], q = '') => api(`/profile/people?q=${encodeURIComponent(q)}&skills=${encodeURIComponent(skills.join(','))}`),
 };
 
+// [Sprint 6 · M2] US-19 Direct messages. Contract: backend/src/routes/directMessages.js
+//   inbox()            -> { conversations, unreadTotal }   newest activity first
+//   unreadCount()      -> { unreadTotal }                  sidebar badge
+//   open(username)     -> { conversation }                 AC1: "Message" on a profile (creates it the first time)
+//   conversation(id)   -> { conversation }                 404 when it is not yours
+//   messages(id, { before, limit }) -> { messages (oldest first), nextBefore }   pass nextBefore back as `before`
+//   send(id, body)     -> { message, conversation }        429 when sending too fast
+//   markRead(id)       -> { unreadCount: 0, unreadTotal }
+//   conversation = { _id, otherUser: { _id, name, username, avatarUrl }, lastMessage: { preview, at, fromMe } | null, unreadCount, activityAt }
+//   onMessage(handler) gets { conversationId, message, conversation, unreadTotal }   only the two participants receive it
+//   onRead(handler)    gets { conversationId, unreadTotal }                          my other tabs, after I read
+const dmPath = (id = '') => `/direct-messages${id ? `/${encodeURIComponent(id)}` : ''}`;
+export const directMessageApi = {
+  inbox: () => api(dmPath()),
+  unreadCount: () => api(`${dmPath()}/unread-count`),
+  open: (username) => api(dmPath(), { method: 'POST', body: JSON.stringify({ username: String(username || '') }) }),
+  conversation: (id) => api(dmPath(id)),
+  messages: (id, { before, limit = 50 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return api(`${dmPath(id)}/messages?${params}`);
+  },
+  send: (id, body) => api(`${dmPath(id)}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  markRead: (id) => api(`${dmPath(id)}/read`, { method: 'POST', body: JSON.stringify({}) }),
+  onMessage: (handler) => liveApi.onUser('dm:message', handler),
+  onRead: (handler) => liveApi.onUser('dm:read', handler),
+};
+
 // Uploaded photos are stored by the API as "/uploads/avatars/<file>"; turn that into a full URL.
 export function assetUrl(path) {
   if (!path) return '';

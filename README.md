@@ -995,3 +995,39 @@ npm test --prefix backend -- test/trustProxy.test.js
 npm test --prefix frontend -- GithubEvents
 ```
 
+
+---
+
+## Sprint 6 — M2: Direct messages (US-19, FR-6, NFR-1b)
+
+**What it does.** Any logged-in user can talk privately with another user, outside every project channel.
+
+- **AC1.** Another user's profile (`/people/:username`) has a **Message** button next to Follow (not on your own profile). It opens the conversation with that person at `/messages/:conversationId`, creating it the first time. There is exactly one conversation per pair of users (unique `pairKey`), whoever presses Message first, even if both press it at the same moment.
+- **AC2.** A sent message is saved, then pushed over the existing Socket.IO server to the two participants' own rooms (`user:<id>`) only: the recipient sees it live, and the sender's other tabs too. Delivery is measured under 1 second in `backend/test/directMessagesRealtime.test.js`. Anyone else asking for the conversation gets **404**, the same answer as for one that does not exist.
+- **Separate from projects.** Own collections (`directconversations`, `directmessages`) with no project or channel field. Nothing is written to channels, the Activity Feed or notifications, so no project query (chat, feed, Copilot) can pick up a DM.
+- **Messages page** (`/messages`, sidebar link **Messages**): inbox newest first with a one-line preview ("You: …" when you wrote last) and unread counts; the open conversation with "Show older messages", Enter to send, Shift+Enter for a new line. The sidebar badge shows unread direct messages and updates live. On a phone the inbox and the conversation are shown one at a time.
+- **Unread** = messages from the other person after your last read. It is counted from the messages themselves (never a stored counter that can drift). Opening a conversation, or replying in it, marks it read.
+- **Limits (NFR-21, spam guard):** 1–4,000 characters of text (trimmed, line breaks kept); at most **30 messages per minute** per user (429 with `Retry-After`). A conversation without messages shows only in the inbox of the person who opened it.
+
+| Call | Who | Response |
+|---|---|---|
+| `GET /api/direct-messages` | logged in | `{ conversations, unreadTotal }`, newest activity first (max 50) |
+| `GET /api/direct-messages/unread-count` | logged in | `{ unreadTotal }` |
+| `POST /api/direct-messages` `{ username }` | logged in | `{ conversation }`; 400 no username, 400 `self_message`, 404 unknown user |
+| `GET /api/direct-messages/:conversationId` | the 2 participants | `{ conversation }`; 400 bad ID, 404 otherwise |
+| `GET /api/direct-messages/:conversationId/messages?limit=1..100&before=<messageId>` | the 2 participants | `{ messages (oldest first), nextBefore }` |
+| `POST /api/direct-messages/:conversationId/messages` `{ body }` | the 2 participants | 201 `{ message, conversation }`; 400 empty / too long / not text, 429 too fast, 410 the other account no longer exists |
+| `POST /api/direct-messages/:conversationId/read` | the 2 participants | `{ unreadCount: 0, unreadTotal }` |
+
+`conversation = { _id, otherUser: { _id, name, username, avatarUrl }, lastMessage: { preview, at, fromMe } | null, unreadCount, activityAt, createdAt }` and `message = { _id, conversation, sender: { _id, name, username, avatarUrl }, body, createdAt }`. No email or other private field is ever sent.
+
+**Live events** (`lib/realtime.js`, new `emitToUser`): `dm:message { conversationId, message, conversation, unreadTotal }` to each participant with their own view, and `dm:read { conversationId, unreadTotal }` to the reader's other tabs.
+
+**Files:** backend `models/DirectConversation.js`, `models/DirectMessage.js`, `lib/directMessageRules.js`, `lib/directMessages.js`, `routes/directMessages.js`; small edits in `app.js` (mount), `lib/realtime.js` (`emitToUser`), `seed/seedData.js` (removes seed users' DMs). Frontend `pages/MessagesPage.jsx`, `components/DmInbox.jsx`, `components/DmConversation.jsx`, `components/MessageUserButton.jsx`, `components/DmUnreadBadge.jsx`, `directMessages.js`, `directMessageApi` in `api.js`; edits in `App.jsx` (routes), `components/AppShell.jsx` (sidebar link + badge), `pages/UserProfilePage.jsx` (Message button), `styles.css`.
+
+**Tests:** `backend/test/directMessageRules.test.js` (no database), `directMessages.test.js` (API + MongoDB), `directMessagesRealtime.test.js` (Socket.IO, under 1 second, privacy); `frontend/src/directMessages.test.js`, `pages/MessagesPage.test.jsx`, `pages/UserProfilePage.message.test.jsx`, `components/DmUnreadBadge.test.jsx`; `e2e/tests/direct-messages.spec.js` (two browsers + a third user).
+
+```
+npm test --prefix backend -- test/directMessageRules.test.js test/directMessages.test.js test/directMessagesRealtime.test.js
+npm test --prefix frontend -- directMessages MessagesPage UserProfilePage DmUnreadBadge
+```

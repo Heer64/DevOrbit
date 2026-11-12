@@ -59,11 +59,12 @@ describe('UserProfilePage (US-06)', () => {
     expect(stats).toContain('Total vote score'); // [Sprint 5 · M8] FR-26 wording (was 'Score')
   });
 
-  it('is read-only: no edit form; the only button is Follow (US-54, Sprint 5 M8)', async () => {
+  it('is read-only: no edit form; the only buttons are Follow (US-54, Sprint 5 M8) and Message (US-19, Sprint 6 M2)', async () => {
     renderPage();
     await screen.findByText('Open Garden');
     // [Sprint 5 · M8] US-54 AC1 adds Follow to other people's profiles; nothing else is editable.
-    expect(screen.queryAllByRole('button').map((button) => button.textContent.trim())).toEqual(['Follow']);
+    // [Sprint 6 · M2] US-19 AC1 adds Message next to Follow; it only opens a conversation, nothing on the profile changes.
+    expect(screen.queryAllByRole('button').map((button) => button.textContent.trim())).toEqual(['Follow', 'Message']);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
     expect(screen.queryByText(/This is how other people see your profile/)).toBeNull();
   });

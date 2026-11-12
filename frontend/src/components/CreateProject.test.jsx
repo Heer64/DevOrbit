@@ -8,6 +8,7 @@ const auth = vi.hoisted(() => ({ user: { id: 'u1', name: 'Owner Person', isDemo:
 const mocks = vi.hoisted(() => ({ projectApi: { list: vi.fn(), create: vi.fn() } }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('./NotificationBell', () => ({ default: () => null }));
+vi.mock('./DmUnreadBadge', () => ({ default: () => null })); // [Sprint 6 · M2] no live connection in this test
 vi.mock('../api', async (importOriginal) => ({ ...(await importOriginal()), ...mocks }));
 
 import AppShell from './AppShell';

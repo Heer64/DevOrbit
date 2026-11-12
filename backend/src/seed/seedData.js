@@ -8,6 +8,8 @@ import Channel from '../models/Channel.js';
 import Message from '../models/Message.js';
 import Activity from '../models/Activity.js';
 import Follow from '../models/Follow.js'; // [Sprint 5 · M8] US-54
+import DirectConversation from '../models/DirectConversation.js'; // [Sprint 6 · M2] US-19
+import DirectMessage from '../models/DirectMessage.js'; // [Sprint 6 · M2] US-19
 import { ensureDefaultChannel } from '../lib/channels.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { domainTags } from '../lib/projectSetup.js';
@@ -187,6 +189,10 @@ export async function removeSeedData() {
   await Project.updateMany({ 'members.user': { $in: userIds } }, { $pull: { members: { user: { $in: userIds } } } });
   // [Sprint 5 · M8] US-54: follows to or from removed seed accounts would inflate follower counts.
   await Follow.deleteMany({ $or: [{ follower: { $in: userIds } }, { following: { $in: userIds } }] });
+  // [Sprint 6 · M2] US-19: direct conversations with a removed seed account, and their messages.
+  const conversations = await DirectConversation.find({ participants: { $in: userIds } }).select('_id').lean();
+  await DirectMessage.deleteMany({ conversation: { $in: conversations.map((c) => c._id) } });
+  await DirectConversation.deleteMany({ _id: { $in: conversations.map((c) => c._id) } });
   await User.deleteMany({ _id: { $in: userIds } });
   return { users: users.length, projects: projectIds.length };
 }

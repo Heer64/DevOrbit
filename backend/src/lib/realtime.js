@@ -22,6 +22,9 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'comment:created' { projectId, taskId, comment }   [US-20] members only
  *   listen     'notification:created' { notification, unreadCount }   [Sprint 3 · M7 Part 2] only to the recipient
  *   listen     'notification:read' { notificationId, unreadCount }    [Sprint 3 · M7 Part 2] only to the recipient
+ *   listen     'dm:message' { conversationId, message, conversation, unreadTotal }   [Sprint 6 · M2] US-19, only to
+ *              the two participants of the direct conversation (each gets their own `conversation` view)
+ *   listen     'dm:read' { conversationId, unreadTotal }   [Sprint 6 · M2] US-19, only to the reader (their other tabs)
  *              Every authenticated socket is put in its own user room on connect (no join needed),
  *              so these reach all of the recipient's open tabs and nobody else.
  *
@@ -243,6 +246,17 @@ export function emitNotificationCreated(notification, unreadCount) {
 export function emitNotificationRead(userId, notificationId, unreadCount) {
   if (!io || !userId || !notificationId) return;
   io.to(userRoom(String(userId))).emit('notification:read', { notificationId: String(notificationId), unreadCount });
+}
+
+/*
+ * [Sprint 6 · M2] US-19 Direct messages (NFR-1b: delivered in under 1 second).
+ * Sends one event to one user's own room only: all of their open tabs, and nobody else.
+ * lib/directMessages.js calls it once per participant ('dm:message', 'dm:read').
+ * Safe to call when the socket server is not running (tests, scripts): it does nothing.
+ */
+export function emitToUser(userId, eventName, payload) {
+  if (!io || !userId || !eventName) return;
+  io.to(userRoom(String(userId))).emit(eventName, payload);
 }
 
 export async function closeRealtime() {
