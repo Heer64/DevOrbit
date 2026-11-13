@@ -1136,3 +1136,52 @@ The answer says how many records it used and how many were left out (`context`),
 npm test --prefix backend -- test/copilotGrounding.test.js test/copilotGrounded.test.js test/copilot.test.js
 npm test --prefix frontend -- copilotAnswer CopilotPanel DecisionsPanel
 ```
+
+---
+
+## Sprint 6 — M6: Report a public post (US-55, FR-27, NFR-19, NFR-21, NFR-26)
+
+A logged-in user can **report someone else's public post**, choosing a reason. The report is stored as **open**, which is what puts it in the **moderator queue** (US-56). Reporting the same post a second time tells the user **"You have already reported this post."**
+
+**Where to find it:** Community feed (`/feed`), Trending or Latest. Every post that is **not yours** has a 🚩 **Report post** button at the top right (your own posts have Edit/Delete instead).
+1. Click 🚩 → **Report this post** opens. It first asks the server whether you already reported this post (*Checking…*).
+2. Pick one reason, optionally add details, click **Send report**.
+3. The dialog closes and the card says *"Thanks. Your report was sent to the moderators."* The post itself does not change (same text, votes and score; a report alone hides nothing, only a moderator's **Remove** does, US-56).
+4. Click 🚩 again (now red) → *"You have already reported this post."* with an **OK** button and no form. After a reload the server says the same.
+
+**Rules (the same values are used by the server, the browser and the tests)**
+
+| Rule | Value | When broken |
+|---|---|---|
+| Reason | exactly one of `spam` (Spam or misleading), `harassment` (Harassment or bullying), `hate` (Hate speech or symbols), `violence` (Violence or threats), `explicit` (Sexual or explicit content), `other` (Something else) | 400 "Choose a reason for your report." |
+| Details | optional text, up to **300** characters after trimming; **required** for *Something else* | 400 "Report details must be 300 characters or fewer." / "Tell the moderators what is wrong with this post." |
+| One report per user per post | unique index on `PostReport { post, reporter }` | 409 "You have already reported this post." (also when the first report was already resolved) |
+| Own post | you cannot report your own post | 400 `own_post` |
+| Who | any logged-in user | 401 without login, 404 unknown or deleted post |
+
+- The same report sent many times at the same moment is stored **once** (the unique index decides, not a read-then-write check); the others get the 409 answer.
+- If the author **deletes** a reported post (US-51), its **open** reports leave the queue (nothing is left to review). Reports a moderator already resolved stay as history.
+- Reporters are never shown to anyone in any response; the report count is only for moderators.
+
+**API** (login needed)
+
+| Call | Body | Answer |
+|---|---|---|
+| `GET /api/posts/:postId/report` | none | `{ reported: true \| false, report \| null }` (only your own report) |
+| `POST /api/posts/:postId/report` | JSON `{ reason, details? }` | 201 `{ report, message: "Thanks. Your report was sent to the moderators." }`; 400 `{ message, field }` or `{ message, code: 'own_post' }`; 404; 409 `{ message: "You have already reported this post.", code: 'already_reported', report }` |
+
+`report`: `{ _id, post, reason, reasonLabel, details, status: 'open' | 'resolved', createdAt }`.
+
+**For M7 (US-56 moderator queue):** the data is ready in `backend/src/lib/postReports.js`:
+- `openReportQueue({ limit, postId })` → `[{ postId, reportCount, reasons: [{ reason, label, count }], firstReportedAt, lastReportedAt }]`, one entry per post with **open** reports, the one waiting longest first. This is exactly "each reported post with its reason and report count" (US-56 AC1); add the moderator check (403) and the page on top.
+- After **Remove / Warn / Dismiss**, set the post's open reports to `status: 'resolved'` (add `resolvedBy`, `resolvedAt`, `action` to `models/PostReport.js` if you need them). Resolved reports leave the queue automatically.
+- If **Remove** deletes the post through your own code, mark the reports resolved *before* deleting (the author-delete route removes only open reports).
+
+**Files:** backend `lib/reportRules.js` (rules, no database), `models/PostReport.js`, `lib/postReports.js`, `routes/postReports.js`; small edits in `app.js` (1 route, before `/api/posts`) and `routes/posts.js` (open reports removed when the author deletes the post). Frontend `reports.js` (same rules), `components/ReportPostDialog.jsx`, the 🚩 button and success message in `components/PostCard.jsx`, `postApi.reportStatus` / `postApi.report` in `api.js`, styles at the end of `styles.css`.
+
+**Tests:** `backend/test/reportRules.test.js` (no database), `backend/test/postReports.test.js` (API + MongoDB: both acceptance criteria, the moderator-queue data, 8 identical reports at once, bad input, own post, deleted post, and that reporting does not change the post, its votes or the feed); `frontend/src/reports.test.js`, `components/ReportPostDialog.test.jsx`, `components/PostCard.report.test.jsx`; `e2e/tests/report-post.spec.js` (two users in a real browser).
+
+```
+npm test --prefix backend -- test/reportRules.test.js test/postReports.test.js test/posts.test.js test/postVotes.test.js test/trending.test.js
+npm test --prefix frontend -- reports ReportPostDialog PostCard FeedPage TrendingFeed
+```

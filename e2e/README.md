@@ -12,6 +12,7 @@ These tests run the **real** app: the Express API with a real MongoDB, plus the 
 | `tests/project-files.spec.js` | Sprint 4 · M5 (US-37): upload a file, see it listed with the uploader, download it with the same content, still there after reload; a file of 10 MB + 1 byte is refused |
 | `tests/project-docs.spec.js` | Sprint 4 · M6 (US-38): write a Markdown page (live counter, Preview), read it formatted, HTML shown as text and never run, edit and reload; 10,001 characters cannot be saved |
 | `tests/project-completion-health.spec.js` | Sprint 4 · M8 (US-40, US-15): health lists an overdue and a blocked task and shows activity level Low; the Owner marks the project Completed (saved and in Activity) and reopens it |
+| `tests/report-post.spec.js` | Sprint 6 · M6 (US-55): a second user reports someone else's post with a reason and is thanked; after a reload, reporting it again says "You have already reported this post."; the author has no Report button on their own post |
 
 `tests/helpers.js` has the shared steps (`signUp`, `logIn`, `createProject`, `addTask`, …).
 

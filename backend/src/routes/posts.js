@@ -26,6 +26,7 @@ import {
 } from '../lib/postRules.js';
 import { deletePostImage, openPostImage, postImageExists, storePostImage } from '../lib/postImages.js';
 import { attachMyVotes, deleteVotesForPost } from '../lib/postVotes.js'; // [Sprint 5 · M7] US-52
+import { deleteOpenReportsForPost } from '../lib/postReports.js'; // [Sprint 6 · M6] US-55
 
 /*
  * [Sprint 5 · M6] Public posts (US-50 Create a public post, US-51 Edit or delete my post;
@@ -54,6 +55,7 @@ import { attachMyVotes, deleteVotesForPost } from '../lib/postVotes.js'; // [Spr
  *
  * Each post: see postView() in lib/postRules.js, plus myVote (1, -1 or 0) for the logged-in user.
  * [Sprint 5 · M7] Voting (US-52) lives in routes/postVotes.js: PUT/DELETE /api/posts/:postId/vote.
+ * [Sprint 6 · M6] Reporting (US-55) lives in routes/postReports.js: GET/POST /api/posts/:postId/report.
  */
 
 const router = Router();
@@ -292,6 +294,8 @@ router.delete('/:postId', async (req, res, next) => {
     // AC2 "its votes no longer count": the score lives on the post, which is gone, so it drops out
     // of every feed and every total. [Sprint 5 · M7] The vote rows of the post are removed too.
     await deleteVotesForPost(removed._id);
+    // [Sprint 6 · M6] US-55: a deleted post has nothing left to review, so its open reports leave the moderator queue.
+    await deleteOpenReportsForPost(removed._id);
 
     return res.json({ postId: String(removed._id), message: POST_DELETED_MESSAGE });
   } catch (error) {
