@@ -7,8 +7,9 @@
  *
  * Grounding the answer in the project's permitted messages, tasks, decisions and GitHub activity, the
  * 8,000-token input budget and the "not enough project data" reply are US-42 / US-43 (Sprint 6 · M4).
- * They plug in where buildCopilotPrompt() is called in routes/copilot.js. Until then the prompt tells the
- * model that no project records are attached, so it does not invent project facts.
+ * [Sprint 6 · M4] routes/copilot.js now builds the prompt with lib/copilotGrounding.js
+ * (buildGroundedRequest), which attaches the records. buildCopilotPrompt() below is the M3 prompt without
+ * records; it is no longer used by the route and is kept for its unit tests.
  *
  * Unit tests: backend/test/copilotRules.test.js
  */

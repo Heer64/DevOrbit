@@ -1,6 +1,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { AlertTriangle, Loader2, Send, Sparkles } from 'lucide-react';
+import { Link, useInRouterContext } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ExternalLink,
+  Gavel,
+  Github,
+  Info,
+  ListTodo,
+  Loader2,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  Sparkles,
+} from 'lucide-react';
 import { copilotApi } from '../api';
+import { SOURCE_KINDS, contextNote, sourceDate, sourceHref, splitCitations } from '../copilotAnswer'; // [Sprint 6 · M4]
 
 /*
  * [Sprint 6 · M3] US-41 Ask the Copilot (FR-16a, NFR-9, NFR-10a). Shown on the project page to members.
@@ -16,6 +30,15 @@ import { copilotApi } from '../api';
  *   - Answers are plain text (React escapes them), never HTML.
  *
  * API: copilotApi.ask (frontend/src/api.js) -> POST /api/projects/:id/copilot/ask
+ *
+ * [Sprint 6 · M4] US-42, US-43 (FR-16b, FR-16c, FR-36, NFR-10b):
+ *   - Answers are built from the project's records and cite them: [T1] in the text becomes a small numbered
+ *     link, and a numbered Sources list under the answer links to each task, message, comment, decision
+ *     (opens it on the project page) or GitHub commit / issue / pull request (opens github.com in a new tab).
+ *   - "Not enough project data" answers (insufficient: true) get their own box and no sources.
+ *   - One line says how many of the project's records the answer is based on, and whether some were left
+ *     out to stay within the 8,000-token AI input limit.
+ *   Helpers: frontend/src/copilotAnswer.js
  */
 export const QUESTION_MAX_CHARS = 500;
 export const LOADING_DELAY_MS = 2000;
@@ -82,6 +105,10 @@ export default function CopilotPanel({ projectId }) {
             question: result?.question || trimmed,
             answer: result?.answer || '',
             shortened: Boolean(result?.shortened),
+            // [Sprint 6 · M4] US-42 / US-43
+            insufficient: Boolean(result?.insufficient),
+            sources: Array.isArray(result?.sources) ? result.sources : [],
+            context: result?.context || null,
           },
           ...list,
         ].slice(0, MAX_SHOWN_ANSWERS)
@@ -168,12 +195,30 @@ export default function CopilotPanel({ projectId }) {
               <small>YOU ASKED</small>
               {item.question}
             </p>
-            <div className="ai-summary copilot-reply">
-              <span>
-                <Sparkles size={14} />
-              </span>
-              <p>{item.answer}</p>
-            </div>
+            {/* [Sprint 6 · M4] US-43: not enough project data */}
+            {item.insufficient ? (
+              <div className="copilot-insufficient">
+                <Info size={14} />
+                <div>
+                  <b>Not enough project data</b>
+                  <p>{item.answer}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="ai-summary copilot-reply">
+                <span>
+                  <Sparkles size={14} />
+                </span>
+                <p>
+                  <AnswerText text={item.answer} sources={item.sources} />
+                </p>
+              </div>
+            )}
+            {/* [Sprint 6 · M4] US-42: the records the answer is built from */}
+            {!item.insufficient && item.sources.length > 0 && <CopilotSources sources={item.sources} />}
+            {contextNote(item.context, item.insufficient) && (
+              <small className="copilot-context">{contextNote(item.context, item.insufficient)}</small>
+            )}
             {item.shortened && <small className="copilot-shortened">This answer was shortened.</small>}
           </article>
         ))}
@@ -183,5 +228,84 @@ export default function CopilotPanel({ projectId }) {
         The Copilot only answers questions; it never changes your project. AI answers can be wrong, so check anything important.
       </p>
     </section>
+  );
+}
+
+// --- [Sprint 6 · M4] US-42 sources ----------------------------------------------------------------------
+
+const SOURCE_ICONS = { task: ListTodo, decision: Gavel, message: MessageSquare, comment: MessageCircle, github: Github };
+
+// In-app links stay in the app (react-router); GitHub opens in a new tab. A link that is not one DevOrbit
+// makes is shown as plain text.
+function SourceLink({ source, className, label, children }) {
+  const inRouter = useInRouterContext();
+  const target = sourceHref(source);
+  if (!target) return <span className={className}>{children}</span>;
+  if (target.external) {
+    return (
+      <a className={className} href={target.href} target="_blank" rel="noopener noreferrer" aria-label={label}>
+        {children}
+      </a>
+    );
+  }
+  if (inRouter) {
+    return (
+      <Link className={className} to={target.href} aria-label={label}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <a className={className} href={target.href} aria-label={label}>
+      {children}
+    </a>
+  );
+}
+
+const sourceTitle = (number, source) => `Source ${number}: ${SOURCE_KINDS[source?.type] || 'Record'} ${source?.label || ''}`.trim();
+
+// The answer as plain text, with each [T1] citation shown as a numbered link to its source.
+function AnswerText({ text, sources }) {
+  return splitCitations(text, sources).map((part, index) =>
+    part.text !== undefined ? (
+      part.text
+    ) : (
+      <sup className="copilot-cite" key={`cite-${index}`}>
+        {part.refs.map((item) => (
+          <SourceLink key={item.ref} source={item.source} className="copilot-cite-link" label={sourceTitle(item.number, item.source)}>
+            {item.number}
+          </SourceLink>
+        ))}
+      </sup>
+    )
+  );
+}
+
+function CopilotSources({ sources }) {
+  return (
+    <div className="copilot-sources">
+      <small>SOURCES</small>
+      <ol aria-label="Sources">
+        {sources.map((source, index) => {
+          const Icon = SOURCE_ICONS[source.type] || Info;
+          const when = sourceDate(source);
+          return (
+            <li key={source.ref || index}>
+              <span className="copilot-source-num" aria-hidden="true">
+                {index + 1}
+              </span>
+              <Icon size={13} className="copilot-source-icon" aria-hidden="true" />
+              <div className="copilot-source-copy">
+                <SourceLink source={source} className="copilot-source-link" label={sourceTitle(index + 1, source)}>
+                  {source.label || SOURCE_KINDS[source.type] || 'Record'}
+                  {source.external && <ExternalLink size={10} aria-hidden="true" />}
+                </SourceLink>
+                <small>{[SOURCE_KINDS[source.type], source.detail, when].filter(Boolean).join(' · ')}</small>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

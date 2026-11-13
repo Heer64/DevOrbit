@@ -1102,3 +1102,37 @@ npm test --prefix frontend -- CopilotPanel
 npm test --prefix backend -- test/directMessageRules.test.js test/directMessages.test.js test/directMessagesRealtime.test.js
 npm test --prefix frontend -- directMessages MessagesPage UserProfilePage DmUnreadBadge
 ```
+
+---
+
+## Sprint 6 — M4: Copilot answers grounded in project data (US-42, US-43, FR-16b, FR-16c, FR-36, NFR-10b)
+
+Builds on M3's **Ask the Copilot** (same panel, same `POST /api/projects/:id/copilot/ask`). Answers now come only from the project's own data, show their sources, and say so when the data cannot answer.
+
+**What the Copilot may read (US-42 AC1).** Only after the member check, and only from **this** project: tasks (with assignee, due date, milestone), task comments, decisions, channel messages and thread replies, and GitHub activity (commits, issues, pull requests from the signed webhook). Every member role, Viewer included, can read all of these, so they all get the same data. Never used: direct messages, notifications, files, docs, other projects, e-mail addresses (people appear as `Name (@username)`). Every query is filtered by project, and `permittedRecords()` checks the result again before anything is ranked or sent.
+
+**8,000-token limit (US-42 AC2, NFR-10b).** Each request (system prompt + records + question) is kept within **8,000 input tokens** (`COPILOT_MAX_INPUT_TOKENS` in `backend/.env` can lower it to 2,000–8,000; higher values are ignored). How it is trimmed, the same way every time:
+
+1. The newest rows of each kind are read: up to 200 tasks, 150 comments, 100 decisions, 300 messages, 150 GitHub events. Older rows are counted as left out.
+2. Long fields are cut to a fixed length: task description 400 characters, decision description 600, message 500, comment 400, titles 200.
+3. Records are ranked: a word of the question in a record's title scores 3, elsewhere 1, and +2 when the question names the record's kind ("tasks", "commits", "decided" …). Ties: newest first, one of each kind in turn.
+4. Records are added in that order while the estimate stays within the budget; a record that does not fit is left out whole. Tokens are estimated on the safe side (about 30 % above a real tokenizer for English), and the provider's own count is returned as `context.providerInputTokens` for checking.
+
+The answer says how many records it used and how many were left out (`context`), and the panel shows it: *"Based on 46 of 312 project records you can see. The rest were left out to stay within the 8,000-token AI input limit (least related and oldest first)."*
+
+**Sources (US-42 AC1, FR-16c).** Records are given ids (`T1` task, `D1` decision, `M1` message, `C1` comment, `G1` GitHub) and the AI must cite them, e.g. `… is blocked [T2].` Ids it made up are removed. The panel turns each citation into a numbered link and lists the sources under the answer. Links: a task or comment opens the task, a message opens it in its channel (a thread reply opens the thread), a decision opens the Decisions tab scrolled to it (**new link:** `/project/<id>?tab=decisions&decision=<decisionId>`), a GitHub event opens github.com in a new tab.
+
+**Not enough project data (US-43, FR-36).** If the AI answers `NOT_ENOUGH_PROJECT_DATA`, or gives an answer that cites no record, the member sees a fixed *"I don't have enough project data to answer that…"* in a **Not enough project data** box, with no sources, so no unsupported project-specific claim is shown. A project with no records gets this at once, without asking the AI.
+
+**Read-only.** The Copilot never creates or changes data: the route only reads, and its tests check that no collection changes.
+
+**API change** (`200` response, new fields): `insufficient` (boolean), `sources` (`[{ ref, type, label, detail, link, external, at }]`, in order of first use), `context` (`{ budgetTokens, estimatedTokens, providerInputTokens, included, available, leftOut, trimmed }`, counts per kind plus `total`). Errors are unchanged from M3 (400 / 401 / 403 / 404 / 503).
+
+**Files:** backend `lib/copilotGrounding.js` (pure rules: records, permission filter, ranking, budget, prompt, reading the answer), `lib/copilotContext.js` (loads the project's records), `routes/copilot.js` (uses them); small edits in `lib/copilotRules.js` (comment), `.env.example`. Frontend `copilotAnswer.js` (citations, safe links, context line), `components/CopilotPanel.jsx` (sources, citations, not-enough-data box), `components/DecisionsPanel.jsx` + `pages/ProjectPage.jsx` (`?decision=` link), `styles.css`.
+
+**Tests:** `backend/test/copilotGrounding.test.js` (no database), `backend/test/copilotGrounded.test.js` (API + MongoDB, fake AI), `backend/test/copilot.test.js` (M3's tests, updated: answers now cite a record); `frontend/src/copilotAnswer.test.js`, `components/CopilotPanel.sources.test.jsx`, `components/DecisionsPanel.highlight.test.jsx`.
+
+```
+npm test --prefix backend -- test/copilotGrounding.test.js test/copilotGrounded.test.js test/copilot.test.js
+npm test --prefix frontend -- copilotAnswer CopilotPanel DecisionsPanel
+```

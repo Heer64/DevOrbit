@@ -54,6 +54,7 @@ const activityIcon = { violet: 'purple', green: 'green', blue: 'blue', orange: '
 // [Sprint 4 · M5] US-37: 'Files' added (?tab=files).
 // Tasks stays the default tab when the URL has none, so existing links and journeys are unchanged.
 // [Sprint 4 · M6] US-38: 'Docs' added (?tab=docs&doc=<id> opens a page).
+// [Sprint 6 · M4] US-42: ?tab=decisions&decision=<id> scrolls to and highlights one decision (Copilot sources).
 export const PROJECT_TABS = ['Dashboard', 'Tasks', 'Chat', 'Milestones', 'Decisions', 'Files', 'Docs', 'Activity'];
 export function tabFromParam(value) {
   return PROJECT_TABS.find((tab) => tab.toLowerCase() === String(value || '').toLowerCase()) || 'Tasks';
@@ -117,6 +118,7 @@ export default function ProjectPage() {
   const openMessageId = searchParams.get('message') || '';
   const openThreadId = searchParams.get('thread') || ''; // [Sprint 3] US-17/US-18: from a mention notification
   const openDocId = searchParams.get('doc') || ''; // [Sprint 4 · M6] US-38: documentation page to open
+  const openDecisionId = searchParams.get('decision') || ''; // [Sprint 6 · M4] US-42: decision linked from a Copilot source
   const setActiveTab = useCallback((tab, extra = {}) => {
     const next = new URLSearchParams({ tab: tab.toLowerCase() });
     for (const [key, value] of Object.entries(extra)) if (value) next.set(key, value);
@@ -300,7 +302,7 @@ export default function ProjectPage() {
           )}
           {/* [Sprint 3 · M8] US-35/US-36: project decisions. Members only. */}
           {activeTab === 'Decisions' && isLive && membershipRole && (
-            <DecisionsPanel projectId={id} myRole={membershipRole} members={team || []} tasks={taskList} onChange={() => setWorkVersion((n) => n + 1)} />
+            <DecisionsPanel projectId={id} myRole={membershipRole} members={team || []} tasks={taskList} onChange={() => setWorkVersion((n) => n + 1)} highlightId={openDecisionId} />
           )}
           {activeTab === 'Decisions' && isLive && liveProject && !membershipRole && (
             <div className="task-empty"><Circle size={20} /><p>Project decisions are visible to members only.</p></div>

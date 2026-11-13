@@ -1,6 +1,9 @@
 // [Sprint 6 · M3] US-41: POST /api/projects/:id/copilot/ask (members only, 500-character question,
 // "AI temporarily unavailable" while the rest of DevOrbit keeps working).
 // The AI provider is replaced by a fake client (setLlmClient), so no network and no API key are needed.
+// [Sprint 6 · M4] US-42/US-43 ground answers in project records: the project gets one task (T1) so the AI is
+// asked, and the fake answers cite it ([T1]); an uncited answer would become "not enough project data".
+// Grounding itself is tested in copilotGrounded.test.js and copilotGrounding.test.js.
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
@@ -56,6 +59,10 @@ before(async () => {
   assert.equal(publicProject.status, 201, JSON.stringify(publicProject.body));
   publicProjectId = publicProject.body.project._id;
 
+  // [Sprint 6 · M4] One project record (T1) to ground answers in.
+  const task = await as(owner).post(`/api/projects/${projectId}/tasks`).send({ title: 'Set up the Kanban board' });
+  assert.equal(task.status, 201, JSON.stringify(task.body));
+
   setLlmClient(fakeClient);
 });
 
@@ -66,7 +73,7 @@ after(async () => {
 
 beforeEach(() => {
   calls.length = 0;
-  reply = async () => ({ text: 'A Kanban board shows work in columns.', truncated: false, durationMs: 1234 });
+  reply = async () => ({ text: 'A Kanban board shows work in columns [T1].', truncated: false, durationMs: 1234 });
 });
 
 // --- Access ---------------------------------------------------------------------------------------
@@ -96,7 +103,7 @@ test('every member role can ask, Viewer included (role-permission matrix: Use Co
   for (const account of [owner, admin, contributor, viewer]) {
     const res = await ask(account, 'What is a Kanban board?');
     assert.equal(res.status, 200, `${account.user.name}: ${JSON.stringify(res.body)}`);
-    assert.equal(res.body.answer, 'A Kanban board shows work in columns.');
+    assert.equal(res.body.answer, 'A Kanban board shows work in columns [T1].');
   }
   assert.equal(calls.length, 4);
 });
@@ -108,27 +115,47 @@ test('200: answer, trimmed question, timing fields and no caching', async () => 
   const res = await ask(contributor, '   When is the next milestone due?  \n');
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.headers['cache-control'], 'no-store');
-  assert.deepEqual(Object.keys(res.body).sort(), ['answer', 'answeredAt', 'askedAt', 'durationMs', 'question', 'shortened']);
+  // [Sprint 6 · M4] adds insufficient, sources and context.
+  assert.deepEqual(Object.keys(res.body).sort(), [
+    'answer',
+    'answeredAt',
+    'askedAt',
+    'context',
+    'durationMs',
+    'insufficient',
+    'question',
+    'shortened',
+    'sources',
+  ]);
+  assert.equal(res.body.insufficient, false);
+  assert.deepEqual(
+    res.body.sources.map((source) => source.label),
+    ['Set up the Kanban board']
+  );
   assert.equal(res.body.question, 'When is the next milestone due?');
   assert.equal(res.body.shortened, false);
   assert.equal(res.body.durationMs, 1234);
   assert.ok(Date.parse(res.body.askedAt) >= before - 1000);
   assert.ok(Date.parse(res.body.answeredAt) >= Date.parse(res.body.askedAt));
 
-  // What reached the AI: the trimmed question as the only user message, the project named in the system prompt.
+  // What reached the AI: one user message (the project records, then the trimmed question), the project
+  // named in the system prompt. [Sprint 6 · M4] the records come first.
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].messages, [{ role: 'user', content: 'When is the next milestone due?' }]);
+  assert.equal(calls[0].messages.length, 1);
+  assert.equal(calls[0].messages[0].role, 'user');
+  assert.match(calls[0].messages[0].content, /Title: Set up the Kanban board/);
+  assert.match(calls[0].messages[0].content, /\n\nQuestion: When is the next milestone due\?$/);
   assert.match(calls[0].system, /"Copilot Project"/);
   assert.match(calls[0].system, /cannot create, change or delete/);
 });
 
 test('a truncated or over-long answer is flagged as shortened', async () => {
-  reply = async () => ({ text: 'Cut off mid', truncated: true, durationMs: 5 });
+  reply = async () => ({ text: 'Cut off mid [T1]', truncated: true, durationMs: 5 });
   const truncated = await ask(owner, 'Explain everything?');
   assert.equal(truncated.status, 200);
   assert.equal(truncated.body.shortened, true);
 
-  reply = async () => ({ text: 'w'.repeat(ANSWER_MAX_CHARS + 10), truncated: false, durationMs: 5 });
+  reply = async () => ({ text: `[T1] ${'w'.repeat(ANSWER_MAX_CHARS + 10)}`, truncated: false, durationMs: 5 });
   const long = await ask(owner, 'Explain everything again?');
   assert.equal(long.status, 200);
   assert.equal(long.body.shortened, true);
