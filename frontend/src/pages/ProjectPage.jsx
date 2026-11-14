@@ -23,6 +23,7 @@ import FilesPanel from '../components/FilesPanel'; // [Sprint 4 · M5] US-37
 import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
 import { publicProjectPath } from '../lib/publicLinks'; // [Sprint 5 · M2] US-46
 import CopilotPanel from '../components/CopilotPanel'; // [Sprint 6 · M3] US-41
+import CatchMeUpPanel from '../components/CatchMeUpPanel'; // [Sprint 6 · M5] US-44
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -386,6 +387,8 @@ export default function ProjectPage() {
           </section>
 
           {/* [Sprint 6 · M3] US-41: real projects, members of any role, ask the Copilot. */}
+          {/* [Sprint 6 · M5] US-44: members catch up on what happened since their previous login. */}
+          {isLive && membershipRole && <CatchMeUpPanel projectId={id} />}
           {isLive && membershipRole && <CopilotPanel projectId={id} />}
           {/* Demo / sample projects keep the sample commit recap (layout preview only). */}
           {!isLive && <section className="panel copilot-panel">
