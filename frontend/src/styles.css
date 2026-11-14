@@ -868,3 +868,27 @@ a.copilot-source-link:hover,a.copilot-source-link:focus-visible{color:var(--acce
 .copilot-insufficient p{margin:3px 0 0;font-size:10px;line-height:1.6}
 .copilot-context{display:block;font-size:8px;color:var(--muted);margin-top:7px;line-height:1.5}
 .milestone.decision-highlight{background:var(--soft);box-shadow:inset 3px 0 0 var(--accent);border-radius:9px}
+
+/* ===== Sprint 6 · M6: report a public post (US-55) ===== */
+.post-report{color:var(--muted)}
+.post-report:hover,.post-report:focus-visible{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--line))}
+.post-report.on{color:var(--danger);background:var(--danger-bg)}
+.post-report.on svg{fill:currentColor}
+.post-card .post-report-notice{margin:0}
+.report-dialog .report-note{margin:0 0 14px;font-size:12px;line-height:1.6;color:var(--muted)}
+.report-dialog .report-note b{color:var(--text)}
+.report-dialog .report-form{gap:12px}
+.report-dialog .report-form .report-note{margin:0}
+.report-reasons{border:0;padding:0;margin:0;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.report-reasons legend{padding:0;margin-bottom:7px;font-size:11px;font-weight:600;color:var(--muted)}
+.modal label.report-reason{flex-direction:row;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:11px;font-weight:500;cursor:pointer}
+.modal label.report-reason:hover{border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.modal label.report-reason.on{border-color:var(--danger);background:var(--danger-bg)}
+.modal label.report-reason input{width:auto;margin:0;padding:0;flex:none;accent-color:var(--danger)}
+.modal label.report-reason:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+.report-dialog fieldset:disabled label.report-reason{opacity:.7;cursor:default}
+.report-details .report-details-label{font-size:11px;font-weight:600;color:var(--muted)}
+.report-details textarea{min-height:72px}
+.report-details textarea[aria-invalid=true]{border-color:var(--danger)}
+.report-dialog .form-error{margin:0}
+@media(max-width:480px){.report-reasons{grid-template-columns:1fr}}

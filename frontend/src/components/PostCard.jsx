@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom'; // [Sprint 5 · M8]
-import { Pencil, Trash2 } from 'lucide-react';
+import { Flag, Pencil, Trash2 } from 'lucide-react';
 import { assetUrl, postApi } from '../api';
 import { Avatar, initialsOf } from './ui';
 import ConfirmDialog from './ConfirmDialog';
 import PostVotes from './PostVotes'; // [Sprint 5 · M7] US-52
+import ReportPostDialog from './ReportPostDialog'; // [Sprint 6 · M6] US-55
 import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTimeAgo } from '../posts';
+import { REPORT_CREATED_MESSAGE } from '../reports'; // [Sprint 6 · M6] US-55
 
 /*
  * [Sprint 5 · M6] One public post, with US-51 Edit or delete my post.
@@ -18,6 +20,10 @@ import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTim
  *
  * [Sprint 5 · M8] US-54: the author's photo, name and @username open their profile
  * (/people/:username), where they can be followed. Plain text for a deleted author.
+ *
+ * [Sprint 6 · M6] US-55: on other people's posts a flag button opens "Report this post" (ReportPostDialog):
+ * pick a reason and send it to the moderators. After sending, the card says so; reporting the same
+ * post again says "You have already reported this post." Your own posts have Edit/Delete instead.
  *
  * Props: post (API shape, see api.js postApi), api, onUpdated(post) (also called after a vote),
  *        onDeleted(postId), now (tests).
@@ -41,6 +47,10 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  // [Sprint 6 · M6] US-55
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
 
   const author = post.author || { name: 'Deleted user', username: '' };
   const length = postTextLength(draft);
@@ -112,6 +122,20 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
             <button type="button" className="iconbtn" aria-label="Delete post" title="Delete" onClick={() => { setDeleteError(''); setConfirming(true); }}><Trash2 size={14} /></button>
           </div>
         )}
+        {/* [Sprint 6 · M6] US-55: report someone else's post */}
+        {!post.isMine && (
+          <div className="post-actions">
+            <button
+              type="button"
+              className={`iconbtn post-report ${reported ? 'on' : ''}`}
+              aria-label="Report post"
+              title={reported ? 'You reported this post' : 'Report'}
+              onClick={() => setReporting(true)}
+            >
+              <Flag size={14} />
+            </button>
+          </div>
+        )}
       </header>
 
       {editing ? (
@@ -137,6 +161,9 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
 
+      {/* [Sprint 6 · M6] NFR-26: visible success feedback after a report */}
+      {reportNotice && <p className="success-inline post-report-notice" role="status">{reportNotice}</p>}
+
       {post.imageUrl && (
         <div className="post-image">
           <img src={assetUrl(post.imageUrl)} alt={`Image shared by ${author.name}`} loading="lazy" />
@@ -159,6 +186,24 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
       >
         It will disappear from every feed and its votes will no longer count. This cannot be undone.
       </ConfirmDialog>
+
+      {/* [Sprint 6 · M6] US-55 */}
+      {!post.isMine && (
+        <ReportPostDialog
+          open={reporting}
+          postId={post._id}
+          authorName={author.name}
+          api={api}
+          knownReported={reported}
+          onClose={() => setReporting(false)}
+          onReported={(result) => {
+            setReporting(false);
+            setReported(true);
+            setReportNotice(result?.message || REPORT_CREATED_MESSAGE);
+          }}
+          onAlreadyReported={() => setReported(true)}
+        />
+      )}
     </article>
   );
 }

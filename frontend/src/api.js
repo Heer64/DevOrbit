@@ -202,6 +202,11 @@ export const postApi = {
   remove: (postId) => api(postPath(postId), { method: 'DELETE' }),
   vote: (postId, value) => api(`${postPath(postId)}/vote`, { method: 'PUT', body: JSON.stringify({ value }) }), // [Sprint 5 · M7]
   unvote: (postId) => api(`${postPath(postId)}/vote`, { method: 'DELETE' }), // [Sprint 5 · M7]
+  // [Sprint 6 · M6] US-55 report a post. Contract: backend/src/routes/postReports.js
+  //   reportStatus(postId)               -> { reported, report | null }
+  //   report(postId, { reason, details }) -> 201 { report, message } | 409 already_reported | 400 | 404
+  reportStatus: (postId) => api(`${postPath(postId)}/report`),
+  report: (postId, { reason, details = '' }) => api(`${postPath(postId)}/report`, { method: 'POST', body: JSON.stringify({ reason, details }) }),
   // [Sprint 5 · M8] US-53 trending feed. Contract: backend/src/routes/trending.js
   //   trending({ cursor, limit }) -> { posts (each + trendingScore), nextCursor, rankedAt, maxRankAgeSeconds }
   //   Order: (up - down) / (ageHours + 2)^1.5 highest first, newer post on ties; re-ranked at least every 5 minutes.
