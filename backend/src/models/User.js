@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema(
     portfolioPublic: { type: Boolean, default: true },
     loginFailedAttempts: { type: Number, default: 0, select: false },
     loginLockedUntil: { type: Date, default: null, select: false },
+    // [Sprint 6 · M5] US-44 Catch Me Up: the last and the one-before-last successful logins (sign-up counts as
+    // the first). Catch Me Up summarises what happened since previousLoginAt. Hidden unless selected.
+    lastLoginAt: { type: Date, default: null, select: false },
+    previousLoginAt: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );

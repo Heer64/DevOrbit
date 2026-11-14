@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import User from '../models/User.js';
 import Session from '../models/Session.js';
 import { requireAuth } from '../middleware/auth.js';
+import { recordSuccessfulLogin } from '../lib/catchUpRules.js'; // [Sprint 6 · M5] US-44
 
 const router = Router();
 const ACCESS_TOKEN_TTL = '15m';
@@ -102,6 +103,7 @@ router.post('/signup', async (req, res, next) => {
       email,
       username: await uniqueUsername(name),
       passwordHash: await bcrypt.hash(password, 12),
+      lastLoginAt: new Date(), // [Sprint 6 · M5] US-44: signing up is the first login
     });
     return res.status(201).json(await startSession(user, res));
   } catch (error) {
@@ -116,7 +118,7 @@ router.post('/login', async (req, res, next) => {
     const password = String(req.body.password || '');
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
 
-    const user = await User.findOne({ email }).select('+passwordHash +loginFailedAttempts +loginLockedUntil');
+    const user = await User.findOne({ email }).select('+passwordHash +loginFailedAttempts +loginLockedUntil +lastLoginAt +previousLoginAt');
     if (!user) return res.status(401).json({ message: 'Invalid email or password.' });
 
     // Migrate development accounts created before username became part of the profile schema.
@@ -146,6 +148,7 @@ router.post('/login', async (req, res, next) => {
 
     user.loginFailedAttempts = 0;
     user.loginLockedUntil = null;
+    recordSuccessfulLogin(user); // [Sprint 6 · M5] US-44: Catch Me Up starts from the login before this one
     await user.save();
     return res.json(await startSession(user, res));
   } catch (error) {

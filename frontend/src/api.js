@@ -526,6 +526,13 @@ export const copilotApi = {
   ask: (id, question) => api(`${projectPath(id)}/copilot/ask`, { method: 'POST', body: JSON.stringify({ question }) }),
 };
 
+// [Sprint 6 · M5] US-44 Catch Me Up. Contract: backend/src/routes/catchUp.js
+//   run(id) -> { nothingNew, message, since, until, basis, counts, summary, shortened, sources, context }
+//   503 { code: 'AI_UNAVAILABLE' } when the AI provider is down.
+export const catchUpApi = {
+  run: (id) => api(`${projectPath(id)}/catch-up`, { method: 'POST' }),
+};
+
 // Activity feeds. project() is members-only and newest first; pass nextBefore from a page as `before` for the next one.
 export const activityApi = {
   project: (id, { limit = 30, before } = {}) => {

@@ -32,6 +32,7 @@ import followRoutes from './routes/follows.js'; // [Sprint 5 · M8] US-54 follow
 import directMessageRoutes from './routes/directMessages.js'; // [Sprint 6 · M2] US-19 direct messages
 import { githubWebhookRoutes, githubDeliveriesRoutes } from './routes/githubWebhook.js'; // [Sprint 4 · M4] US-34
 import copilotRoutes from './routes/copilot.js'; // [Sprint 6 · M3] US-41 Ask the Copilot
+import catchUpRoutes from './routes/catchUp.js'; // [Sprint 6 · M5] US-44 Catch Me Up
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 import { trustProxySetting } from './lib/trustProxy.js'; // [Sprint 6 · M1] D1 fix
 
@@ -153,6 +154,7 @@ export function createApp() {
   app.use('/api/projects/:id/files', projectFileRoutes); // [Sprint 4 · M5] US-37 project files (stored in GridFS)
   app.use('/api/projects/:id/docs', docRoutes); // [Sprint 4 · M6] US-38 documentation pages
   app.use('/api/projects/:id/copilot', copilotRoutes); // [Sprint 6 · M3] US-41 Ask the Copilot (members only)
+  app.use('/api/projects/:id/catch-up', catchUpRoutes); // [Sprint 6 · M5] US-44 Catch Me Up (members only)
   app.use('/api/public/projects', publicProjectRoutes); // [Sprint 5 · M1] US-45 Discover: no login, Public projects only
   app.use('/api/portfolio', portfolioRoutes); // [Sprint 5 · M5] US-49 my portfolio (login)
   app.use('/api/public/portfolio', publicPortfolioRoutes); // [Sprint 5 · M5] US-49 shared portfolio link (no login, read-only)

@@ -1185,3 +1185,41 @@ A logged-in user can **report someone else's public post**, choosing a reason. T
 npm test --prefix backend -- test/reportRules.test.js test/postReports.test.js test/posts.test.js test/postVotes.test.js test/trending.test.js
 npm test --prefix frontend -- reports ReportPostDialog PostCard FeedPage TrendingFeed
 ```
+
+---
+
+## Sprint 6 — M5: Catch Me Up (US-44, FR-17, NFR-9, NFR-10a, NFR-10b)
+
+A project member who was away presses **Catch me up** (project page, above *Ask the Copilot*) and gets a short AI summary of what **other members** did in the project **since the member's previous successful login**. It reuses M3's AI client (`lib/llmClient.js`) and M4's token estimate and link formats (`lib/copilotGrounding.js`); no new settings are needed.
+
+**"Since my previous login."** `User.lastLoginAt` and `User.previousLoginAt` (new, `select: false`, never sent to the browser) are kept by `routes/auth.js`: signing up sets `lastLoginAt`; every successful login moves it to `previousLoginAt` and sets `lastLoginAt` to now (`recordSuccessfulLogin`). A wrong password and a session refresh are not logins. Catch Me Up covers `previousLoginAt` → now. Accounts with no previous login on record (e.g. existing accounts before their first login after this change) get **the last 7 days**, and the panel says so.
+
+**Only data the member can access (AC1).** Membership is checked first. Then only **this project's Activity feed** in that period is used (the same feed every member role sees: tasks, milestones, channel messages, task comments, decisions, GitHub events, members / invitations / join requests, files, project changes), **without the member's own actions**. Never used: direct messages, notifications, other projects, e-mail addresses (people appear as `Name (@username)`). Each event is checked again against the project before it is sent (`permittedEvents`).
+
+**8,000-token input limit (NFR-10b).** The newest 300 events are read and added **newest first** while the request stays within the Copilot budget (8,000 tokens; `COPILOT_MAX_INPUT_TOKENS` can lower it). An event that does not fit is left out whole; the same events always give the same request. The AI reads them oldest first as `E1, E2, …` and must cite them; invented ids are removed. **What changed** counts cover every event in the period, not only those sent, and the panel says when older events were left out.
+
+**AC2 / AC3.**
+- Nobody else did anything in the period → **"Nothing new since your last login. You are all caught up."**, without asking the AI (so it works even when the AI is down).
+- AI provider down, slow, not set up, or an empty reply → 503 and **"AI temporarily unavailable"** in the panel only; tasks, chat and feeds keep working.
+- Loading indicator only after **2 seconds** (same timing as Ask the Copilot).
+
+**Read-only.** The route writes nothing; the summary is not stored or logged.
+
+**API: `POST /api/projects/:id/catch-up`** (no body; every member role)
+
+| Status | Body |
+|---|---|
+| 200 | `{ nothingNew, message, since, until, basis, counts, summary, shortened, sources, context, durationMs, generatedAt }` |
+| 401 / 400 / 404 / 403 | not signed in / invalid project ID / no such project / not a member (Public projects too) |
+| 503 | `{ code: "AI_UNAVAILABLE", message }` + `Retry-After: 30` |
+
+`basis`: `previous_login` or `recent_days`. `counts`: `{ tasks, milestones, messages, comments, decisions, github, people, files, project, total }`. `summary`: short points (`- …`) citing `[E1]`. `sources`: `[{ ref, type: "event", category, label, detail, link, external, at }]`; `link` opens the task, message (thread), decision or the Activity tab, and GitHub events open github.com (`external: true`). `context`: `{ budgetTokens, estimatedTokens, providerInputTokens, included, available, leftOut, trimmed }`.
+
+**Files:** backend `lib/catchUpRules.js` (rules: login times, window, categories, events, links, budget, prompt, citations), `routes/catchUp.js`; small edits in `routes/auth.js` (record login times), `models/User.js` (2 fields), `app.js` (mount). Frontend `components/CatchMeUpPanel.jsx`, `catchUpDisplay.js`, `catchUpApi` in `api.js`; edits in `pages/ProjectPage.jsx` (one panel), `styles.css`.
+
+**Tests:** `backend/test/catchUpRules.test.js` (no database), `backend/test/catchUp.test.js` (API + MongoDB, fake AI: login times, AC1 / AC2 / AC3, own actions and other projects left out, GitHub events, budget with 450 events, 7-day fallback, roles, read-only); `frontend/src/catchUpDisplay.test.js`, `components/CatchMeUpPanel.test.jsx` (summary and links, 2-second indicator, nothing new, AI unavailable, plain text only).
+
+```
+npm test --prefix backend -- test/catchUpRules.test.js test/catchUp.test.js
+npm test --prefix frontend -- catchUpDisplay CatchMeUpPanel
+```
