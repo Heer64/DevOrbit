@@ -1292,3 +1292,66 @@ The password of an existing account is never changed. Platform Admins are only m
 npm test --prefix backend -- test/platformRoleRules.test.js test/platformAdmin.test.js test/adminRouteAudit.test.js test/platformAdminBootstrap.test.js test/platformAdminRealtime.test.js test/auth.test.js test/seed.test.js
 npm test --prefix frontend -- platformRoles AdminPage App.admin AppShell.admin
 ```
+
+---
+
+## Sprint 6 — M1: Password reset (US-04, FR-1, NFR-3a, NFR-19)
+
+**Story.** As a Visitor, I want to reset my password by email, so that I can regain access to my account.
+
+| AC | How it is met |
+|---|---|
+| 1. A registered email gets a **single-use** reset link **valid for 1 hour** by email | `POST /api/auth/forgot-password` creates a random 256-bit token, stores only its SHA-256 hash in `PasswordResetToken` with `expiresAt` = now + 1 hour, and emails the link. Using the link sets `usedAt` in one atomic step, so it works once (two clicks at the same moment: one wins). |
+| 2. An unregistered email sees **the same confirmation message** | Every well-formed email gets the same `200` and text. The answer is sent **before** the account lookup and the email happen (they run in the background), so the response time does not reveal the account either. |
+| 3. A valid link + new valid password updates the password and **ends all sessions** | `POST /api/auth/reset-password` stores a new bcrypt hash (cost 12), deletes every `Session` of the user and clears this browser's refresh cookie. `requireAuth` checks the session on each request, so access tokens still inside their 15 minutes stop working at once. |
+
+### Pages
+
+- **Log in → "Forgot password?"** opens `/forgot-password` (with the email typed so far). It always shows the server's confirmation.
+- The email links to **`/reset-password#token=…`**. The token is in the URL *fragment*, which browsers never send to a server, so it never appears in server or proxy logs. The page removes it from the address bar, checks it (`POST /api/auth/reset-password/verify`), then asks for the new password twice.
+- After the change, the browser is signed out and sent to the login page with *"Your password has been changed and you have been signed out on every device…"*.
+- An expired, used or replaced link shows *"This reset link is invalid, has expired or has already been used"* with **Request a new link**.
+
+### API
+
+| Endpoint | Body | Answer |
+|---|---|---|
+| `POST /api/auth/forgot-password` | `{ email }` | `200 { message }` for every valid email · `400` missing/invalid email · `503` email not set up (same for every email) |
+| `POST /api/auth/reset-password/verify` | `{ token }` | `200 { valid: true, expiresAt }` · `400 { code: "reset_link_invalid" }` |
+| `POST /api/auth/reset-password` | `{ token, password }` | `200 { message }` · `400` password too short/long (link **not** used up) · `400 { code: "reset_link_invalid" }` |
+
+Other rules: a new request replaces the earlier link (only the newest works) · at most **3 emails per account per hour** (the visitor still sees the same message) · per-IP limits of 5 / 20 / 10 requests per 15 minutes on the three endpoints · a reset also lifts a login lock from wrong passwords · the link's address comes from `APP_URL` (or `CLIENT_ORIGIN`), never from the request's `Host` header · the email address, the link and the Brevo key are never logged (except with `MAIL_TRANSPORT=log`, below).
+
+### Email setup (`backend/.env`)
+
+| `MAIL_TRANSPORT` | What happens | Use it for |
+|---|---|---|
+| `log` (default outside production) | The email, **with the link**, is printed in the API terminal. Nothing is sent. | Local development and testing: copy the link from the terminal. |
+| `brevo` | Sent for real through [Brevo](https://www.brevo.com)'s API (it has a free plan). Needs `BREVO_API_KEY` and `MAIL_FROM`. | Render, or receiving the email in a real inbox locally. |
+| `memory` (default in tests) | Kept in memory for the automated tests. | `npm test` only. |
+
+`log` is refused when `NODE_ENV=production` (links must not end up in hosting logs). In production with no transport, *Forgot password* answers *"Password reset by email is not available on this server right now"* for every email. The API prints at start-up which mode is active.
+
+**Brevo, once:** sign up at brevo.com → in the account settings, **add a sender** and verify it (your Gmail is fine; click the confirmation Brevo emails you) → under **SMTP & API → API keys**, generate an API key (it starts with `xkeysib-`). Then in `backend/.env` (or Render → Environment):
+
+```
+MAIL_TRANSPORT=brevo
+BREVO_API_KEY=xkeysib-...
+MAIL_FROM=the-sender-you-verified@gmail.com
+APP_URL=https://<your frontend>      # only needed when it differs from the first CLIENT_ORIGIN
+```
+
+Emails from a free Gmail sender may land in **Spam** at first.
+
+### Files
+
+New: `backend/src/lib/passwordResetRules.js` (pure rules, messages, token, email text), `backend/src/lib/mailer.js` (log / brevo / memory, no npm package), `backend/src/models/PasswordResetToken.js`, `backend/src/routes/passwordReset.js`, `frontend/src/pages/ForgotPasswordPage.jsx`, `frontend/src/pages/ResetPasswordPage.jsx`. Changed: `app.js` (mount), `routes/auth.js` (`clearRefreshCookie` export), `server.js` (start-up log), `api.js` (`authApi.requestPasswordReset / verifyPasswordReset / resetPassword`), `App.jsx` (two public routes), `AuthLayout.jsx` (headings), `LoginPage.jsx` (link + notice), `styles.css`.
+
+### Tests
+
+```
+npm test --prefix backend -- test/passwordResetRules.test.js   # rules + mailer, no MongoDB
+npm test --prefix backend -- test/passwordReset.test.js        # the API, every AC
+npm test --prefix frontend -- PasswordReset                    # the pages and the login link
+```
+

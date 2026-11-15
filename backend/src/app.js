@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
+import passwordResetRoutes from './routes/passwordReset.js'; // [Sprint 6 · M1] US-04 password reset
 import projectRoutes from './routes/projects.js';
 import taskRoutes from './routes/tasks.js';
 import myTaskRoutes from './routes/myTasks.js';
@@ -126,6 +127,7 @@ export function createApp() {
     res.json({ status: 'ok', service: 'devorbit-api' });
   });
 
+  app.use('/api/auth', passwordResetRoutes); // [Sprint 6 · M1] US-04: forgot / reset password (no login)
   app.use('/api/auth', authRoutes);
   app.use('/api/projects', projectRoutes);
   // [Sprint 3] US-20. Mounted before the task routes so only comment URLs reach it.

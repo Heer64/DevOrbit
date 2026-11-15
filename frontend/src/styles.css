@@ -955,3 +955,10 @@ a.copilot-source-link:hover,a.copilot-source-link:focus-visible{color:var(--acce
   .admin-user-actions .muted-note{text-align:left;max-width:none}
 }
 @media(max-width:560px){.admin-filters .field-input{flex:1 1 45%}.admin-search{flex-basis:100%}}
+/* [Sprint 6 · M1] US-04 password reset pages */
+a.textbtn{text-decoration:none}
+.reset-done{display:flex;flex-direction:column;gap:13px}
+.reset-done .success-inline,.auth-card form .success-inline{margin:0;font-size:11px;line-height:1.6}
+.reset-hint{color:var(--muted);font-size:11px;line-height:1.6;margin:0}
+.reset-back{display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:11px}
+a.btn{text-decoration:none}

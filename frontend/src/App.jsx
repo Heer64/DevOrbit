@@ -3,6 +3,8 @@ import { useAuth } from './context/AuthContext';
 import AppShell from './components/AppShell';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage'; // [Sprint 6 · M1] US-04
+import ResetPasswordPage from './pages/ResetPasswordPage'; // [Sprint 6 · M1] US-04
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import DiscoverPage from './pages/DiscoverPage';
@@ -41,6 +43,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      {/* [Sprint 6 · M1] US-04 (Actor: Visitor): ask for a reset link, and the page the emailed link opens. No login. */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />

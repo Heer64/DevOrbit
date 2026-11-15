@@ -4,10 +4,19 @@ import Logo, { LogoMark } from './Logo';
 import { Avatar } from './ui';
 import { useTheme } from '../context/ThemeContext';
 
+// Card heading for each auth page. [Sprint 6 · M1] US-04 adds the two password reset pages.
+const HEADINGS = {
+  login: ['Welcome back', 'Your next breakthrough is waiting.'],
+  signup: ['Create your account', 'Start building with your team.'],
+  forgot: ['Forgot your password?', "Enter your email and we'll send you a link to choose a new one."],
+  reset: ['Choose a new password', 'Use at least 8 characters. You will be signed out on every device.'],
+};
+
 export default function AuthLayout({ mode = 'login', children }) {
   const navigate = useNavigate();
   const { dark, toggle } = useTheme();
   const isLogin = mode === 'login';
+  const [title, subtitle] = HEADINGS[mode] || HEADINGS.login;
   return (
     <div className="auth">
       <header className="auth-head">
@@ -28,14 +37,14 @@ export default function AuthLayout({ mode = 'login', children }) {
         <section className="auth-card">
           <div className="card-title">
             <div>
-              <h2>{isLogin ? 'Welcome back' : 'Create your account'}</h2>
-              <p>{isLogin ? 'Your next breakthrough is waiting.' : 'Start building with your team.'}</p>
+              <h2>{title}</h2>
+              <p>{subtitle}</p>
             </div>
             <span><Sparkles size={17} /></span>
           </div>
           <div className="auth-tabs">
             <button type="button" className={isLogin ? 'active' : ''} onClick={() => navigate('/login')}>Log in</button>
-            <button type="button" className={!isLogin ? 'active' : ''} onClick={() => navigate('/signup')}>Sign up</button>
+            <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => navigate('/signup')}>Sign up</button>
           </div>
           {children}
           <p className="terms">By continuing, you agree to our <a href="#terms">Terms</a> and <a href="#privacy">Privacy Policy</a>.</p>
