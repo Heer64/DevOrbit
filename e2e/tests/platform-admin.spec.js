@@ -19,6 +19,10 @@ test('Platform Admin grants and revokes Content Moderator, suspends and reactiva
   await member.goto('/admin');
   await expect(member.getByText('Only a Platform Admin can open the Admin panel.')).toBeVisible();
 
+  // Back to the dashboard. Otherwise, when the suspension logs them out, the login page remembers /admin and
+  // sends them back there after the final login (the app's normal "return to where you were" behaviour).
+  await member.goto('/dashboard');
+
   // The member's login from another device, made BEFORE any change. US-57 says the change applies to its next request.
   const apiLogin = await request.post(`${API}/auth/login`, { data: { email: account.email, password: account.password } });
   expect(apiLogin.status()).toBe(200);
