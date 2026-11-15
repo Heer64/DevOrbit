@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Session from '../models/Session.js';
 import { requireAuth } from '../middleware/auth.js';
 import { recordSuccessfulLogin } from '../lib/catchUpRules.js'; // [Sprint 6 · M5] US-44
+import { PLATFORM_MESSAGES, normalizePlatformRole } from '../lib/platformRoleRules.js'; // [Sprint 6 · M8] US-57, US-58
 
 const router = Router();
 const ACCESS_TOKEN_TTL = '15m';
@@ -60,6 +61,9 @@ function publicUser(user) {
     openTo: user.openTo || '',
     profileDiscoverable: user.profileDiscoverable !== false,
     portfolioPublic: user.portfolioPublic !== false,
+    // [Sprint 6 · M8] US-57: lets the app show the Admin panel (and M7's moderator queue) link. Only a hint for the
+    // screen: every admin and moderator route checks the role again on the server (middleware/platformRoles.js).
+    platformRole: normalizePlatformRole(user.platformRole),
   };
 }
 
@@ -146,6 +150,12 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // [Sprint 6 · M8] US-58 AC1: a suspended account cannot log in. Checked only after the right password, so the
+    // answer never tells a stranger whether an e-mail belongs to a suspended account. Not a successful login (US-44).
+    if (user.suspendedAt) {
+      return res.status(403).json({ message: PLATFORM_MESSAGES.accountSuspended, code: 'account_suspended' });
+    }
+
     user.loginFailedAttempts = 0;
     user.loginLockedUntil = null;
     recordSuccessfulLogin(user); // [Sprint 6 · M5] US-44: Catch Me Up starts from the login before this one
@@ -176,6 +186,13 @@ router.post('/refresh', async (req, res, next) => {
       await Session.deleteOne({ _id: session._id });
       res.clearCookie(REFRESH_COOKIE, cookieOptions());
       return res.status(401).json({ message: 'User account no longer exists.' });
+    }
+    // [Sprint 6 · M8] US-58 AC1: suspending deletes the sessions, so this is only a safety net (e.g. a login that
+    // finished at the same moment as the suspension). The session ends here and no new token is issued.
+    if (user.suspendedAt) {
+      await Session.deleteOne({ _id: session._id });
+      res.clearCookie(REFRESH_COOKIE, cookieOptions());
+      return res.status(403).json({ message: PLATFORM_MESSAGES.accountSuspended, code: 'account_suspended' });
     }
 
     // Rotate the opaque refresh token on every successful refresh.

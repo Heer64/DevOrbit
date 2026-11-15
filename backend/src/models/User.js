@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { PLATFORM_ROLES, PLATFORM_ROLE_USER } from '../lib/platformRoleRules.js'; // [Sprint 6 · M8] US-57
 
 const userSchema = new mongoose.Schema(
   {
@@ -23,9 +24,18 @@ const userSchema = new mongoose.Schema(
     // the first). Catch Me Up summarises what happened since previousLoginAt. Hidden unless selected.
     lastLoginAt: { type: Date, default: null, select: false },
     previousLoginAt: { type: Date, default: null, select: false },
+    // [Sprint 6 · M8] US-57: platform-wide role (lib/platformRoleRules.js), separate from project roles.
+    // Accounts created before this field existed have no value and count as "user".
+    platformRole: { type: String, enum: PLATFORM_ROLES, default: PLATFORM_ROLE_USER },
+    // [Sprint 6 · M8] US-58: set while the account is suspended (null = active), and which Platform Admin did it.
+    suspendedAt: { type: Date, default: null },
+    suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, select: false },
   },
   { timestamps: true }
 );
 
+// [Sprint 6 · M8] The admin panel filters by role and by suspended accounts.
+userSchema.index({ platformRole: 1 });
+userSchema.index({ suspendedAt: 1 });
 
 export default mongoose.model('User', userSchema);

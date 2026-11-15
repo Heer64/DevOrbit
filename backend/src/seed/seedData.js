@@ -13,14 +13,15 @@ import DirectMessage from '../models/DirectMessage.js'; // [Sprint 6 · M2] US-1
 import { ensureDefaultChannel } from '../lib/channels.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { domainTags } from '../lib/projectSetup.js';
+import { PLATFORM_ROLE_ADMIN, PLATFORM_ROLE_USER, platformRoleLabel } from '../lib/platformRoleRules.js'; // [Sprint 6 · M8]
 
 /*
  * [Sprint 1 · gaps] Database setup / seed process (Sprint 1 plan line A).
  *
  * Fills an EMPTY development or test database with a small, realistic team so the app can be
- * demoed and tested right after a fresh clone: 4 users, 2 projects with every role, milestones,
- * tasks in every status (one overdue, some due this week), the #general channel with messages,
- * and matching activity entries.
+ * demoed and tested right after a fresh clone: 5 users (one of them the Platform Admin, Sprint 6 M8),
+ * 2 projects with every role, milestones, tasks in every status (one overdue, some due this week),
+ * the #general channel with messages, and matching activity entries.
  *
  * Run it with `npm run seed` in backend/ (see scripts/seed.js). Rules:
  *   - Seed accounts use the reserved domain @seed.devorbit.test, so they never clash with real users.
@@ -28,6 +29,9 @@ import { domainTags } from '../lib/projectSetup.js';
  *   - --reset removes ONLY the seed accounts and the projects they own (with those projects' tasks,
  *     milestones, channels, messages and activity), then seeds again.
  *   - It refuses to run when NODE_ENV=production (scripts/seed.js).
+ *   - [Sprint 6 · M8] FR-27: it also creates the first Platform Admin for development and demos,
+ *     admin@seed.devorbit.test (same password as the others). In production use PLATFORM_ADMIN_EMAIL /
+ *     PLATFORM_ADMIN_PASSWORD instead (lib/platformAdmin.js), because the seed never runs there.
  */
 
 export const SEED_EMAIL_DOMAIN = 'seed.devorbit.test';
@@ -61,6 +65,15 @@ export const SEED_USERS = [
     headline: 'Product designer',
     skills: ['Figma', 'Research', 'Design systems'],
     bio: 'Asks "who is this for?" before every screen.',
+  },
+  // [Sprint 6 · M8] US-57, US-58: the first Platform Admin (not a member of any seed project).
+  {
+    key: 'admin',
+    name: 'Dev Admin',
+    headline: 'Platform Admin',
+    skills: ['Moderation', 'Community'],
+    bio: 'Keeps DevOrbit friendly: appoints Content Moderators and handles abusive accounts.',
+    platformRole: PLATFORM_ROLE_ADMIN,
   },
 ];
 
@@ -223,6 +236,7 @@ export async function seedDatabase({ reset = false, password = DEFAULT_SEED_PASS
       headline: seed.headline,
       bio: seed.bio,
       skills: seed.skills,
+      platformRole: seed.platformRole || PLATFORM_ROLE_USER, // [Sprint 6 · M8]
     });
     users[seed.key] = user;
   }
@@ -299,7 +313,13 @@ export async function seedDatabase({ reset = false, password = DEFAULT_SEED_PASS
 
   return {
     seeded: true,
-    users: SEED_USERS.map((u) => ({ name: u.name, email: seedEmail(u.key), username: `${u.key}_seed` })),
+    users: SEED_USERS.map((u) => ({
+      name: u.name,
+      email: seedEmail(u.key),
+      username: `${u.key}_seed`,
+      platformRole: u.platformRole || PLATFORM_ROLE_USER, // [Sprint 6 · M8]
+      roleLabel: platformRoleLabel(u.platformRole), // [Sprint 6 · M8] printed by scripts/seed.js
+    })),
     projects: SEED_PROJECTS.map((p) => p.name),
     tasks: taskCount,
     password,

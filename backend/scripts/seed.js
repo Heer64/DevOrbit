@@ -35,7 +35,11 @@ try {
     if (result.removed) console.log(`Removed the old demo data: ${result.removed.users} users, ${result.removed.projects} projects.`);
     console.log(`Seeded ${result.users.length} users, ${result.projects.length} projects and ${result.tasks} tasks.`);
     console.log('Log in with any of these (password for all of them below):');
-    for (const user of result.users) console.log(`  ${user.email}  (${user.name}, @${user.username})`);
+    // [Sprint 6 · M8] The Platform Admin account is marked, so it is easy to find for the Admin panel.
+    for (const user of result.users) {
+      const role = user.platformRole && user.platformRole !== 'user' ? `  <- ${user.roleLabel}` : '';
+      console.log(`  ${user.email}  (${user.name}, @${user.username})${role}`);
+    }
     console.log(`Password: ${result.password}`);
   }
   await mongoose.disconnect();

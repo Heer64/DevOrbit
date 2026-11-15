@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { Server } from 'socket.io';
 import Project from '../models/Project.js';
 import Session from '../models/Session.js';
+import User from '../models/User.js'; // [Sprint 6 · M8] US-58
 import { memberRole, validId } from './projectAccess.js';
 
 /*
@@ -46,7 +47,7 @@ export const memberRoom = (projectId) => `project:${projectId}:members`;
 // [Sprint 3 · M7 Part 2] One private room per signed-in user, for their own notifications.
 export const userRoom = (userId) => `user:${userId}`;
 
-// Same checks as middleware/auth.js requireAuth: a valid JWT and a live, unrevoked session.
+// Same checks as middleware/auth.js requireAuth: a valid JWT, a live, unrevoked session and (Sprint 6 · M8) an active account.
 async function userIdFromToken(token) {
   if (!token || typeof token !== 'string') return null;
 
@@ -59,8 +60,11 @@ async function userIdFromToken(token) {
       user: claims.id,
       expiresAt: { $gt: new Date() },
     }).select('_id');
+    if (!session) return null;
 
-    return session ? String(claims.id) : null;
+    // [Sprint 6 · M8] US-58: a suspended (or removed) account gets no live connection either.
+    const account = await User.findById(claims.id).select('suspendedAt').lean();
+    return account && !account.suspendedAt ? String(claims.id) : null;
   } catch {
     return null;
   }
@@ -257,6 +261,16 @@ export function emitNotificationRead(userId, notificationId, unreadCount) {
 export function emitToUser(userId, eventName, payload) {
   if (!io || !userId || !eventName) return;
   io.to(userRoom(String(userId))).emit(eventName, payload);
+}
+
+/*
+ * [Sprint 6 · M8] US-58: closes every open live connection of one user (all their tabs), e.g. right after a
+ * Platform Admin suspends the account. Their next reconnect is refused by io.use above.
+ * Safe to call when the socket server is not running (tests, scripts): it does nothing.
+ */
+export function disconnectUser(userId) {
+  if (!io || !userId) return;
+  io.in(userRoom(String(userId))).disconnectSockets(true);
 }
 
 export async function closeRealtime() {
