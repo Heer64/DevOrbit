@@ -13,6 +13,7 @@ These tests run the **real** app: the Express API with a real MongoDB, plus the 
 | `tests/project-docs.spec.js` | Sprint 4 · M6 (US-38): write a Markdown page (live counter, Preview), read it formatted, HTML shown as text and never run, edit and reload; 10,001 characters cannot be saved |
 | `tests/project-completion-health.spec.js` | Sprint 4 · M8 (US-40, US-15): health lists an overdue and a blocked task and shows activity level Low; the Owner marks the project Completed (saved and in Activity) and reopens it |
 | `tests/report-post.spec.js` | Sprint 6 · M6 (US-55): a second user reports someone else's post with a reason and is thanked; after a reload, reporting it again says "You have already reported this post."; the author has no Report button on their own post |
+| `tests/platform-admin.spec.js` | Sprint 6 · M8 (US-57, US-58, FR-27): the Platform Admin (created by the API from `platformAdmin.js` at start-up) makes a member a Content Moderator and the member's existing login gets moderator access on its next request; revoking takes it away; suspending logs the member out and their login is refused with a clear message; reactivating lets them log in. A normal user has no Admin panel |
 
 `tests/helpers.js` has the shared steps (`signUp`, `logIn`, `createProject`, `addTask`, …).
 

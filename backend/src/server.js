@@ -7,6 +7,7 @@ import { startDeadlineNotifier, stopDeadlineNotifier } from './lib/taskNotificat
 import { missingGithubSettings } from './lib/githubOAuth.js'; // [Sprint 4 · M1] US-31
 import { startTrendingRanker, stopTrendingRanker } from './lib/trending.js'; // [Sprint 5 · M8] US-53
 import { missingLlmSettings } from './lib/llmClient.js'; // [Sprint 6 · M3] US-41
+import { ADMIN_BOOTSTRAP_LOG, ensurePlatformAdminFromEnv } from './lib/platformAdmin.js'; // [Sprint 6 · M8] FR-27
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -45,6 +46,16 @@ try {
   // Fail after 5 seconds instead of the default 30 if MongoDB can't be reached
   await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
   console.log(`Connected to MongoDB database: ${mongoose.connection.name}`);
+  // [Sprint 6 · M8] FR-27: first Platform Admin from PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_PASSWORD (if set).
+  // Logs what happened without the e-mail or password. A problem here never stops the server.
+  try {
+    const admin = await ensurePlatformAdminFromEnv();
+    if (admin.outcome === 'invalid') console.warn(`Platform Admin setup skipped: ${admin.problem}`);
+    else if (admin.outcome === 'password_mismatch') console.warn(ADMIN_BOOTSTRAP_LOG.password_mismatch);
+    else if (ADMIN_BOOTSTRAP_LOG[admin.outcome]) console.log(ADMIN_BOOTSTRAP_LOG[admin.outcome]);
+  } catch (error) {
+    console.error('Platform Admin setup failed:', error.message);
+  }
   // One HTTP server for both the REST API and Socket.IO (live task updates).
   server = http.createServer(app);
   const clientOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
