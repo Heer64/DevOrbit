@@ -8,6 +8,7 @@ import { missingGithubSettings } from './lib/githubOAuth.js'; // [Sprint 4 · M1
 import { startTrendingRanker, stopTrendingRanker } from './lib/trending.js'; // [Sprint 5 · M8] US-53
 import { missingLlmSettings } from './lib/llmClient.js'; // [Sprint 6 · M3] US-41
 import { ADMIN_BOOTSTRAP_LOG, ensurePlatformAdminFromEnv } from './lib/platformAdmin.js'; // [Sprint 6 · M8] FR-27
+import { mailConfig } from './lib/mailer.js'; // [Sprint 6 · M1] US-04
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -29,6 +30,11 @@ const missingLlm = missingLlmSettings();
 if (missingLlm.length) {
   console.warn(`AI Copilot is turned off until these are set in backend/.env: ${missingLlm.join(', ')}`);
 }
+
+// [Sprint 6 · M1] US-04: how password reset emails are delivered. Never logs the API key.
+const mail = mailConfig();
+if (!mail.ready) console.warn(`Password reset emails are turned off: ${mail.problem}`);
+else if (mail.transport === 'log') console.log('Password reset emails are printed in this terminal (MAIL_TRANSPORT=log), not really sent.');
 
 if (!process.env.MONGODB_URI) {
   console.warn('MONGODB_URI is not set in backend/.env. Using local MongoDB: mongodb://127.0.0.1:27017/devorbit');

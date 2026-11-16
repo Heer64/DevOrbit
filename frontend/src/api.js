@@ -113,6 +113,11 @@ export const authApi = {
   refresh: () => restoreSession(),
   me: () => api('/auth/me'),
   logout: () => api('/auth/logout', { method: 'POST', skipAuthRefresh: true }),
+  // [Sprint 6 · M1] US-04 password reset (no login needed).
+  requestPasswordReset: (email) => api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }), skipAuthRefresh: true }),
+  verifyPasswordReset: (token) => api('/auth/reset-password/verify', { method: 'POST', body: JSON.stringify({ token }), skipAuthRefresh: true }),
+  resetPassword: (token, password) =>
+    api('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }), skipAuthRefresh: true }),
 };
 
 export const profileApi = {

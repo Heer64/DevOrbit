@@ -26,6 +26,12 @@ function cookieOptions() {
   };
 }
 
+// [Sprint 6 · M1] US-04: a password reset ends every session, so it also drops this browser's refresh cookie.
+export function clearRefreshCookie(res) {
+  const { maxAge: _maxAge, ...options } = cookieOptions();
+  res.clearCookie(REFRESH_COOKIE, options);
+}
+
 function readRefreshCookie(req) {
   const header = req.headers.cookie || '';
   const part = header.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${REFRESH_COOKIE}=`));
