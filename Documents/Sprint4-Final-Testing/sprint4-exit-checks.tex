@@ -1,4 +1,5 @@
-% DevOrbit - Sprint 4 acceptance test report: GitHub integration exit checks (M1-M4).
+% DevOrbit - Sprint 4 acceptance test report: GitHub integration exit checks (M1-M4),
+% with the re-test of defects D1 and D2 after the Sprint 6 M1 fix (15 November 2026).
 % Compile:  pdflatex sprint4-exit-checks.tex   (run it twice so the table of contents is filled in)
 %
 \newcommand{\ResultCheckFive}{\PASS}
@@ -12,6 +13,7 @@
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{tabularx}
+\usepackage{xltabular} % tables that can continue on the next page
 \usepackage{array}
 \usepackage[table]{xcolor}
 \usepackage{enumitem}
@@ -50,7 +52,7 @@
 \captionsetup{font=small,labelfont=bf}
 \pagestyle{fancy}
 \fancyhf{}
-\lhead{\small DevOrbit -- Sprint 4 acceptance tests}
+\lhead{\small DevOrbit -- Sprint 4 acceptance tests and re-test}
 \rhead{\small GitHub integration (M1--M4)}
 \cfoot{\small \thepage}
 
@@ -66,14 +68,16 @@
   {\LARGE Sprint 4 Acceptance Test Report\par}
   \vspace{0.3cm}
   {\Large GitHub Integration Exit Checks (M1--M4)\par}
+  \vspace{0.2cm}
+  {\large\color{accent} with the re-test of D1 and D2 after the Sprint 6 M1 fix\par}
   \vspace{1.5cm}
   \begin{tabular}{>{\bfseries}l l}
     User stories   & US-31, US-32, US-33, US-34 \\
     Requirements   & FR-11, FR-12, FR-35, NFR-4, NFR-11a, NFR-11b \\
     Test type      & Manual acceptance (black-box, end-to-end, real GitHub) \\
     Tester         & Urvish Babariya \\
-    Date           & 3 November 2026 \\
-    Code version   & \texttt{main} at \texttt{b234f22} (PR \#29) \\
+    Exit checks    & 3 November 2026, \texttt{main} at \texttt{b234f22} (PR \#29) \\
+    Re-test        & 15 November 2026, \texttt{main} at \texttt{4ba0d05} (PR \#45; fix in PR \#40) \\
     Repository     & \url{https://github.com/Heer64/DevOrbit} \\
   \end{tabular}
   \vfill
@@ -115,6 +119,11 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
   4  & The app keeps working while GitHub is unreachable; GitHub actions fail safely & NFR-11b & \PASS \\
   5  & Disconnect: webhook removed, new events stop, old entries stay & US-33 & \ResultCheckFive \\
   B  & Bonus: re-authorize after disconnect, connection Active again & US-33 & \ResultBonus \\
+  \midrule
+  \multicolumn{4}{l}{\textit{Re-test on 15 November 2026 (Section~\ref{sec:retest})}} \\
+  R1 & D1 re-test: deliveries through smee no longer log \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR} & NFR-4 & \PASS \\
+  R2 & D2 re-test: an opened issue is titled ``GitHub issue opened'' in the Activity feed & US-34 & \PASS \\
+  R3 & Disconnect and re-authorize again, with a new webhook signed with a new secret & US-33, US-34 & \PASS{} (with D4) \\
   \bottomrule
 \end{tabularx}
 \end{center}
@@ -168,7 +177,7 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
   Result      & \PASS \\
 \end{checkinfo}
 \shot{check1-webhook-active.png}{0.95}{GitHub panel after connecting \texttt{Urvish2007/devorbit-webhook-test}: connection status Active, authorized as \texttt{@Urvish2007}, webhook active.}
-\shot{check1-smee-ping.png}{0.6}{smee.io received GitHub's \texttt{ping} event from \texttt{Urvish2007/devorbit-webhook-test} when the webhook was created.}
+\shot{check1-smee-ping.png}{0.6}{smee.io received GitHub's \texttt{ping} event from \texttt{Urvish2007/devorbit-webhook-test} at 21:26:30 when the webhook was created (\texttt{hook\_id} 706941502).\label{fig:ping1}}
 
 \subsubsection*{Check 1b: repository the account does not administer}
 \begin{checkinfo}
@@ -201,6 +210,8 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
 \shot{check2-smee-terminal.png}{0.55}{smee-client forwarding GitHub's deliveries to the local API: \texttt{ping} answered 200, \texttt{push} and \texttt{issues} accepted with 202.}
 \shot{check2-recent-deliveries.png}{0.95}{Recent deliveries in the GitHub panel: \texttt{issues~·~opened} and \texttt{push} added to the feed, \texttt{ping} ignored.}
 \shot{check2-activity-feed.png}{0.8}{Activity feed entries created from GitHub, each with type, title, GitHub author and an \emph{Open on GitHub} link.}
+\shot{check2-smee-push.png}{0.6}{The \texttt{push} delivery as GitHub sent it (smee.io): received 21:31:45, \texttt{ref} \texttt{refs/heads/main}, from \texttt{Urvish2007/devorbit-webhook-test}.}
+\shot{check2-smee-issues.png}{0.6}{The \texttt{issues} delivery as GitHub sent it (smee.io): received 21:32:58, \texttt{action} \texttt{opened}.}
 
 %---------------------------------------------------------------------
 \subsection{Check 3: Requests with a bad or missing signature are rejected}
@@ -255,9 +266,11 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
                 Both events exist on GitHub (Figures~\ref{fig:readme} and~\ref{fig:issues}), but the feed has \textbf{no entry for either}:
                 directly after ``Urvish Babariya disconnected GitHub (repository `Urvish2007/devorbit-webhook-test')'' the next entry is the
                 re-authorization (Figure~\ref{fig:after}). The events from while it was disconnected were not added later either.
-                Disconnect deletes no feed entries; the screenshot is cropped to the newest entries. The automated test
-                \path{githubConnectionManagement.test.js} also checks that the webhook is removed from GitHub on disconnect;
-                GitHub's Webhooks settings page was not captured in this run. \\
+                Disconnect deletes no feed entries; the screenshot is cropped to the newest entries.
+                \textbf{The webhook was removed from GitHub:} when re-authorizing (Bonus), GitHub sent a new \texttt{ping} from a
+                \emph{new} hook, \texttt{hook\_id} 706954148 at 21:58:09 (Figure~\ref{fig:ping2}), instead of the original 706941502 (Figure~\ref{fig:ping1}).
+                DevOrbit reuses a hook that still exists on GitHub, so a new ID means Disconnect had deleted the old one.
+                The automated test \path{githubConnectionManagement.test.js} checks the same rule. \\
   Result      & \ResultCheckFive \\
 \end{checkinfo}
 \shot{check5-disconnected.png}{0.6}{GitHub panel after Disconnect: status Disconnected, last account and repository kept, \emph{Re-authorize GitHub} offered.}
@@ -275,13 +288,18 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
   Expected    & The connection becomes Active again with the same repository, the re-authorization is logged, and new events reach the feed again. \\
   Actual      & The feed shows ``Urvish Babariya reconnected GitHub as @Urvish2007'', followed about a minute later by
                 ``Urvish2007 pushed commit `Update README with reauthorisation note' to main'' with \emph{Open on GitHub} (``just now'').
+                smee.io shows the new hook's \texttt{ping} at 21:58:09 (\texttt{hook\_id} 706954148) and the \texttt{push} at 21:59:10 for commit
+                \texttt{b72560d} (Figures~\ref{fig:ping2} and~\ref{fig:push2}).
                 So the integration is back on the same repository and its webhook delivers again. \\
   Result      & \ResultBonus \\
 \end{checkinfo}
 \noindent See Figure~\ref{fig:after}: the ``reconnected GitHub'' entry and the commit that followed it.
+\shot{check5-smee-new-hook-ping.png}{0.6}{After re-authorizing: GitHub's \texttt{ping} from a new webhook, \texttt{hook\_id} 706954148 (21:58:09). The original hook was 706941502.\label{fig:ping2}}
+\shot{bonus-smee-push.png}{0.6}{After re-authorizing: the \texttt{push} for commit \texttt{b72560d} (``Update README with reauthorisation note'') delivered at 21:59:10.\label{fig:push2}}
 
 %=====================================================================
-\section{Observations and defects found}
+\section{Observations and defects found (3 November 2026)}
+The status of each item after the re-test is in Section~\ref{sec:defect-status}.
 \begin{center}
 \rowcolors{2}{white}{headgray}
 \begin{tabularx}{\linewidth}{l l X X}
@@ -311,6 +329,154 @@ automated backend, frontend and Playwright end-to-end tests and are not repeated
 \shot{obs-rate-limit-warning.png}{0.95}{D1: \texttt{express-rate-limit} validation error logged while smee forwarded deliveries with an \texttt{X-Forwarded-For} header.\label{fig:d1}}
 \shot{check4-flushdns-elevation.png}{0.5}{O2: \texttt{ipconfig /flushdns} requires an elevated (administrator) terminal on the test PC.\label{fig:flush}}
 
+
+%=====================================================================
+\section{Re-test after the Sprint 6 M1 fix (15 November 2026)}\label{sec:retest}
+Defects D1 and D2 from the exit checks were fixed in Sprint 6 M1 (PR \#40, branch \path{sprint6/m1-fix-d1-d2}):
+\begin{itemize}
+  \item \textbf{D1:} \texttt{createApp()} now sets Express's \texttt{trust proxy} from the new \texttt{TRUST\_PROXY} environment variable
+        (\path{backend/src/lib/trustProxy.js}). Empty, \texttt{false} or \texttt{0} means off (default); \texttt{1}--\texttt{10} is the number of proxy hops
+        (Render: \texttt{1}); \texttt{loopback} trusts a proxy on the same machine (smee-client, ngrok); \texttt{true} is refused.
+  \item \textbf{D2:} \path{frontend/src/components/activityDisplay.js} titles GitHub issues and pull requests by \texttt{meta.action}
+        (opened, edited, closed, reopened; for pull requests also merged).
+\end{itemize}
+This section repeats the real-GitHub path on the latest \texttt{main}, which also contains Sprints 5 and 6.
+
+\subsection{Re-test environment and preparation}
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries}p{3.6cm} X}
+  \toprule
+  Code           & \texttt{main} at \texttt{4ba0d05} (Merge PR \#45), pulled into the existing local copy; \texttt{npm ci} in the root, \texttt{backend} and \texttt{frontend} \\
+  Tools          & Node v22.16.0, npm 10.9.2, Git 2.55, local MongoDB, the same smee.io channel and test repository as on 3 November \\
+  New setting    & \texttt{TRUST\_PROXY=loopback} in \path{backend/.env} (smee-client forwards from the same machine) \\
+  OAuth App      & ``Expire user access tokens'' switched off (observation O1), so new tokens no longer expire after 8 hours \\
+  Secrets        & Client secret, webhook secret and token key replaced before the re-test (observation O3). New values were generated with
+                   \path{crypto.randomBytes(32)} and checked with a masked command that prints only each setting's length (Figure~\ref{fig:masked}) \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+\shot{retest-secrets-rotated-masked.png}{0.7}{Masked check after replacing the secrets: only the lengths are shown (64 hexadecimal characters each), never the values.\label{fig:masked}}
+
+%---------------------------------------------------------------------
+\subsection{R0: Disconnect before replacing the secrets}
+\begin{checkinfo}
+  Objective   & Disconnect GitHub while the old token key is still in place, so the backend can read the stored token and remove the webhook from GitHub.
+                Only then replace the webhook secret and the token key. \\
+  Requirement & US-33 (disconnect removes the webhook), US-34. \\
+  Steps       & Started backend, frontend and smee-client. Logged in as the project Owner, opened \emph{Ai-travell-planner}, clicked \emph{Disconnect} and confirmed.
+                Checked the repository's \emph{Settings $\rightarrow$ Webhooks} on GitHub and the backend log. \\
+  Expected    & Status \emph{Disconnected}; the webhook is removed from GitHub, or the Owner is told it could not be removed. \\
+  Actual      & DevOrbit showed \emph{Disconnected} with the normal message (Figure~\ref{fig:rt-disc}), and the backend started with no
+                \texttt{TRUST\_PROXY} warning, so \texttt{loopback} was accepted. But the webhook \textbf{was still on GitHub} (Figure~\ref{fig:rt-left}).
+                The backend had logged \path{Could not remove the GitHub webhook: GitHub unauthorized (HTTP 401)} (Figure~\ref{fig:rt-401}):
+                GitHub no longer accepted the stored token, most likely because it was created on 3 November while token expiry was still on.
+                The UI did not mention this, and since Disconnect deletes the token, DevOrbit can no longer remove the hook itself.
+                A database check confirmed that only this one project is connected to the repository, so the hook was not being kept for another project.
+                The hook was then deleted by hand on GitHub (Figure~\ref{fig:rt-deleted}). Recorded as \textbf{defect D4}. \\
+  Result      & \PASS{} for the disconnect itself (events stop); \textbf{D4} for the leftover webhook \\
+\end{checkinfo}
+\shot{retest-disconnected-panel.png}{0.85}{After Disconnect: DevOrbit says no new GitHub events will be added and offers \emph{Re-authorize GitHub}. Nothing says the webhook stayed on GitHub.\label{fig:rt-disc}}
+\shot{retest-d4-webhook-left-on-github.png}{0.8}{D4: after the disconnect, the webhook to the smee.io channel is still listed on GitHub.\label{fig:rt-left}}
+\shot{retest-d1-backend-startup-d4-401.png}{0.7}{Backend log: started with no \texttt{TRUST\_PROXY} warning; at Disconnect, GitHub refused the webhook deletion with HTTP 401.\label{fig:rt-401}}
+\shot{retest-d4-webhook-deleted-manually.png}{0.8}{Clean-up: the leftover webhook deleted by hand on GitHub. No webhooks remain.\label{fig:rt-deleted}}
+
+%---------------------------------------------------------------------
+\subsection{R3: Re-authorize with the new secrets}
+\begin{checkinfo}
+  Objective   & With the new token key and webhook secret loaded (backend restarted), re-authorizing restores the connection and creates a new webhook. \\
+  Requirement & US-33, US-34. \\
+  Steps       & Restarted the backend; clicked \emph{Re-authorize GitHub} and approved on GitHub; checked the panel, GitHub's Webhooks page and smee-client. \\
+  Expected    & Status Active, same repository, \emph{Webhook active}; GitHub sends a \texttt{ping} that is accepted with HTTP 200. \\
+  Actual      & ``GitHub was re-authorized for this project'': connection \emph{Active}, authorized as \texttt{@Urvish2007}, repository
+                \path{Urvish2007/devorbit-webhook-test}, \emph{Webhook active} (Figure~\ref{fig:rt-panel}). GitHub lists one new hook with
+                ``Last delivery was successful'' (Figure~\ref{fig:rt-hook}); its \texttt{ping} arrived at 15:48:15 and smee-client got \texttt{200}.
+                The feed recorded ``Urvish Babariya reconnected GitHub as @Urvish2007''. \\
+  Result      & \PASS \\
+\end{checkinfo}
+\shot{retest-b4-panel-connected.png}{0.85}{After re-authorizing: connection Active, same repository, webhook active.\label{fig:rt-panel}}
+\shot{retest-b4-new-webhook.png}{0.8}{GitHub: one new webhook to the smee.io channel, last delivery successful.\label{fig:rt-hook}}
+
+%---------------------------------------------------------------------
+\subsection{R1: D1 re-test, deliveries through a proxy}
+\begin{checkinfo}
+  Objective   & With \texttt{TRUST\_PROXY=loopback}, deliveries forwarded by smee-client (which adds \texttt{X-Forwarded-For}) no longer cause
+                \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR}, and \texttt{req.ip} is the real sender. \\
+  Requirement & D1 fix (Sprint 6 M1); NFR-4 (rate limiting per client). \\
+  Steps       & On GitHub: committed ``Update README with re-test date for D1/D2'' to \texttt{main}, then opened issue \#3 ``Re-test D2''.
+                Watched smee-client, the backend log and GitHub's \emph{Recent Deliveries}. \\
+  Expected    & \texttt{push} and \texttt{issues} answered with 202; no \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR} in the backend log. \\
+  Actual      & smee-client: \texttt{ping} 200, then \texttt{push} 202 and \texttt{issues} 202 (Figure~\ref{fig:rt-smee}). GitHub: \texttt{ping} 15:48:15,
+                \texttt{push} 15:56:17, \texttt{issues.opened} 15:56:34, all successful (Figure~\ref{fig:rt-deliv}).
+                \textbf{The D1 error no longer appears}, and the log shows that \texttt{req.ip} is now GitHub's address (\texttt{140.82.115.16}) instead of the proxy's.
+                However, express-rate-limit logged a \textbf{new} validation error, \path{ERR_ERL_INVALID_IP_ADDRESS}, for \texttt{140.82.115.16:15734}:
+                the forwarded address includes a port (Figure~\ref{fig:rt-d5}). Recorded as \textbf{defect D5}. \\
+  Result      & \PASS{} (D1 fixed as reported); new defect \textbf{D5} \\
+\end{checkinfo}
+\shot{retest-d1-smee-events.png}{0.65}{smee-client after the re-test events: \texttt{ping} 200, then \texttt{push} and \texttt{issues} 202. The ``other side closed'' error is smee.io dropping the stream; the client reconnected by itself.\label{fig:rt-smee}}
+\shot{retest-recent-deliveries.png}{0.6}{GitHub \emph{Recent Deliveries} for the new hook: \texttt{ping}, \texttt{push} and \texttt{issues.opened}, all delivered successfully.\label{fig:rt-deliv}}
+\shot{retest-d5-backend-invalid-ip.png}{0.75}{Backend log during the re-test: the D1 error is gone, but \texttt{ERR\_ERL\_INVALID\_IP\_ADDRESS} is logged because the forwarded address carries a port (D5).\label{fig:rt-d5}}
+
+%---------------------------------------------------------------------
+\subsection{R2: D2 re-test, title of an opened issue}
+\begin{checkinfo}
+  Objective   & An issue that was \emph{opened} is titled ``GitHub issue opened'' in the Activity feed (on 3 November it said ``GitHub issue updated''). \\
+  Requirement & D2 fix (Sprint 6 M1); US-34. \\
+  Steps       & After opening issue \#3 ``Re-test D2'', opened \emph{Ai-travell-planner} $\rightarrow$ \emph{Activity}. \\
+  Expected    & Entry titled \textbf{GitHub issue opened} with ``opened issue \#3'' below it and \emph{Open on GitHub}; the commit appears as ``Commit pushed''. \\
+  Actual      & Newest entries: \textbf{GitHub issue opened}, ``Urvish2007 opened issue \#3 `Re-test D2''', \emph{Open on GitHub}; then
+                \textbf{Commit pushed}, ``Urvish2007 pushed commit `Update README with re-test date for D1/D2' to main''; then the reconnect and
+                disconnect entries (Figure~\ref{fig:rt-activity}). Earlier entries from 3 November are still there. \\
+  Result      & \PASS{} (D2 fixed) \\
+\end{checkinfo}
+\shot{retest-d2-activity-issue-opened.png}{0.85}{D2 re-test: the opened issue is titled ``GitHub issue opened''. Below it are the commit, the reconnect and the disconnect.\label{fig:rt-activity}}
+
+%---------------------------------------------------------------------
+\subsection{Defect status after the re-test}\label{sec:defect-status}
+{\small
+\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l p{2.1cm} X X}
+  \toprule
+  \textbf{ID} & \textbf{Sev.} & \textbf{Status} & \textbf{Observation} & \textbf{Recommendation} \\
+  \midrule
+  \endfirsthead
+  \toprule
+  \textbf{ID} & \textbf{Sev.} & \textbf{Status} & \textbf{Observation} & \textbf{Recommendation} \\
+  \midrule
+  \endhead
+  D1 & Medium & \textcolor{passgreen}{\textbf{Fixed}} (PR \#40), re-tested &
+  No more \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR} with \texttt{TRUST\_PROXY=loopback}; \texttt{req.ip} is the real client. &
+  When the API is deployed (Render), set \texttt{TRUST\_PROXY=1} on the API service and repeat this check there.
+  Not tested on Render because the app is not deployed. \\
+  D2 & Low & \textcolor{passgreen}{\textbf{Fixed}} (PR \#40), re-tested &
+  Opened issue titled ``GitHub issue opened''. & None. \\
+  D3 & Low--Medium & \textcolor{failred}{\textbf{New, open}} &
+  The project's \emph{Code \& files} panel shows hard-coded sample data on real projects, even with no repository connected:
+  ``12 forks, 4 open PRs, 128 commits'' and files \texttt{src}, \texttt{server}, \texttt{README.md} ``Updated 2h ago'', and so on (Figure~\ref{fig:d3}).
+  The data comes from \path{frontend/src/pages/ProjectPage.jsx} (the \texttt{files} list, about lines 36--42, and the stats line, about line 376), left over from the visual prototype. &
+  On real projects, hide the sample stats and files or replace them with real data from the connected repository; until then, label them clearly as sample data. \\
+  D4 & Low & \textcolor{failred}{\textbf{New, open}} &
+  If GitHub rejects the stored token (here HTTP 401), Disconnect cannot remove the webhook. It logs a warning, deletes the token and shows a normal ``Disconnected'' screen.
+  \path{GithubIntegrationPanel.jsx} ignores \texttt{webhookRemoved:\ false}, so the Owner is not told and the hook stays on GitHub.
+  Incoming events are still dropped by the event gate, so no data gets in. &
+  When \texttt{webhookRemoved} is \texttt{false}, show ``We couldn't remove the webhook from GitHub. Delete it in the repository's Settings $\rightarrow$ Webhooks.''
+  Add a frontend test for it. \\
+  D5 & Low & \textcolor{failred}{\textbf{New, open}} &
+  Through smee.io the forwarded address includes a port (\texttt{140.82.115.16:15734}). \texttt{req.ip} keeps the port, so express-rate-limit logs
+  \path{ERR_ERL_INVALID_IP_ADDRESS}. Because each delivery comes from a different port, each one gets its own rate-limit bucket, and the webhook limit
+  (300 per minute) is not enforced for that traffic. The tests missed it: \texttt{trustProxy.test.js} sends only addresses without a port, and the webhook limiter is skipped when \texttt{NODE\_ENV=test}. &
+  Remove a trailing \texttt{:port} from the address before it is used as the rate-limit key (a shared \texttt{keyGenerator}), and add a test with
+  \texttt{X-Forwarded-For: 203.0.113.5:4321}. Check Render's header format after deployment. \\
+  O1 & Info & \textcolor{passgreen}{\textbf{Resolved}} &
+  ``Expire user access tokens'' is now off for the OAuth App. & Tokens created before the change still expire; re-authorize once (done here). \\
+  O2 & Info & Unchanged & \texttt{ipconfig /flushdns} needs an administrator terminal. & Note in the test procedure. \\
+  O3 & Info & \textcolor{passgreen}{\textbf{Handled}} &
+  During setup, a \texttt{Select-String} check printed the secret values from \path{backend/.env} on screen, and they were shared outside the test machine. &
+  All three secrets were replaced before the re-test. Check settings only with the masked command (length only) from now on. \\
+  \bottomrule
+\end{xltabular}
+}
+\shot{retest-d3-code-files-sample-data.png}{0.8}{D3: \emph{Repository not connected}, yet the panel shows forks, pull requests, commits and recently updated files. All of it is sample data.\label{fig:d3}}
+
 %=====================================================================
 \section{Related automated tests}
 The same rules are also covered by automated tests on \texttt{main}, which run in GitHub Actions on every pull request
@@ -326,6 +492,7 @@ The same rules are also covered by automated tests on \texttt{main}, which run i
   M2 US-32 & \texttt{githubRepos.test.js}, \path{githubRepository.test.js} & \path{GithubRepository.test.jsx} \\
   M3 US-33 & \path{githubConnection.test.js}, \path{githubConnectionManagement.test.js} & \path{GithubConnectionManagement.test.jsx} \\
   M4 US-34 & \path{githubEvents.test.js}, \path{githubWebhook.test.js}, \path{githubWebhooks.test.js} & \path{GithubEvents.test.jsx} \\
+  S6 M1 (D1, D2) & \path{trustProxy.test.js} & \path{GithubEvents.test.jsx} (titles by action) \\
   \bottomrule
 \end{tabularx}
 \end{center}
@@ -342,12 +509,19 @@ Disconnect stopped new events (a commit and an issue made while disconnected nev
 connection on the same repository, with new commits arriving again. All Sprint 4 GitHub exit checks passed.
 Defect D1 (\texttt{trust proxy}) should be fixed before the API is relied on behind Render's proxy; D2 is a wording issue.
 
+\medskip\noindent\textbf{Re-test (15 November 2026).} On the latest \texttt{main} (\texttt{4ba0d05}), both defects are fixed:
+deliveries through smee no longer log \path{ERR_ERL_UNEXPECTED_X_FORWARDED_FOR} (D1), and an opened issue is titled
+``GitHub issue opened'' (D2). Disconnect, re-authorize and webhook delivery still work with newly generated secrets.
+The re-test found three new, lower-severity defects. D3: sample data in the \emph{Code \& files} panel. D4: Disconnect does not report
+a webhook it could not remove. D5: a forwarded address with a port bypasses the rate-limit key. They are recommended for the team backlog.
+Before deployment, set \texttt{TRUST\_PROXY=1} on Render and repeat R1 there.
+
 \vspace{1.2cm}
 \noindent
 \begin{tabularx}{\linewidth}{X X}
   Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt} \\[2pt]
   Urvish Babariya (tester) & \\[14pt]
-  Date: 3 November 2026 & Date: \rule{3.5cm}{0.4pt} \\
+  Date: 3 and 15 November 2026 & Date: \rule{3.5cm}{0.4pt} \\
 \end{tabularx}
 
 \end{document}

@@ -8,6 +8,7 @@
 // Playwright runs this through `webServer` in playwright.config.js.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { E2E_PLATFORM_ADMIN } from './platformAdmin.js'; // [Sprint 6 · M8]
 
 const backendRequire = createRequire(new URL('../backend/package.json', import.meta.url));
 
@@ -27,6 +28,11 @@ process.env.CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173'
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-secret-e2e-secret-e2e-secret-123456';
 // 'test' turns off the API rate limits, which a fast test run would otherwise hit.
 process.env.NODE_ENV = 'test';
+// [Sprint 6 · M8] FR-27: the first Platform Admin, created by the server at start-up (tests/platform-admin.spec.js).
+// Always these test values, so a PLATFORM_ADMIN_* setting on your computer cannot change what the tests expect.
+process.env.PLATFORM_ADMIN_EMAIL = E2E_PLATFORM_ADMIN.email;
+process.env.PLATFORM_ADMIN_PASSWORD = E2E_PLATFORM_ADMIN.password;
+process.env.PLATFORM_ADMIN_NAME = E2E_PLATFORM_ADMIN.name;
 
 const stop = async () => {
   if (memoryServer) await memoryServer.stop().catch(() => {});

@@ -113,6 +113,11 @@ export const authApi = {
   refresh: () => restoreSession(),
   me: () => api('/auth/me'),
   logout: () => api('/auth/logout', { method: 'POST', skipAuthRefresh: true }),
+  // [Sprint 6 · M1] US-04 password reset (no login needed).
+  requestPasswordReset: (email) => api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }), skipAuthRefresh: true }),
+  verifyPasswordReset: (token) => api('/auth/reset-password/verify', { method: 'POST', body: JSON.stringify({ token }), skipAuthRefresh: true }),
+  resetPassword: (token, password) =>
+    api('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }), skipAuthRefresh: true }),
 };
 
 export const profileApi = {
@@ -618,6 +623,31 @@ export const directMessageApi = {
   markRead: (id) => api(`${dmPath(id)}/read`, { method: 'POST', body: JSON.stringify({}) }),
   onMessage: (handler) => liveApi.onUser('dm:message', handler),
   onRead: (handler) => liveApi.onUser('dm:read', handler),
+};
+
+// [Sprint 6 · M8] US-57, US-58 Platform Admin panel. Contract: backend/src/routes/admin.js (Platform Admins only, else 403)
+//   users({ q, status, role, page }) -> { users, page, pageSize, total, summary: { moderators, admins, suspended } }
+//   setRole(userId, 'moderator' | 'user') -> { user, changed, message }   409 admin_locked for a Platform Admin
+//   suspend(userId)    -> { user, changed, sessionsEnded, message }        400 self, 409 admin_locked
+//   reactivate(userId) -> { user, changed, message }
+//   user = { id, name, username, email, avatarUrl, platformRole, roleLabel, suspended, suspendedAt, createdAt, isMe }
+// moderationApi.access() -> { canModerate, platformRole, roleLabel } | 403. M7 adds the moderator queue calls here.
+const adminUserPath = (id) => `/admin/users/${encodeURIComponent(String(id || ''))}`;
+export const adminApi = {
+  users: (params = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && String(value) !== '') query.set(key, String(value));
+    }
+    const text = query.toString();
+    return api(`/admin/users${text ? `?${text}` : ''}`);
+  },
+  setRole: (userId, role) => api(`${adminUserPath(userId)}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  suspend: (userId) => api(`${adminUserPath(userId)}/suspend`, { method: 'POST', body: JSON.stringify({}) }),
+  reactivate: (userId) => api(`${adminUserPath(userId)}/reactivate`, { method: 'POST', body: JSON.stringify({}) }),
+};
+export const moderationApi = {
+  access: () => api('/moderation/access'),
 };
 
 // Uploaded photos are stored by the API as "/uploads/avatars/<file>"; turn that into a full URL.

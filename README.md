@@ -82,7 +82,7 @@ npm run seed               # does nothing if the demo data is already there
 npm run seed -- --reset    # removes only the demo accounts and their projects, then adds them again
 ```
 
-It prints the demo logins (`aarav@seed.devorbit.test` and others, password `DevOrbit@2026`, or `SEED_PASSWORD` from `backend/.env`). It never touches other data and refuses to run when `NODE_ENV=production`.
+It prints the demo logins (`aarav@seed.devorbit.test` and others, password `DevOrbit@2026`, or `SEED_PASSWORD` from `backend/.env`). `admin@seed.devorbit.test` is the Platform Admin (Sprint 6 M8). It never touches other data and refuses to run when `NODE_ENV=production`.
 
 Then start both parts:
 
@@ -116,6 +116,7 @@ npm run test:e2e           # in the repository root: Playwright end-to-end tests
 - **Database:** MongoDB Atlas
 - **Render environment:** set `TRUST_PROXY=1` on the API service (Render puts one proxy in front of it). Without it, every user shares one rate-limit bucket. See *Sprint 6 — M1* below.
 - **AI Copilot:** set `LLM_API_KEY` (and `LLM_PROVIDER` / `LLM_MODEL` if not using the defaults) on the API service. Without a key the Copilot shows *AI temporarily unavailable* and everything else works. See *Sprint 6 — M3* below.
+- **Platform Admin:** set `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD` on the API service to create the first Platform Admin when the server starts (the seed script never runs in production). See *Sprint 6 — M8* below.
 
 ---
 
@@ -1223,3 +1224,134 @@ A project member who was away presses **Catch me up** (project page, above *Ask 
 npm test --prefix backend -- test/catchUpRules.test.js test/catchUp.test.js
 npm test --prefix frontend -- catchUpDisplay CatchMeUpPanel
 ```
+
+---
+
+## Sprint 6 — M8: Moderators, account suspension and the first Platform Admin (US-57, US-58, FR-27, NFR-19)
+
+Every account now has a **platform role**, separate from project roles: **Member** (`user`, the default), **Content Moderator** (`moderator`) or **Platform Admin** (`admin`). Like project roles they are cumulative: a Platform Admin also has moderator rights. A Platform Admin uses the new **Admin panel** to make people Content Moderators (and take it back) and to **suspend** or **reactivate** accounts.
+
+**Where to find it:** log in as a Platform Admin → sidebar **Admin panel** (`/admin`). The link is shown to Platform Admins only; anyone else who opens `/admin` sees *"Only a Platform Admin can open the Admin panel."* and the API answers 403.
+- Search by name, @username or e-mail; filter by status (active / suspended) and role; 20 accounts per page.
+- **Moderator** switch on each row: on = Content Moderator (US-57). It applies on that person's **next request**, without logging in again.
+- **Suspend** (asks first): the person is logged out on every device at once and cannot log in (US-58 AC1). **Reactivate**: they can log in again with their usual password (AC2).
+- Platform Admin rows (your own too) have no switch and no Suspend button.
+
+**The first Platform Admin (FR-27: seed script or environment configuration)**
+- **Development:** `npm run seed` in `backend/` now also creates **`admin@seed.devorbit.test`** ("Dev Admin", same password as the other demo accounts, `DevOrbit@2026` by default). It is not a member of any seed project.
+- **Render / any server:** set `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD` (8–128 characters; optional `PLATFORM_ADMIN_NAME`) in `backend/.env` or on the API service. When the server starts:
+
+| Situation | What happens | Log line (never the e-mail or password) |
+|---|---|---|
+| No account with that e-mail | It is created as Platform Admin with that password | `Platform Admin: created the account from PLATFORM_ADMIN_EMAIL.` |
+| The account exists and the password is its real password | It becomes a Platform Admin | `... is now a Platform Admin.` |
+| The account exists but the password does not match | **Nothing changes** (someone else may have registered that e-mail first) | warning `... NOT promoted ...` |
+| Already a Platform Admin | Nothing to do; a suspension of that account is lifted (recovery) | `... is a Platform Admin.` |
+| Only one of the two settings, or a bad value | Skipped | warning naming the setting |
+
+The password of an existing account is never changed. Platform Admins are only made this way, never through the API, so the admin panel cannot create, demote or suspend one.
+
+**How it works**
+- `models/User.js`: `platformRole` (`user` / `moderator` / `admin`, default `user`; older accounts without it count as `user`), `suspendedAt` (null = active) and `suspendedBy`.
+- **Next request (US-57 AC1/AC2):** `middleware/auth.js` `requireAuth` now reads the account (`platformRole`, `suspendedAt`) on every request, in parallel with the session check. The access token carries neither, so a change applies at once with the same token.
+- **Suspend (US-58 AC1):** sets `suspendedAt`, **deletes every session** of the account (so its access tokens and refresh cookie stop working) and closes its live Socket.IO connections. Login with the right password then answers **403** *"This account is suspended. Contact a Platform Admin to have it reactivated."* (a wrong password still gets the usual 401, so the answer does not reveal a suspension). As a safety net, `requireAuth`, `/api/auth/refresh` and the socket handshake also refuse a suspended account even if a session were somehow left.
+- **Reactivate (US-58 AC2):** clears `suspendedAt`; the user logs in again. Sessions ended by the suspension stay ended.
+- Every write is one conditional update (a Platform Admin can never be demoted or suspended, even by two admins clicking at the same moment). Admin actions are logged as one line with IDs only: `[admin] account.suspended target=<id> by=<id> sessionsEnded=2`.
+
+**API** (`routes/admin.js`, Platform Admins only)
+
+| Call | Body / query | Answer |
+|---|---|---|
+| `GET /api/admin/users` | `?q=&status=all\|active\|suspended&role=all\|user\|moderator\|admin&page=` | `{ users, page, pageSize: 20, total, summary: { moderators, admins, suspended } }`; 400 `{ message, field }` for a bad filter |
+| `PATCH /api/admin/users/:userId/role` | `{ role: "moderator" \| "user" }` | `{ user, changed, message }`; 400 bad role (also `"admin"`); 404; 409 `admin_locked` |
+| `POST /api/admin/users/:userId/suspend` | none | `{ user, changed, sessionsEnded, message }`; 400 `self`; 404; 409 `admin_locked` |
+| `POST /api/admin/users/:userId/reactivate` | none | `{ user, changed, message }`; 404 |
+| `GET /api/moderation/access` | none | `{ canModerate: true, platformRole, roleLabel }` for Content Moderators and Platform Admins |
+
+`user`: `{ id, name, username, email, avatarUrl, platformRole, roleLabel, suspended, suspendedAt, createdAt, isMe }` (never the password hash, sessions or login counters). Repeating a grant, suspend or reactivate is safe: 200 with `changed: false`. Login, refresh and `/api/auth/me` now include `user.platformRole`.
+
+**Authorization audit of the moderator and admin routes (NFR-19)**
+
+| Routes | Guard (first lines of the router, so no route can skip it) | No login | Suspended | Member | Moderator | Admin |
+|---|---|---|---|---|---|---|
+| `/api/admin/*` (4 routes) | `requireAuth` + `requirePlatformAdmin` | 401 | 401 | 403 | 403 | allowed |
+| `/api/moderation/*` (1 route now, M7 adds the queue) | `requireAuth` + `requireModerator` | 401 | 401 | 403 | allowed | allowed |
+| `/api/posts/:postId/report` (M6, any logged-in user) | `requireAuth` | 401 | 401 | allowed | allowed | allowed |
+
+`backend/test/adminRouteAudit.test.js` reads the routes from the two routers and checks every one of them with every kind of caller, checks that the guards are the first two steps of each router, that nothing else is mounted on `/api/admin` or `/api/moderation`, and that the role is never in the token. A route added later is audited automatically.
+
+**For M7 (US-56 moderator queue):** add the queue and the Remove / Warn / Dismiss routes to **`backend/src/routes/moderation.js`**; they get the 401/403 checks and the audit for free. In the browser, `canModerate(user)` in `frontend/src/platformRoles.js` decides whether to show the queue link, and `moderationApi.access()` asks the server (useful right after a role change, before the next login).
+
+**Known limits:** removing a Platform Admin is not in any story, so it is done in the database. A suspended user's posts, projects and messages stay as they are (US-58 only stops access).
+
+**Files:** backend `lib/platformRoleRules.js` (rules, no database), `lib/platformAdmin.js`, `middleware/platformRoles.js`, `routes/admin.js`, `routes/moderation.js`; edits in `models/User.js` (3 fields, 2 indexes), `middleware/auth.js` (account read on each request), `routes/auth.js` (role in the user object; suspended login and refresh refused), `lib/realtime.js` (sockets of suspended accounts), `app.js` (2 mounts), `server.js` (first admin from the environment), `seed/seedData.js` + `scripts/seed.js` (seed admin), `.env.example`. Frontend `pages/AdminPage.jsx`, `platformRoles.js`, `adminApi` / `moderationApi` in `api.js`; edits in `App.jsx` (route), `components/AppShell.jsx` (link for admins), `styles.css`. E2E `e2e/platformAdmin.js`, `e2e/start-backend.js` (admin settings for the test server).
+
+**Tests:** `backend/test/platformRoleRules.test.js` (no database), `platformAdmin.test.js` (API + MongoDB: every acceptance criterion, same-token next request, all sessions ended, login refused without revealing it, the "slipped through" session, rules, validation, list and search), `adminRouteAudit.test.js` (the audit above), `platformAdminBootstrap.test.js` (environment settings and the seed admin), `platformAdminRealtime.test.js` (live connections closed and refused); `frontend/src/platformRoles.test.js`, `pages/AdminPage.test.jsx`, `App.admin.test.jsx`, `components/AppShell.admin.test.jsx`; `e2e/tests/platform-admin.spec.js` (admin and member in two real browser sessions).
+
+```
+npm test --prefix backend -- test/platformRoleRules.test.js test/platformAdmin.test.js test/adminRouteAudit.test.js test/platformAdminBootstrap.test.js test/platformAdminRealtime.test.js test/auth.test.js test/seed.test.js
+npm test --prefix frontend -- platformRoles AdminPage App.admin AppShell.admin
+```
+
+---
+
+## Sprint 6 — M1: Password reset (US-04, FR-1, NFR-3a, NFR-19)
+
+**Story.** As a Visitor, I want to reset my password by email, so that I can regain access to my account.
+
+| AC | How it is met |
+|---|---|
+| 1. A registered email gets a **single-use** reset link **valid for 1 hour** by email | `POST /api/auth/forgot-password` creates a random 256-bit token, stores only its SHA-256 hash in `PasswordResetToken` with `expiresAt` = now + 1 hour, and emails the link. Using the link sets `usedAt` in one atomic step, so it works once (two clicks at the same moment: one wins). |
+| 2. An unregistered email sees **the same confirmation message** | Every well-formed email gets the same `200` and text. The answer is sent **before** the account lookup and the email happen (they run in the background), so the response time does not reveal the account either. |
+| 3. A valid link + new valid password updates the password and **ends all sessions** | `POST /api/auth/reset-password` stores a new bcrypt hash (cost 12), deletes every `Session` of the user and clears this browser's refresh cookie. `requireAuth` checks the session on each request, so access tokens still inside their 15 minutes stop working at once. |
+
+### Pages
+
+- **Log in → "Forgot password?"** opens `/forgot-password` (with the email typed so far). It always shows the server's confirmation.
+- The email links to **`/reset-password#token=…`**. The token is in the URL *fragment*, which browsers never send to a server, so it never appears in server or proxy logs. The page removes it from the address bar, checks it (`POST /api/auth/reset-password/verify`), then asks for the new password twice.
+- After the change, the browser is signed out and sent to the login page with *"Your password has been changed and you have been signed out on every device…"*.
+- An expired, used or replaced link shows *"This reset link is invalid, has expired or has already been used"* with **Request a new link**.
+
+### API
+
+| Endpoint | Body | Answer |
+|---|---|---|
+| `POST /api/auth/forgot-password` | `{ email }` | `200 { message }` for every valid email · `400` missing/invalid email · `503` email not set up (same for every email) |
+| `POST /api/auth/reset-password/verify` | `{ token }` | `200 { valid: true, expiresAt }` · `400 { code: "reset_link_invalid" }` |
+| `POST /api/auth/reset-password` | `{ token, password }` | `200 { message }` · `400` password too short/long (link **not** used up) · `400 { code: "reset_link_invalid" }` |
+
+Other rules: a new request replaces the earlier link (only the newest works) · at most **3 emails per account per hour** (the visitor still sees the same message) · per-IP limits of 5 / 20 / 10 requests per 15 minutes on the three endpoints · a reset also lifts a login lock from wrong passwords · the link's address comes from `APP_URL` (or `CLIENT_ORIGIN`), never from the request's `Host` header · the email address, the link and the Brevo key are never logged (except with `MAIL_TRANSPORT=log`, below).
+
+### Email setup (`backend/.env`)
+
+| `MAIL_TRANSPORT` | What happens | Use it for |
+|---|---|---|
+| `log` (default outside production) | The email, **with the link**, is printed in the API terminal. Nothing is sent. | Local development and testing: copy the link from the terminal. |
+| `brevo` | Sent for real through [Brevo](https://www.brevo.com)'s API (it has a free plan). Needs `BREVO_API_KEY` and `MAIL_FROM`. | Render, or receiving the email in a real inbox locally. |
+| `memory` (default in tests) | Kept in memory for the automated tests. | `npm test` only. |
+
+`log` is refused when `NODE_ENV=production` (links must not end up in hosting logs). In production with no transport, *Forgot password* answers *"Password reset by email is not available on this server right now"* for every email. The API prints at start-up which mode is active.
+
+**Brevo, once:** sign up at brevo.com → in the account settings, **add a sender** and verify it (your Gmail is fine; click the confirmation Brevo emails you) → under **SMTP & API → API keys**, generate an API key (it starts with `xkeysib-`). Then in `backend/.env` (or Render → Environment):
+
+```
+MAIL_TRANSPORT=brevo
+BREVO_API_KEY=xkeysib-...
+MAIL_FROM=the-sender-you-verified@gmail.com
+APP_URL=https://<your frontend>      # only needed when it differs from the first CLIENT_ORIGIN
+```
+
+Emails from a free Gmail sender may land in **Spam** at first.
+
+### Files
+
+New: `backend/src/lib/passwordResetRules.js` (pure rules, messages, token, email text), `backend/src/lib/mailer.js` (log / brevo / memory, no npm package), `backend/src/models/PasswordResetToken.js`, `backend/src/routes/passwordReset.js`, `frontend/src/pages/ForgotPasswordPage.jsx`, `frontend/src/pages/ResetPasswordPage.jsx`. Changed: `app.js` (mount), `routes/auth.js` (`clearRefreshCookie` export), `server.js` (start-up log), `api.js` (`authApi.requestPasswordReset / verifyPasswordReset / resetPassword`), `App.jsx` (two public routes), `AuthLayout.jsx` (headings), `LoginPage.jsx` (link + notice), `styles.css`.
+
+### Tests
+
+```
+npm test --prefix backend -- test/passwordResetRules.test.js   # rules + mailer, no MongoDB
+npm test --prefix backend -- test/passwordReset.test.js        # the API, every AC
+npm test --prefix frontend -- PasswordReset                    # the pages and the login link
+```
+
