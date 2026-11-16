@@ -129,7 +129,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # Playwright starts the API and the frontend itself (see e2e/playwright.config.js).
-      # - name: End-to-end tests
+      - name: End-to-end tests
         working-directory: e2e
         run: npm test
 
@@ -142,4 +142,3 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
-          
