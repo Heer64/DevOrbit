@@ -10,6 +10,31 @@ import Activity from '../models/Activity.js';
 import Follow from '../models/Follow.js'; // [Sprint 5 · M8] US-54
 import DirectConversation from '../models/DirectConversation.js'; // [Sprint 6 · M2] US-19
 import DirectMessage from '../models/DirectMessage.js'; // [Sprint 6 · M2] US-19
+// [Fix] --reset removes everything the seed accounts and seed projects left behind (see removeSeedData).
+import Decision from '../models/Decision.js';
+import DocPage from '../models/DocPage.js';
+import TaskComment from '../models/TaskComment.js';
+import Invitation from '../models/Invitation.js';
+import JoinRequest from '../models/JoinRequest.js';
+import Notification from '../models/Notification.js';
+import ProjectFile from '../models/ProjectFile.js';
+import PortfolioStat from '../models/PortfolioStat.js';
+import GithubConnection from '../models/GithubConnection.js';
+import GithubFeedKey from '../models/GithubFeedKey.js';
+import GithubOAuthState from '../models/GithubOAuthState.js';
+import GithubOAuthCancelledState from '../models/GithubOAuthCancelledState.js';
+import WebhookDelivery from '../models/WebhookDelivery.js';
+import Post from '../models/Post.js';
+import PostVote from '../models/PostVote.js';
+import PostVoteLog from '../models/PostVoteLog.js';
+import PostCreateLog from '../models/PostCreateLog.js';
+import PostReport from '../models/PostReport.js';
+import Session from '../models/Session.js';
+import PasswordResetToken from '../models/PasswordResetToken.js'; // [Sprint 6 · M1] US-04
+import { deleteFileBytes } from '../lib/projectFiles.js';
+import { deletePostImage } from '../lib/postImages.js';
+import { removeAvatarFile } from '../lib/avatar.js';
+import { recountPostVotes } from '../lib/postVotes.js';
 import { ensureDefaultChannel } from '../lib/channels.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { domainTags } from '../lib/projectSetup.js';
@@ -26,8 +51,12 @@ import { PLATFORM_ROLE_ADMIN, PLATFORM_ROLE_USER, platformRoleLabel } from '../l
  * Run it with `npm run seed` in backend/ (see scripts/seed.js). Rules:
  *   - Seed accounts use the reserved domain @seed.devorbit.test, so they never clash with real users.
  *   - It never changes or deletes anything else. Running it twice does nothing the second time.
- *   - --reset removes ONLY the seed accounts and the projects they own (with those projects' tasks,
- *     milestones, channels, messages and activity), then seeds again.
+ *   - --reset removes ONLY the seed accounts, the projects they own and everything inside those
+ *     projects (tasks, milestones, channels, messages, activity, decisions, docs, task comments, files
+ *     and their stored bytes, invitations, join requests, notifications, GitHub connection records),
+ *     plus what the seed accounts themselves created anywhere (posts with their images, votes, reports,
+ *     follows, direct messages, sessions, password reset links, profile photos), then seeds again. Real users and their
+ *     projects are kept; a real post's score is recounted if a seed account had voted on it.
  *   - It refuses to run when NODE_ENV=production (scripts/seed.js).
  *   - [Sprint 6 · M8] FR-27: it also creates the first Platform Admin for development and demos,
  *     admin@seed.devorbit.test (same password as the others). In production use PLATFORM_ADMIN_EMAIL /
@@ -181,7 +210,13 @@ export function findSeedUsers() {
   return User.find({ email: { $in: SEED_USERS.map((u) => seedEmail(u.key)) } }).lean();
 }
 
-// Removes the seed accounts and the projects they own, with everything inside those projects.
+// Removes the seed accounts and the projects they own, with everything inside those projects,
+// and everything the seed accounts created elsewhere. Real users and real projects are kept.
+//
+// [Fix] Before this change --reset removed only tasks, milestones, channels, messages and activity.
+// Anything a tester made while logged in as a seed account (decisions, docs, files, comments,
+// notifications, posts, votes, ...) stayed behind, pointing at projects and users that no longer
+// existed. Those orphans showed up as broken entries and wrong counts after a reset.
 export async function removeSeedData() {
   const users = await findSeedUsers();
   if (!users.length) return { users: 0, projects: 0 };
@@ -190,22 +225,74 @@ export async function removeSeedData() {
     .select('_id')
     .lean();
   const projectIds = projects.map((p) => p._id);
-  await Promise.all([
-    Task.deleteMany({ project: { $in: projectIds } }),
-    Milestone.deleteMany({ project: { $in: projectIds } }),
-    Message.deleteMany({ project: { $in: projectIds } }),
-    Channel.deleteMany({ project: { $in: projectIds } }),
-    Activity.deleteMany({ project: { $in: projectIds } }),
-  ]);
+  const inSeedProjects = { project: { $in: projectIds } };
+  const bySeedUsers = { $in: userIds };
+
+  // 1. Everything stored inside the seed projects.
+  // Project files keep their bytes in GridFS (bucket "projectFiles"): delete the bytes, then the records.
+  const files = await ProjectFile.find(inSeedProjects).select('storageId').lean();
+  await Promise.all(files.map((file) => deleteFileBytes(file.storageId)));
+  // GitHub connection records are only removed here: the seed never talks to GitHub, so a webhook a
+  // tester created for a seed project has to be removed on GitHub by hand.
+  await Promise.all(
+    [
+      Task,
+      Milestone,
+      Message,
+      Channel,
+      Activity,
+      Decision,
+      DocPage,
+      TaskComment,
+      Invitation,
+      JoinRequest,
+      Notification,
+      ProjectFile,
+      PortfolioStat,
+      GithubConnection,
+      GithubFeedKey,
+      GithubOAuthState,
+      GithubOAuthCancelledState,
+    ].map((Model) => Model.deleteMany(inSeedProjects))
+  );
+  // The webhook delivery log is shared: keep each delivery, only drop the seed projects from it.
+  await WebhookDelivery.updateMany({ projects: { $in: projectIds } }, { $pull: { projects: { $in: projectIds } } });
   await Project.deleteMany({ _id: { $in: projectIds } });
   // Seed users may also have joined other people's projects while someone tested: take them out.
   await Project.updateMany({ 'members.user': { $in: userIds } }, { $pull: { members: { user: { $in: userIds } } } });
+
+  // 2. What the seed accounts created outside the seed projects.
+  // Posts by seed accounts, with their images (GridFS bucket "postImages"), votes and reports.
+  const posts = await Post.find({ author: bySeedUsers }).select('_id image').lean();
+  const postIds = posts.map((p) => p._id);
+  await Promise.all(posts.map((post) => deletePostImage(post.image?.storageId)));
+  await Promise.all([PostVote.deleteMany({ post: { $in: postIds } }), PostReport.deleteMany({ post: { $in: postIds } })]);
+  await Post.deleteMany({ _id: { $in: postIds } });
+  // Votes seed accounts cast on real posts: remove them, then recount those posts so their scores stay right.
+  const votedPostIds = await PostVote.distinct('post', { user: bySeedUsers });
+  await PostVote.deleteMany({ user: bySeedUsers });
+  await Promise.all(votedPostIds.map((postId) => recountPostVotes(postId)));
+  await Promise.all([
+    PostReport.deleteMany({ reporter: bySeedUsers }),
+    PostVoteLog.deleteMany({ user: bySeedUsers }),
+    PostCreateLog.deleteMany({ user: bySeedUsers }),
+    PortfolioStat.deleteMany({ user: bySeedUsers }),
+    // Notifications to a seed account, and ones about something a seed account did.
+    Notification.deleteMany({ $or: [{ recipient: bySeedUsers }, { actor: bySeedUsers }] }),
+    Invitation.deleteMany({ $or: [{ invitee: bySeedUsers }, { invitedBy: bySeedUsers }] }),
+    JoinRequest.deleteMany({ user: bySeedUsers }),
+    Session.deleteMany({ user: bySeedUsers }),
+    PasswordResetToken.deleteMany({ user: bySeedUsers }),
+    GithubOAuthState.deleteMany({ user: bySeedUsers }),
+  ]);
   // [Sprint 5 · M8] US-54: follows to or from removed seed accounts would inflate follower counts.
   await Follow.deleteMany({ $or: [{ follower: { $in: userIds } }, { following: { $in: userIds } }] });
   // [Sprint 6 · M2] US-19: direct conversations with a removed seed account, and their messages.
   const conversations = await DirectConversation.find({ participants: { $in: userIds } }).select('_id').lean();
   await DirectMessage.deleteMany({ conversation: { $in: conversations.map((c) => c._id) } });
   await DirectConversation.deleteMany({ _id: { $in: conversations.map((c) => c._id) } });
+  // Profile photos (GridFS bucket "avatars").
+  await Promise.all(users.map((user) => removeAvatarFile(user.avatarUrl)));
   await User.deleteMany({ _id: { $in: userIds } });
   return { users: users.length, projects: projectIds.length };
 }
