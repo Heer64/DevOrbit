@@ -7,6 +7,26 @@ on:
     branches: [main, develop]
 
 jobs:
+  # Sprint 1 plan line A / NFR-31: lint rules are enforced, not just available.
+  # Runs once (not per Node version) and needs no database, so it is quick.
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dev tools (ESLint, Prettier)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
   test:
     name: Backend tests, frontend tests and build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
