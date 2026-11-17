@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MessagesSquare, RefreshCw } from 'lucide-react';
+import { Clock3, Flame, MessagesSquare, RefreshCw, Users } from 'lucide-react';
 import { postApi } from '../api';
-import { EmptyPanel, Heading } from '../components/ui';
+import { EmptyPanel } from '../components/ui';
 import PostComposer from '../components/PostComposer';
 import PostCard from '../components/PostCard';
 import TrendingFeed from '../components/TrendingFeed'; // [Sprint 5 · M8] US-53
@@ -70,19 +70,23 @@ export default function FeedPage({ api = postApi }) {
 
   return (
     <div className="feed-page">
-      <Heading eyebrow="COMMUNITY" title="Community feed" subtitle="Share updates with everyone on DevOrbit, outside any single project." />
+      <div className="page-head">
+        <div className="page-title"><span className="eyebrow mono">Community</span><h1>Community feed</h1><p>Share updates with everyone on DevOrbit, outside any single project.</p></div>
+        {/* [Sprint 5 · M8] US-53: Trending / Latest */}
+        {hasTrending && (
+          <div className="feed-tabs seg" role="tablist" aria-label="Feed order">
+            {[['trending', 'Trending', Flame], ['latest', 'Latest', Clock3]].map(([key, label, Icon]) => (
+              <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? 'active on' : ''} onClick={() => setView(key)}>
+                <Icon size={15} aria-hidden="true" />{label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="feed-layout">
+      <div className="feed-main">
       <PostComposer api={api} onCreated={added} />
 
-      {/* [Sprint 5 · M8] US-53: Trending / Latest */}
-      {hasTrending && (
-        <div className="feed-tabs" role="tablist" aria-label="Feed order">
-          {[['trending', 'Trending'], ['latest', 'Latest']].map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
       {view === 'trending' && <TrendingFeed api={api} refreshKey={trendingKey} />}
 
       {view === 'latest' && (
@@ -106,6 +110,20 @@ export default function FeedPage({ api = postApi }) {
         )}
       </section>
       )}
+      </div>
+      <aside className="feed-side">
+        <section className="panel">
+          <div className="panel-head"><div><h2 className="with-icon"><Flame size={17} /> How the feed works</h2></div></div>
+          <p className="side-copy"><b>Trending</b> ranks posts by votes, with newer posts rising faster. <b>Latest</b> shows every post, newest first.</p>
+          <p className="side-copy">Vote with the arrows, edit or delete your own posts, and report anything that breaks the rules.</p>
+        </section>
+        <section className="panel">
+          <div className="panel-head"><div><h2 className="with-icon"><Users size={17} /> Find your people</h2></div></div>
+          <p className="side-copy">Search projects and collaborators by skill, then follow them or send a message.</p>
+          <a className="btn secondary small" href="/discover">Open Discover</a>
+        </section>
+      </aside>
+      </div>
     </div>
   );
 }

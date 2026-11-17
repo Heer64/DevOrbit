@@ -13,6 +13,7 @@ import { AlertCircle, Clock3, GripVertical, X } from 'lucide-react';
 import { assetUrl } from '../api';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import { dueSoonSuffix } from '../dueDates'; // [Sprint 3 · M5] US-23
+import { celebrateTask } from './celebrate'; // [Solar Ember]
 import {
   BOARD_STATUSES,
   COLUMN_LABELS,
@@ -70,6 +71,7 @@ export default function KanbanBoard({ projectId, tasks = [], api, canMove = fals
     setBusy(id, true);
     // Optimistic: the card is in its new column on the very next render (NFR-5b, < 300 ms).
     onUpdateTasks((list) => moveLocally(list, id, toStatus));
+    if (toStatus === 'Done') celebrateTask(id); // [Solar Ember] confetti when a card lands in Done
 
     try {
       const result = await api.updateStatus(projectId, id, { status: toStatus, version: versionOf(original) });

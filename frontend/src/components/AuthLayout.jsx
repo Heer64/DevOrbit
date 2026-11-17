@@ -1,6 +1,7 @@
-import { Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import Logo, { LogoMark } from './Logo';
+import { Github, SquareKanban, MessagesSquare, Moon, ShieldCheck, Sparkles, Sun } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import Logo from './Logo';
+import Logo3D from './Logo3D';
 import { Avatar } from './ui';
 import { useTheme } from '../context/ThemeContext';
 
@@ -20,20 +21,28 @@ export default function AuthLayout({ mode = 'login', children }) {
   return (
     <div className="auth">
       <header className="auth-head">
-        <Logo />
-        <button className="iconbtn" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button>
+        <Link to="/welcome" className="brand-link" aria-label="DevOrbit intro"><Logo /></Link>
+        <div className="auth-head-actions">
+          <Link to="/welcome" className="tour-link">Take the tour</Link>
+          <button className="iconbtn" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button>
+        </div>
       </header>
       <div className="auth-layout">
         <section className="hero-copy">
-          <div className="eyebrow"><i /> YOUR PROJECT, IN ORBIT</div>
-          <h1>Great work<br />doesn't happen<br /><em>in silos.</em></h1>
-          <p>One home for your team's conversations, code, decisions, and next big idea. Pick up the context. Keep the momentum.</p>
+          <div className="demo-pill"><i /> Team workspace for builders</div>
+          <h1>Plan, build and ship together, in <em>one orbit</em>.</h1>
+          <p>Tasks, Kanban boards, chat, docs and GitHub activity in one place, plus a Copilot that catches you up on what you missed.</p>
+          <div className="hero-features">
+            {[[SquareKanban, 'Real-time Kanban', ''], [Github, 'GitHub in your feed', 'cream'], [MessagesSquare, 'Channels and threads', 'coral'], [Sparkles, 'Copilot summaries', '']].map(([Icon, text, cls]) => (
+              <div key={text}><span className={`hero-ic ${cls}`}><Icon size={16} /></span>{text}</div>
+            ))}
+          </div>
           <div className="proof">
             <div className="stack"><Avatar initials="MP" tone="mint" /><Avatar initials="AM" tone="orange" /><Avatar initials="IS" /></div>
             <div><b>Built for teams that build.</b><small>From first sketch to shipped work.</small></div>
           </div>
-          <div className="orb-art"><div /><div /><div /><LogoMark /></div>
         </section>
+        <div className="auth-orbit" aria-hidden="true"><div className="auth-glow" /><div className="floaty"><Logo3D size={300} /></div><div className="auth-shadow" /></div>
         <section className="auth-card">
           <div className="card-title">
             <div>

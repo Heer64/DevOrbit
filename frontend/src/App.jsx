@@ -17,6 +17,7 @@ import FeedPage from './pages/FeedPage'; // [Sprint 5 · M6] US-50, US-51
 import MessagesPage from './pages/MessagesPage'; // [Sprint 6 · M2] US-19
 import AdminPage from './pages/AdminPage'; // [Sprint 6 · M8] US-57, US-58
 import ModerationPage from './pages/ModerationPage'; // [Sprint 6 · M7] US-56
+import IntroPage from './pages/IntroPage'; // Solar Ember redesign: public scroll-story intro
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
 // visitors get the light PublicShell; logged-in users keep the normal AppShell around the same page.
@@ -47,6 +48,8 @@ export default function App() {
       {/* [Sprint 6 · M1] US-04 (Actor: Visitor): ask for a reset link, and the page the emailed link opens. No login. */}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      {/* Solar Ember redesign: a public intro page that tells the DevOrbit story before sign-in. */}
+      <Route path="/welcome" element={<IntroPage />} />
       <Route path="/" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />

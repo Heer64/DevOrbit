@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, Flag, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Search, ShieldCheck, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, Flag, FolderKanban, Globe2, Keyboard, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Rocket, Search, ShieldCheck, Sparkles, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { CommandPalette, ShortcutSheet } from './CommandPalette';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
@@ -21,7 +22,6 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const [workspaceProjects, setWorkspaceProjects] = useState([]);
-  const [globalSearch, setGlobalSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
@@ -102,52 +102,122 @@ export default function AppShell() {
   const updateStartingMember = (key, field, value) => setStartingMembers((rows) => rows.map((row) => (row.key === key ? { ...row, [field]: value } : row)));
   const removeStartingMember = (key) => setStartingMembers((rows) => rows.filter((row) => row.key !== key));
 
+  // [Solar Ember] Command palette, keyboard shortcuts and the account menu (frontend only).
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  const openPalette = useCallback(() => { setMenuOpen(false); setPaletteOpen(true); }, []);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
+  const searchFor = useCallback((q) => navigate(`/discover?q=${encodeURIComponent(q)}`), [navigate]);
+
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const away = (event) => { if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false); };
+    const esc = (event) => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+  }, [menuOpen]);
+
   const navItems = [
-    { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-    { to: '/discover', label: 'Find projects & people', icon: Compass },
-    { to: '/feed', label: 'Community feed', icon: MessagesSquare }, // [Sprint 5 · M6] US-50/US-51
-    { to: '/messages', label: 'Messages', icon: MessageCircle }, // [Sprint 6 · M2] US-19 direct messages
-    { to: '/profile', label: 'My profile', icon: UserRound },
-    // [Sprint 6 · M8] US-57, US-58: only Platform Admins see the link (the server checks the role again).
-    // [Sprint 6 · M7] US-56: Content Moderators and Platform Admins see the moderator queue link (the server checks again).
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, key: 'd' },
+    { to: '/discover', label: 'Discover', icon: Compass, key: 'e' },
+    { to: '/feed', label: 'Community feed', icon: MessagesSquare, key: 'f' }, // [Sprint 5 · M6] US-50/US-51
+    { to: '/messages', label: 'Messages', icon: MessageCircle, key: 'm' }, // [Sprint 6 · M2] US-19 direct messages
+    { to: '/profile', label: 'My profile', icon: UserRound, key: 'p' },
+  ];
+  // [Sprint 6 · M8] US-57, US-58: only Platform Admins see the Admin panel link (the server checks the role again).
+  // [Sprint 6 · M7] US-56: Content Moderators and Platform Admins see the moderator queue link (the server checks again).
+  const staffItems = [
     ...(canModerate(user) ? [{ to: '/moderation', label: 'Moderation', icon: Flag }] : []),
     ...(isPlatformAdmin(user) ? [{ to: '/admin', label: 'Admin panel', icon: ShieldCheck }] : []),
   ];
   const displayName = user?.name || 'Demo user';
   const avatarText = user?.avatar || initialsOf(user?.name);
-  const workspaceName = user?.name ? `${user.name.split(' ')[0]}'s workspace` : 'My workspace';
+  const roleText = isPlatformAdmin(user) ? 'Platform admin' : canModerate(user) ? 'Content moderator' : 'Member';
+  const projectCount = workspaceProjects.length;
+
+  const paletteItems = useMemo(() => [
+    ...[...navItems, ...staffItems].map(({ to, label, icon }) => ({ group: 'Go to', label, icon, hint: to, run: () => navigate(to) })),
+    ...workspaceProjects.map((project) => ({ group: 'Projects', label: project.name, dot: tone(project.color), hint: project.domain || project.tag || 'Project', run: () => navigate(`/project/${project.id}`) })),
+    { group: 'Actions', label: 'Create a new project', icon: Plus, hint: 'N', run: openCreate },
+    { group: 'Actions', label: dark ? 'Switch to light theme' : 'Switch to dark theme', icon: dark ? Sun : Moon, hint: 'T', run: toggle },
+    { group: 'Actions', label: 'Keyboard shortcuts', icon: Keyboard, hint: '?', run: () => setShortcutsOpen(true) },
+    { group: 'Actions', label: 'Take the intro tour', icon: Rocket, hint: '/welcome', run: () => navigate('/welcome') },
+    ...(user?.username ? [{ group: 'Actions', label: 'Open my public portfolio', icon: Sparkles, run: () => navigate(`/portfolio/${user.username}`) }] : []),
+    { group: 'Actions', label: 'Log out of DevOrbit', icon: LogOut, run: logout },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [workspaceProjects, dark, user]);
+
+  // Global keyboard shortcuts. Ignored while typing in a field (except Ctrl/Cmd K).
+  useEffect(() => {
+    let pendingG = 0;
+    const onKey = (event) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === 'k') { event.preventDefault(); setPaletteOpen((open) => !open); return; }
+      const target = event.target;
+      const typing = target && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName));
+      if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (document.querySelector('.modal-back, .palette-back, [role="dialog"][aria-modal="true"]')) return;
+      if (pendingG && Date.now() - pendingG < 1200) {
+        pendingG = 0;
+        const item = navItems.find((nav) => nav.key === key);
+        if (item) { event.preventDefault(); navigate(item.to); }
+        return;
+      }
+      if (key === 'g') { pendingG = Date.now(); return; }
+      if (key === '/') { event.preventDefault(); setPaletteOpen(true); }
+      else if (event.key === '?') { event.preventDefault(); setShortcutsOpen(true); }
+      else if (key === 'n') { event.preventDefault(); openCreate(); }
+      else if (key === 't') { event.preventDefault(); toggle(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toggle]);
+
+  const navLink = ({ to, label, icon: Icon }) => (
+    <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'selected' : '')}>
+      <Icon size={18} aria-hidden="true" /><span className="nav-text">{label}</span>
+      {to === '/discover' && <span className="new">NEW</span>}
+      {/* [Sprint 6 · M2] US-19: unread direct messages (real accounts only, like the notification bell) */}
+      {to === '/messages' && user && !user.isDemo && <DmUnreadBadge />}
+    </NavLink>
+  );
 
   return (
     <div className="shell">
-      <aside className={`sidebar ${mobile ? 'show' : ''}`}>
-        <div className="sidebar-head"><Logo /><button className="mobile-close" aria-label="Close menu" onClick={() => setMobile(false)}><X size={18} /></button></div>
-        <div className="workspace"><span className="workspace-icon">{avatarText[0]}</span><span><b>{workspaceName}</b><small>Personal workspace</small></span><ChevronDown size={15} /></div>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'selected' : '')}>
-              <Icon size={17} /> {label} {to === '/discover' && <span className="new">NEW</span>}
-              {/* [Sprint 6 · M2] US-19: unread direct messages (real accounts only, like the notification bell) */}
-              {to === '/messages' && user && !user.isDemo && <DmUnreadBadge />}
+      <aside className={`sidebar ${mobile ? 'show' : ''}`} aria-label="Sidebar">
+        <div className="sidebar-head"><NavLink to="/dashboard" className="brand-link" aria-label="DevOrbit home"><Logo /></NavLink><button className="mobile-close" aria-label="Close menu" onClick={() => setMobile(false)}><X size={18} /></button></div>
+        <button type="button" className="btn side-new" onClick={openCreate} aria-label="New project: create a project"><Plus size={17} aria-hidden="true" /> New project</button>
+        <nav className="side-nav" aria-label="Main">{navItems.map(navLink)}</nav>
+        <div className="side-section">
+          <div className="nav-label flex"><span>Your projects</span><button type="button" aria-label="Create project" title="Create project" onClick={openCreate}><Plus size={14} /></button></div>
+          <nav aria-label="Your projects">
+            {workspaceProjects.slice(0, 6).map((project) => (
+              <button key={project.id} onClick={() => navigate(`/project/${project.id}`)} className={location.pathname === `/project/${project.id}` ? 'selected' : ''}>
+                <i className={`sq ${tone(project.color)}`} aria-hidden="true" /><span className="label-ellipsis">{project.name}</span>
+              </button>
+            ))}
+            {workspaceProjects.length === 0 && <span className="side-empty">No active projects yet</span>}
+          </nav>
+        </div>
+        {staffItems.length > 0 && (
+          <div className="side-section">
+            <div className="nav-label">{isPlatformAdmin(user) ? 'Admin' : 'Moderator'}</div>
+            <nav aria-label="Staff">{staffItems.map(navLink)}</nav>
+          </div>
+        )}
+        <div className="side-bottom">
+          <div className="side-note"><i className={user?.isDemo ? 'amber' : 'green'} aria-hidden="true" /><span>{user?.isDemo ? 'Demo mode: your changes stay in this browser.' : 'Connected: changes sync with your team live.'}</span></div>
+          <div className="side-user">
+            <NavLink to="/profile" className="side-user-link" aria-label={`${displayName}, ${roleText}`}>
+              <span className="side-avatar"><Avatar initials={avatarText} src={user?.avatarSrc} /><i aria-hidden="true" /></span>
+              <span className="side-user-text"><b>{displayName}</b><small>{roleText} · {projectCount} project{projectCount === 1 ? '' : 's'}</small></span>
             </NavLink>
-          ))}
-        </nav>
-        <div className="nav-label flex">YOUR PROJECTS <button aria-label="Create project" onClick={openCreate}><Plus size={14} /></button></div>
-        <nav>
-          {workspaceProjects.slice(0, 5).map((project) => (
-            <button key={project.id} onClick={() => navigate(`/project/${project.id}`)} className={location.pathname === `/project/${project.id}` ? 'selected' : ''}>
-              <i className={`dot ${tone(project.color)}`} /><span className="label-ellipsis">{project.name}</span>
-            </button>
-          ))}
-          {workspaceProjects.length === 0 && <span className="side-empty">No projects yet</span>}
-        </nav>
-        <button className="create-side" onClick={openCreate}><Plus size={16} /> Create a project</button>
-        <div className="grow" />
-        <div className="sidebar-bottom">
-          <button onClick={toggle}>{dark ? <Sun size={16} /> : <Moon size={16} />} {dark ? 'Light mode' : 'Dark mode'}</button>
-          <div className="mini-user">
-            <Avatar initials={avatarText} src={user?.avatarSrc} />
-            <div><b>{displayName}</b><small>{user?.email || 'demo@devorbit.app'}</small></div>
             <button className="iconbtn" aria-label="Log out" title="Log out" onClick={logout}><LogOut size={15} /></button>
           </div>
         </div>
@@ -157,24 +227,38 @@ export default function AppShell() {
       <main className="main">
         <header className="topbar">
           <button className="mobile-menu" aria-label="Open menu" onClick={() => setMobile(true)}><Menu size={19} /></button>
-          <div className="crumb">Workspace <span>/</span> <b>{pageTitle(location.pathname)}</b></div>
-          <div className="top-actions">
-            <label className="top-search">
-              <Search size={15} />
-              <input aria-label="Search DevOrbit" value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/discover?q=${encodeURIComponent(globalSearch)}`); if (e.key === 'Escape') setGlobalSearch(''); }} placeholder="Search people & projects..." />
-              {globalSearch && <button type="button" className="clear" aria-label="Clear search" onClick={() => setGlobalSearch('')}><X size={13} /></button>}
-              <kbd>⌘ K</kbd>
-            </label>
-            {/* [Sprint 3 · M7 Part 2] Real notifications for signed-in users; the demo keeps the static bell. */}
-            {user && !user.isDemo
-              ? <NotificationBell />
-              : <button className="iconbtn bell" aria-label="Notifications" title="Notifications"><Bell size={17} /><i /></button>}
-            <button className="profile-button" onClick={() => navigate('/profile')} aria-label="Open profile"><Avatar initials={avatarText} src={user?.avatarSrc} /><ChevronDown size={13} /></button>
+          <button type="button" className="search-btn" onClick={openPalette} aria-label="Open command palette"><Search size={17} aria-hidden="true" /><span>Search or jump to…</span><kbd>Ctrl K</kbd></button>
+          <div className="crumb"><span>Workspace</span><span className="sep">/</span><b>{pageTitle(location.pathname)}</b></div>
+          <span className="top-grow" />
+          <span className={`live-pill ${user?.isDemo ? 'demo' : ''}`}><i aria-hidden="true" />{user?.isDemo ? 'Demo' : 'Live'}</span>
+          <button type="button" className="iconbtn top-icon" onClick={toggle} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Light mode' : 'Dark mode'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+          {/* [Sprint 3 · M7 Part 2] Real notifications for signed-in users; the demo keeps the static bell. */}
+          {user && !user.isDemo
+            ? <NotificationBell />
+            : <button className="iconbtn bell top-icon" aria-label="Notifications" title="Notifications"><Bell size={18} /><i /></button>}
+          <div className="account" ref={menuRef}>
+            <button type="button" className="profile-button" onClick={() => setMenuOpen((open) => !open)} aria-label="Account menu" aria-haspopup="menu" aria-expanded={menuOpen}><Avatar initials={avatarText} src={user?.avatarSrc} /><ChevronDown size={14} /></button>
+            {menuOpen && (
+              <div className="account-menu" role="menu" aria-label="Account">
+                <div className="account-head"><b>{displayName}</b><small>{user?.email || 'demo@devorbit.app'}</small></div>
+                <div className="account-list">
+                  <button type="button" role="menuitem" onClick={() => navigate('/profile')}><UserRound size={16} />Profile</button>
+                  {user?.username && <button type="button" role="menuitem" onClick={() => navigate(`/portfolio/${user.username}`)}><Sparkles size={16} />My portfolio</button>}
+                  <button type="button" role="menuitem" onClick={() => navigate('/welcome')}><Globe2 size={16} />Intro page</button>
+                  <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShortcutsOpen(true); }}><Keyboard size={16} />Keyboard shortcuts</button>
+                  <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); toggle(); }}>{dark ? <Sun size={16} /> : <Moon size={16} />}{dark ? 'Light mode' : 'Dark mode'}</button>
+                  <button type="button" role="menuitem" className="danger" onClick={logout}><LogOut size={16} />Sign out</button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
-        <div className="content"><Outlet context={{ openCreate }} /></div>
-        <footer className="main-footer"><span>© 2026 DevOrbit</span><span><i /> {user?.isDemo ? 'Interactive demo workspace' : 'API-connected workspace'}</span><span className="spacer" /></footer>
+        <div className="content"><Outlet context={{ openCreate, openPalette }} /></div>
+        <footer className="main-footer"><span>© 2026 DevOrbit</span><span><i /> {user?.isDemo ? 'Interactive demo workspace' : 'API-connected workspace'}</span><span className="spacer" /><button type="button" className="link" onClick={() => setShortcutsOpen(true)}><Keyboard size={13} /> Shortcuts</button></footer>
       </main>
+
+      <CommandPalette open={paletteOpen} onClose={closePalette} items={paletteItems} onSearch={searchFor} />
+      <ShortcutSheet open={shortcutsOpen} onClose={closeShortcuts} />
 
       {showCreate && (
         <div className="modal-back" onClick={() => setShowCreate(false)}>
@@ -234,6 +318,7 @@ export default function AppShell() {
 
 function pageTitle(path) {
   if (path.startsWith('/project')) return 'Project workspace';
+  if (path === '/dashboard') return 'Dashboard';
   if (path === '/profile') return 'My profile';
   if (path === '/discover') return 'Discover';
   if (path === '/feed') return 'Community feed'; // [Sprint 5 · M6]

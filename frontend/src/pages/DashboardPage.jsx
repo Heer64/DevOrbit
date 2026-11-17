@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Code2, Compass, FolderKanban, GitPullRequest, ListTodo, MoreHorizontal, Plus, Sparkles, Users, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Code2, Compass, FolderKanban, GitPullRequest, ListTodo, Plus, Search, Users, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { projectApi, toProjectCard } from '../api';
-import { AVATAR_TONES, Avatar, Btn, Heading, tone } from '../components/ui';
+import { AVATAR_TONES, Avatar, Btn, tone } from '../components/ui';
 import ProjectPulse from '../components/ProjectPulse';
 import { MyTasks, UpcomingDeadlines, useTaskStats } from '../components/DashboardTasks';
 import MyInvitations from '../components/MyInvitations'; // [Sprint 3 · M1] US-10, US-11
@@ -37,12 +37,12 @@ function greeting() {
   return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 function todayLabel() {
-  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+  return new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { openCreate } = useOutletContext();
+  const { openCreate, openPalette } = useOutletContext() || {};
   const navigate = useNavigate();
   const [view, setView] = useState('all');
   const [projects, setProjects] = useState(() => (user?.isDemo ? baseProjects : []));
@@ -82,85 +82,90 @@ export default function DashboardPage() {
   const taskStats = useTaskStats(user);
   const statValue = (key) => (taskStats ? String(taskStats[key]) : '—');
 
+  const avgProgress = projects.length ? Math.round(projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length) : 0;
+  const ringPct = user?.isDemo ? 80 : avgProgress;
+
   return (
     <>
-      <Heading eyebrow={`${todayLabel()} · YOUR WORKSPACE`} title={<>{greeting()}, {first} <em>✳</em></>} subtitle="A little progress each day adds up to big results." action={openCreate} />
-
-      <section className="welcome">
-        <div className="welcome-copy">
-          <div className="eyebrow"><Sparkles size={13} /> YOUR IDEAS, IN MOTION</div>
-          <h2>Keep your team in the loop.</h2>
-          <p>All your people, projects and progress — finally on the same page.</p>
-          <button onClick={() => navigate('/discover')}>Find your next collaborator <ArrowRight size={15} /></button>
+      <div className="page-head dash-head">
+        <div className="page-title">
+          <span className="eyebrow mono">{todayLabel()}</span>
+          <h1>{greeting()}, {first}</h1>
+          <p>A little progress each day adds up to big results.</p>
         </div>
-        <div className="welcome-stat">
-          <small>YOUR PROJECTS</small>
-          <b>{projects.length} <span>projects</span></b>
-          <div className="bars">{[28, 44, 33, 57, 42, 72, 55, 86, 60, 70, 45, 95].map((height, i) => <i key={i} style={{ height: `${height}%` }} />)}</div>
-          <small>{user?.isDemo ? 'Sample workspace data' : 'Updates from your workspace'}</small>
+        <div className="page-actions">
+          {openPalette && <Btn secondary icon={Search} onClick={openPalette}>Jump to…</Btn>}
+          <Btn icon={Plus} onClick={openCreate}>Create project</Btn>
         </div>
-      </section>
-
-      <section className="stat-grid">
-        <StatCard icon={FolderKanban} title="Active projects" value={user?.isDemo ? '8' : String(activeCount)} trend={user?.isDemo ? '2 this month' : 'in your workspace'} tint="purple" />
-        <StatCard icon={CheckCircle2} title="Tasks completed" value={user?.isDemo ? '24' : statValue('completedLast7Days')} trend={user?.isDemo ? '↑ 18% this week' : 'in the last 7 days'} tint="green" />
-        <StatCard icon={Users} title="Collaborators" value={user?.isDemo ? '12' : String(new Set(projects.flatMap((p) => p.initials || [])).size)} trend={user?.isDemo ? '3 new connections' : 'across your projects'} tint="blue" />
-        {user?.isDemo
-          ? <StatCard icon={Zap} title="Your momentum" value="86%" trend="You're on a roll" tint="orange" />
-          : <StatCard icon={ListTodo} title="Assigned to me" value={statValue('openAssignedToMe')} trend="open tasks" tint="orange" />}
-      </section>
+      </div>
 
       {/* [Sprint 3 · M1] Pending project invitations with Accept / Decline (US-11). Hidden when there are none. */}
       <MyInvitations user={user} onOpenProject={(projectId) => navigate(`/project/${projectId}`)} />
 
-      <div className="section-head">
-        <div><h2>Current projects <span>{projects.length}</span></h2><p>Pick up where you left off.</p></div>
-        <div className="filters">
-          <button className={view === 'all' ? 'active' : ''} onClick={() => setView('all')}>All projects</button>
-          <button className={view === 'active' ? 'active' : ''} onClick={() => setView('active')}>In progress</button>
-        </div>
-        <button className="link" onClick={() => navigate('/discover')}>View all <ArrowRight size={14} /></button>
+      <div className="bento dash-bento">
+        {/* Catch me up: the latest across all of my projects (Project pulse, GET /api/activity/me). */}
+        <ProjectPulse user={user} demoActivities={activities} fallbackProjectId={firstProjectId} variant="catchup" />
+        <section className="stat-grid">
+          <StatCard icon={FolderKanban} title="Active projects" value={user?.isDemo ? '8' : String(activeCount)} trend={user?.isDemo ? '2 this month' : 'in your workspace'} tint="purple" onClick={() => document.getElementById('dash-projects')?.scrollIntoView({ behavior: 'smooth' })} />
+          <StatCard icon={CheckCircle2} title="Tasks completed" value={user?.isDemo ? '24' : statValue('completedLast7Days')} trend={user?.isDemo ? '↑ 18% this week' : 'in the last 7 days'} tint="green" />
+          <StatCard icon={Users} title="Collaborators" value={user?.isDemo ? '12' : String(new Set(projects.flatMap((p) => p.initials || [])).size)} trend={user?.isDemo ? '3 new connections' : 'across your projects'} tint="blue" onClick={() => navigate('/discover')} />
+          {user?.isDemo
+            ? <StatCard icon={Zap} title="Your momentum" value="86%" trend="You're on a roll" tint="orange" />
+            : <StatCard icon={ListTodo} title="Assigned to me" value={statValue('openAssignedToMe')} trend="open tasks" tint="orange" />}
+        </section>
+        <section className="panel ring-card" aria-label="Project progress">
+          <svg width="84" height="84" viewBox="0 0 64 64" role="img" aria-label={`${ringPct} percent`}>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--ring-track)" strokeWidth="7" />
+            <circle cx="32" cy="32" r="26" fill="none" stroke="#ff8a3d" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(ringPct / 100) * 163.4} 164`} transform="rotate(-90 32 32)" className="ring-arc" />
+            <text x="32" y="37" textAnchor="middle" fontFamily="Manrope, ui-sans-serif, system-ui, sans-serif" fontWeight="800" fontSize="14" fill="currentColor">{ringPct}%</text>
+          </svg>
+          <div className="ring-copy">
+            <span>{user?.isDemo ? 'Weekly project goal' : 'Average project progress'}</span>
+            <b>{user?.isDemo ? '4 of 5 done' : `${activeCount} active project${activeCount === 1 ? '' : 's'}`}</b>
+            <small>{user?.isDemo ? "You're close to the finish line on Orbit dashboard." : 'Choose one clear next step and keep your team moving.'}</small>
+            <button className="link" onClick={() => navigate(`/project/${firstProjectId}`)}>Open my task board <ArrowRight size={14} /></button>
+          </div>
+        </section>
       </div>
 
-      {projectsLoading ? <section className="panel placeholder"><h2>Loading projects…</h2></section>
-        : projectsError ? <div className="form-error" role="alert">{projectsError}</div>
-        : visibleProjects.length ? (
-          <div className="project-grid">
-            {visibleProjects.map((p) => <ProjectCard key={p.id} project={p} onOpen={() => navigate(`/project/${p.id}`)} />)}
-            <button className="new-card" onClick={openCreate}><span><Plus size={21} /></span><b>Have a new idea?</b><small>Start a new project and bring your people in.</small><strong>Create project <ArrowRight size={14} /></strong></button>
-          </div>
-        ) : (
-          <section className="panel placeholder"><span><FolderKanban size={25} /></span><h2>Your first project starts here</h2><p>No projects yet. Create your first project to get started, or discover what the community is building.</p><div className="modal-actions"><Btn onClick={openCreate} icon={Plus}>Create a project</Btn><Btn secondary onClick={() => navigate('/discover')} icon={Compass}>Discover projects</Btn></div></section>
-        )}
-
-      <div className="lower-grid dash-task-grid">
+      <div className="bento wide dash-task-grid">
         <UpcomingDeadlines user={user} demoTasks={demoUpcoming} />
         <MyTasks user={user} demoTasks={demoMine} />
       </div>
 
-      <div className="lower-grid">
-        <ProjectPulse user={user} demoActivities={activities} fallbackProjectId={firstProjectId} />
-        <section className="panel focus-panel">
-          <div className="panel-head"><div><h2>Your next step</h2><p>One clear push at a time.</p></div><Zap size={18} /></div>
-          <h3>Ship the small things.</h3>
-          <p>{user?.isDemo ? "You're close to the finish line on Orbit dashboard. One good push can get you there." : 'Choose one clear next step and keep your team moving forward.'}</p>
-          <div className="focus-meter"><span>Weekly project goal</span><b>4 of 5</b></div>
-          <div className="progress"><i style={{ width: '80%' }} /></div>
-          <button className="link" onClick={() => navigate(`/project/${firstProjectId}`)}>Open my task board <ArrowRight size={14} /></button>
-        </section>
-      </div>
+      <section className="dash-projects" id="dash-projects">
+        <div className="section-head">
+          <div><h2>Your projects <span>{projects.length}</span></h2><p>Pick up where you left off.</p></div>
+          <div className="filters seg">
+            <button className={view === 'all' ? 'active on' : ''} onClick={() => setView('all')}>All projects</button>
+            <button className={view === 'active' ? 'active on' : ''} onClick={() => setView('active')}>In progress</button>
+          </div>
+          <button className="link" onClick={() => navigate('/discover')}>Discover public projects <ArrowRight size={14} /></button>
+        </div>
+
+        {projectsLoading ? <section className="panel placeholder"><h2>Loading projects…</h2></section>
+          : projectsError ? <div className="form-error" role="alert">{projectsError}</div>
+          : visibleProjects.length ? (
+            <div className="project-grid">
+              {visibleProjects.map((p) => <ProjectCard key={p.id} project={p} onOpen={() => navigate(`/project/${p.id}`)} />)}
+              <button className="new-card" onClick={openCreate}><span><Plus size={21} /></span><b>Have a new idea?</b><small>Start a new project and bring your people in.</small><strong>Create project <ArrowRight size={14} /></strong></button>
+            </div>
+          ) : (
+            <section className="panel placeholder"><span><FolderKanban size={25} /></span><h2>Your first project starts here</h2><p>No projects yet. Create your first project to get started, or discover what the community is building.</p><div className="modal-actions"><Btn onClick={openCreate} icon={Plus}>Create a project</Btn><Btn secondary onClick={() => navigate('/discover')} icon={Compass}>Discover projects</Btn></div></section>
+          )}
+      </section>
 
       <div className="bottom-cta"><Users size={19} /><div><b>Good work grows together.</b><small>Meet people building what you love.</small></div><Btn secondary onClick={() => navigate('/discover')}>Find your people <ArrowRight size={14} /></Btn></div>
     </>
   );
 }
 
-function StatCard({ icon: Icon, title, value, trend, tint }) {
+function StatCard({ icon: Icon, title, value, trend, tint, onClick }) {
   return (
-    <div className="stat-card">
-      <span className={`event-icon ${tint}`}><Icon size={18} /></span>
+    <div className={`stat-card ${onClick ? 'clickable' : ''}`} onClick={onClick}>
+      <span className={`event-icon ${tint}`}><Icon size={16} /></span>
       <p>{title}</p>
-      <div className="stat-value"><b>{value}</b><span>{trend}</span></div>
+      <div className="stat-value"><b data-count={/^\d+$/.test(value) ? value : undefined}>{value}</b><span>{trend}</span></div>
     </div>
   );
 }
@@ -170,13 +175,14 @@ function ProjectCard({ project, onOpen }) {
   const tags = project.tags?.length ? project.tags : project.tag ? [project.tag] : [];
   const progress = project.progress || 0;
   const people = project.initials || ['ME'];
+  const state = progress >= 100 ? ['Complete', 'green'] : progress >= 80 ? ['On track', 'green'] : progress > 0 ? ['In progress', 'purple'] : ['Just started', 'orange'];
   return (
     <button className="project-card" onClick={onOpen} aria-label={`Open ${project.name}`}>
       <div className="project-top">
-        <span className={`project-avatar ${color}`}>{(project.name || 'N')[0].toUpperCase()}</span>
-        <span className={`pill ${progress >= 80 ? 'green' : 'purple'}`}>{progress >= 100 ? 'Complete' : 'In progress'}</span>
+        <i className={`sq ${color}`} aria-hidden="true" />
+        <h3>{project.name}</h3>
+        <span className={`pill ${state[1]}`}>{state[0]}</span>
       </div>
-      <h3>{project.name}</h3>
       <p>{project.description}</p>
       <div className="tags">{tags.slice(0, 3).map((t) => <span key={t}>{t}</span>)}</div>
       <div className="metric"><span>Progress</span><b>{progress}%</b></div>
