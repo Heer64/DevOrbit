@@ -1,0 +1,150 @@
+% DevOrbit - Sprint 2 test report (tester: Urvish Babariya). Compile: pdflatex sprint2-test-report.tex (twice).
+\documentclass[11pt,a4paper]{article}
+\input{preamble}
+\lhead{\small DevOrbit -- Sprint 2 test report}\rhead{\small Channels, tasks, milestones, Kanban}
+\hypersetup{pdftitle={DevOrbit Sprint 2 test report}, pdfauthor={Urvish Babariya}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Sprint 2 Test Report\par}\vspace{0.3cm}
+{\Large Core collaboration: channels, tasks, milestones and the Kanban board\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l l}
+User stories  & US-16, US-18, US-21, US-22, US-24, US-25, US-26, US-27, US-28 \\
+Requirements  & FR-5, FR-7a, FR-7b, FR-7c, FR-8, FR-32; NFR-5a, NFR-5b, NFR-25 \\
+Test types    & API tests (403 / 409 / validation), component tests, real-time tests, end-to-end, CI \\
+Tester        & Urvish Babariya \\
+Testing period & 15 October -- 16 November 2026 \\
+Final run     & 17 November 2026 on \texttt{main} at \texttt{3b35514} (all six sprints merged) \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Summary}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Tester item from the Sprint 2 plan} & \textbf{Result}\\\midrule
+T1 & CI runs on every pull request and blocks failing changes & \PASS\\
+T2 & API tests for 403 (permissions), 409 (conflicts) and validation & \PASS\\
+T3 & Viewers get 403 on every write; the UI is read-only for them & \PASS\\
+T4 & A failed drag is rolled back; concurrent edits give a conflict, never a silent overwrite & \PASS\\
+T5 & End-to-end test of the demo flow (create a task, move it on the board, saved after reload) & \PASS\\
+T6 & Staging deployment with WebSockets & \OPEN{} (no deployment yet)\\
+\midrule
+D7 & New finding: Dashboard ``Weekly project goal 4 of 5'' is a fixed value & \OPEN\\
+\bottomrule\end{tabularx}\end{center}
+All nine Sprint 2 stories are on \texttt{main} and covered by tests that pass on the final code. Two of them arrived after the sprint's planned dates:
+channels (US-16) were merged as ``Sprint 2 final'' on 22 October, and the @mention suggestions (US-18) with Sprint 3 M4 on 26 October.
+
+\section{Scope}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{Story} & \textbf{Title} & \textbf{Merged}\\\midrule
+US-16 & Send messages in project channels & 22 Oct (\texttt{868d822})\\
+US-18 & Mention a teammate with @name & 26 Oct (\texttt{9a5c541}, Sprint 3 M4)\\
+US-21 & Create a task (title, description, label) & 15--17 Oct (PR \#6, PR \#11 label) \\
+US-22 & Assign a task to a project member & 15 Oct (PR \#6) \\
+US-24 & Update task status & 17 Oct (PR \#9) \\
+US-25 & Create a milestone (Owner/Admin) & 17 Oct (PR \#7, \#8) \\
+US-26 & Group tasks under a milestone, progress & 17 Oct (PR \#7, \#8) \\
+US-27 & View the Kanban board & 17 Oct (PR \#9) \\
+US-28 & Move tasks by dragging & 17 Oct (PR \#9) \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Tester items in detail}
+\subsection{T1: CI on every pull request}
+\begin{checkinfo}
+Work & The tester created the GitHub Actions pipeline on 15 October (PR \#2) and, on 17 October, added the frontend tests and an end-to-end job (PR \#11).
+On 16 November the lint job was added (PR \#49). Every pull request now runs lint, backend tests, frontend tests and the build on Node 20 and 22, then E2E. \\
+Evidence & Every Sprint 3--6 pull request shows these checks; a red check was seen to stop E2E from running (Task 4 and Task 6 reports). \\
+Note & The checks are not yet \emph{required} by branch protection on \texttt{main}, so a red check does not block the merge button (finding F1 in the Task 4 report). \\
+Result & \PASS{} (with F1 open) \\
+\end{checkinfo}
+
+\subsection{T2: API tests for 403, 409 and validation}
+\begin{checkinfo}
+Tasks & \path{backend/test/tasks.test.js} (16): Viewer cannot create or edit (403); non-members cannot access a private project's tasks; the assignee must be a project member (US-22);
+a task cannot be read, edited or deleted through another project's URL; a label over 30 characters is refused with 400 (US-21); progress recalculates when tasks are completed or reopened. \\
+Kanban & \path{backend/test/kanban.test.js} (18): invalid status or a missing/bad version gives 400; a stale version gives \textbf{409} with the latest task and nothing is overwritten;
+two simultaneous moves with the same version: exactly one wins; Viewers and non-members cannot change status. \\
+Milestones & \path{backend/test/milestones.test.js} (9): Contributor and Viewer cannot create, edit or delete (403); input validated; progress from the milestone's tasks; tasks of another project cannot be attached. \\
+Channels & \path{backend/test/channels.test.js} (13): \#general created automatically and only once; a Viewer gets 403 when sending but can read; non-members cannot read or post, even in a Public project; empty or too-long messages refused. \\
+Result & \PASS \\
+\end{checkinfo}
+
+\subsection{T3: Viewer is read-only}
+\begin{checkinfo}
+API & 403 on task create/edit/delete/status, milestone writes and channel posts (tests above). \\
+UI & \path{KanbanBoard.test.jsx}: ``Viewers see the board but cannot move cards''; \path{TasksPanel.board.test.jsx}: ``Viewers get a read-only board and a read-only task modal'';
+\path{ChatPanel.test.jsx}: ``Viewers can read but get no composer''. \\
+End to end & \path{e2e/tests/role-permissions.spec.js}: a Viewer sees no \emph{Add task} button and the read-only message; after promotion to Contributor they can add a task. \\
+Result & \PASS \\
+\end{checkinfo}
+
+\subsection{T4: rollback and concurrent-edit conflicts}
+\begin{checkinfo}
+Rollback & \path{KanbanBoard.test.jsx} (13): ``puts the card back and shows an error when the server rejects the move'';
+``rolls back after a 403 too (for example, role changed to Viewer meanwhile)''. \\
+Conflicts & ``on 409 shows the conflict message and leaves the card in the server's column''; ``on 409 without a task in the body, fetches the latest task'';
+\path{kanbanLogic.test.js} (10): live events are applied only when strictly newer, and a stale event does not undo a newer update. Backend: two simultaneous edits or moves with the same version, one wins and one gets 409. \\
+Real time & \path{backend/test/realtime.test.js} (11): members (including Viewers) receive \texttt{task:updated}; rejected moves (409, 403) broadcast nothing; non-members never receive events;
+a connection without a valid token is refused. \\
+Result & \PASS \\
+\end{checkinfo}
+
+\subsection{T5: end-to-end demo flow}
+\begin{checkinfo}
+Tests & \path{e2e/tests/tasks-kanban.spec.js} (written by the tester, PR \#11): ``a task with a label can be created and moved on the Kanban board'' (list view, board view, \emph{Move to} menu, reload shows it saved, the move is in the Activity feed);
+``editing a task label is saved''. \path{dashboard.spec.js}: a task due tomorrow and assigned to me appears on the dashboard; completing a task updates the ``Tasks completed'' card. \\
+Result & \PASS{} (22/22 E2E tests in the final run) \\
+\end{checkinfo}
+
+\subsection{T6: staging deployment with WebSockets}
+\begin{checkinfo}
+Status & Not done in Sprint 2: the project has not been deployed yet. Real-time behaviour is tested locally and in CI (\path{realtime.test.js}, \path{channels.test.js}: a message reaches members live in under 1 second). \\
+Plan & Production deployment (Vercel frontend, Render API, MongoDB Atlas) is being prepared. The deployment smoke test will cover live chat and task moves between two browsers. \\
+Result & \OPEN \\
+\end{checkinfo}
+
+\section{Tester's work for Sprint 2}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{Date} & \textbf{Commit / PR} & \textbf{Work}\\\midrule
+15 Oct & \texttt{1985946}, PR \#2 & CI pipeline (GitHub Actions) \\
+17 Oct & \texttt{7b9e52a}, PR \#11 & Frontend tests and E2E in CI; Playwright setup (\path{playwright.config.js}, \path{start-backend.js}, \path{helpers.js});
+E2E \path{tasks-kanban}, \path{dashboard}, \path{discover}, \path{auth}; backend tests \path{myTasks.test.js} (9), \path{discover.test.js} (4), 72 lines of new \path{tasks.test.js} cases;
+frontend tests \path{DashboardTasks}, \path{DashboardPage}, \path{DiscoverPage}, \path{TasksPanel.label}; Discover moved to real data \\
+16 Nov & PR \#51 & E2E roles test: Viewer read-only, Contributor can add tasks \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Results of the final run}
+On 17 November 2026, on \texttt{main} at \texttt{3b35514}, after a fresh \texttt{npm ci}:
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{Suite} & \textbf{Result} & \textbf{Sprint 2 files in it}\\\midrule
+Backend & 988 / 988 pass & tasks 16, kanban 18, milestones 9, activity 6, realtime 11, channels 13, myTasks 9 \\
+Frontend & 618 / 618 pass & KanbanBoard 13, kanbanLogic 10, TasksPanel.board 9, TasksPanel.label 5, ChatPanel 9, DashboardTasks 10, DashboardPage 6 \\
+E2E & 22 / 22 pass & tasks-kanban (2), dashboard (2), role-permissions (1) \\
+\bottomrule\end{tabularx}\end{center}
+\shot{run-backend-988.png}{0.62}{Backend: 988 tests pass.}
+\shot{run-frontend-618.png}{0.62}{Frontend: 72 files, 618 tests pass.}
+\shot{run-e2e-22.png}{0.6}{E2E: 22 tests pass, including the Kanban and dashboard journeys.}
+
+\section{Findings}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endhead
+D7 & Low & The Dashboard's ``Your next step'' panel shows ``Weekly project goal \textbf{4 of 5}'' and an 80\% bar to every user
+(\path{frontend/src/pages/DashboardPage.jsx}, about lines 147--148). They are fixed values from the prototype. & Remove them, or compute them from the user's tasks (the dashboard task endpoints exist). \\
+F1 & Medium & CI checks are not required on \texttt{main} (no branch protection). & Repository owner: add a ruleset requiring the four checks. \\
+F2 & Low & The frontend test \path{DecisionsPanel.highlight.test.jsx} (Sprint 6) fails at random on CI. & Handed to the Sprint 6 tester; a two-line fix is described in the Task 6 report. \\
+T6 & -- & No staging deployment during Sprint 2. & Covered by the production deployment and its smoke test. \\
+\bottomrule\end{xltabular}}
+
+\section{Conclusion}
+All nine Sprint 2 stories are implemented and covered by passing tests on the final code. The tester's items on CI, 403/409/validation tests,
+Viewer restrictions, rollback, conflict handling and the end-to-end demo flow pass. Staging deployment (T6) was not done during the sprint
+and moves to the production deployment. One display defect on the Dashboard (D7) is recorded for the team.
+
+\signoff{17 November 2026}
+\end{document}

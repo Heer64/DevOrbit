@@ -1,0 +1,20 @@
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage{graphicx}\usepackage{float}\usepackage{booktabs}\usepackage{tabularx}\usepackage{xltabular}
+\usepackage{array}\usepackage[table]{xcolor}\usepackage{enumitem}\usepackage{caption}\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}\usepackage{xurl}
+\definecolor{passgreen}{HTML}{1E8E4E}\definecolor{failred}{HTML}{C62828}\definecolor{pendorange}{HTML}{E08A00}
+\definecolor{headgray}{HTML}{EEF0F5}\definecolor{accent}{HTML}{6343D7}
+\newcommand{\PASS}{\textbf{\textcolor{passgreen}{PASS}}}
+\newcommand{\FAIL}{\textbf{\textcolor{failred}{FAIL}}}
+\newcommand{\OPEN}{\textbf{\textcolor{pendorange}{OPEN}}}
+\newcommand{\FIXED}{\textbf{\textcolor{passgreen}{FIXED}}}
+\newcommand{\shot}[3]{\begin{figure}[H]\centering\includegraphics[width=#2\linewidth,height=0.40\textheight,keepaspectratio]{images/#1}\caption{#3}\end{figure}}
+\newenvironment{checkinfo}{\par\smallskip\noindent\tabularx{\linewidth}{>{\bfseries}p{2.6cm} X}\toprule}{\bottomrule\endtabularx\par\medskip}
+\setlist{itemsep=2pt,topsep=4pt}\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}\fancyhf{}\cfoot{\small\thepage}
+\newcommand{\signoff}[1]{\vspace{1cm}\noindent\begin{tabularx}{\linewidth}{X X}
+Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt}\\[2pt]
+Urvish Babariya (tester) & \\[14pt]
+Date: #1 & Date: \rule{3.5cm}{0.4pt}\\\end{tabularx}}

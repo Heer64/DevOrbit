@@ -1,0 +1,144 @@
+% DevOrbit - Task 5 report: npm run seed -- --reset removes everything made with the demo accounts (PR #50).
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage{graphicx}\usepackage{float}\usepackage{booktabs}\usepackage{tabularx}\usepackage{xltabular}
+\usepackage{array}\usepackage[table]{xcolor}\usepackage{enumitem}\usepackage{caption}\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}\usepackage{xurl}
+\definecolor{passgreen}{HTML}{1E8E4E}\definecolor{pendorange}{HTML}{E08A00}\definecolor{headgray}{HTML}{EEF0F5}\definecolor{accent}{HTML}{6343D7}
+\newcommand{\PASS}{\textbf{\textcolor{passgreen}{PASS}}}
+\newcommand{\OPEN}{\textbf{\textcolor{pendorange}{OPEN}}}
+\newcommand{\shot}[3]{\begin{figure}[H]\centering\includegraphics[width=#2\linewidth,height=0.42\textheight,keepaspectratio]{images/#1}\caption{#3}\end{figure}}
+\newenvironment{checkinfo}{\par\smallskip\noindent\tabularx{\linewidth}{>{\bfseries}p{2.6cm} X}\toprule}{\bottomrule\endtabularx\par\medskip}
+\setlist{itemsep=2pt,topsep=4pt}\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}\fancyhf{}\lhead{\small DevOrbit -- Task 5: seed reset clean-up}\rhead{\small PR \#50 \texttt{fix/seed-reset-all-data}}\cfoot{\small\thepage}
+\hypersetup{pdftitle={DevOrbit Task 5 - seed --reset clean-up}, pdfauthor={Urvish Babariya}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Task 5 Report\par}\vspace{0.3cm}
+{\Large \texttt{npm run seed -- --reset} removes everything\\made with the demo accounts\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l l}
+Requirement  & Sprint 1 plan line A (database setup / seed process) \\
+Pull request & \#50 \texttt{fix(seed): --reset also removes everything made with the demo accounts} \\
+Branch       & \texttt{fix/seed-reset-all-data} $\rightarrow$ \texttt{main} \\
+Merged as    & \texttt{12cc67a} (squash), on top of \texttt{e031788} (\#49) \\
+Test type    & Bug fix with automated regression test, full suite, lint, manual run \\
+Tester       & Urvish Babariya (Sprints 1, 2 and 4) \\
+Date         & 16 November 2026 \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Summary}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Check} & \textbf{Result}\\\midrule
+1 & \texttt{seed.test.js}: 6 tests, including the new clean-up test & \PASS\\
+2 & Full backend suite: 961 tests & \PASS\\
+3 & \texttt{npm run lint}: 0 errors & \PASS\\
+4 & PR \#50: all four CI checks (Lint, tests on Node 20 and 22, E2E) & \PASS\\
+5 & Manual: \texttt{npm run seed} creates 5 demo accounts, 2 projects, 9 tasks & \PASS\\
+O7 & Manual: \texttt{npm run seed -- --reset} in Windows PowerShell does not pass \texttt{--reset} & \OPEN{} (README note)\\
+\bottomrule\end{tabularx}\end{center}
+
+\section{The defect}
+The seed (Sprint 1 plan line A, \path{backend/src/seed/seedData.js}) fills a development database with demo accounts
+(\texttt{@seed.devorbit.test}) and two projects. \texttt{--reset} is meant to remove the demo data and seed again, without touching real users.
+\texttt{removeSeedData()} deleted only the demo users, the projects they own, and those projects' tasks, milestones, messages, channels and activity
+(plus follows and direct messages, added in Sprints 5 and 6).
+
+Testers use the demo accounts in the app. Everything else they created stayed behind after a reset, pointing at users and projects
+that no longer existed: decisions, docs, task comments, files and their bytes in GridFS, invitations, join requests, notifications,
+GitHub connection records, posts and their images, votes, reports, sessions, password reset links and profile photos.
+These orphans appear as broken entries and wrong counts (for example, a real post kept a vote from a deleted demo account).
+
+\section{The fix}
+\subsection{Files changed}
+\begin{center}\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{File} & \textbf{Change} & \textbf{Description}\\\midrule
+\path{backend/src/seed/seedData.js} & +97 / $-$10 & \texttt{removeSeedData()} removes all related data; header comment updated \\
+\path{backend/test/seed.test.js} & +113 & New regression test \\
+\path{README.md} & +3 / $-$1 & Documents what \texttt{--reset} removes \\
+\bottomrule\end{tabularx}\end{center}
+
+\subsection{What \texttt{--reset} removes now}
+\begin{enumerate}
+\item \textbf{Inside the demo projects:} tasks, milestones, messages, channels, activity, decisions, docs, task comments, invitations,
+join requests, notifications, project files (and their bytes in GridFS bucket \texttt{projectFiles}), portfolio stats, GitHub connection,
+feed-key and OAuth-state records. The demo projects are removed from the webhook delivery log, but the deliveries themselves are kept.
+\item \textbf{Made by the demo accounts anywhere:} their posts (with images in GridFS bucket \texttt{postImages}) and the votes and reports on them;
+their votes on real posts, after which each affected real post is \textbf{recounted} (\texttt{recountPostVotes}) so its score stays right;
+their reports, vote and post rate-limit logs, portfolio stats, notifications to or from them, invitations, join requests, sessions,
+password reset tokens (Sprint 6 M1, \#48), OAuth states, follows, direct messages and profile photos (GridFS bucket \texttt{avatars}).
+\item \textbf{Never touched:} real users, real projects, and a real user's own notifications.
+\end{enumerate}
+A GitHub webhook that a tester created for a demo project is not removed on GitHub, because the seed works offline. The README says so.
+
+\section{Testing}
+\subsection{T1: new regression test}
+\begin{checkinfo}
+Steps & \texttt{node --test test/seed.test.js} with \texttt{MONGODB\_URI\_TEST} pointing at the local MongoDB (a separate throw-away database per run). \\
+Test & After seeding, the test writes one record of each kind into the collections (only the fields that matter), including a real GridFS file,
+a post image, a profile photo, a demo vote on a real post and a delivery-log entry. It then runs \texttt{--reset} and checks that every record
+is gone, that the GridFS bytes are deleted, that the real post's counters are back to 0, and that real data is kept. \\
+Actual & 6 tests, 6 pass, 0 fail, exit code 0 (Figure~\ref{fig:seedtests}). \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{02-seed-tests.png}{0.75}{\texttt{seed.test.js}: all 6 tests pass, including ``--reset also removes what testers made with seed accounts, and keeps real data right''.\label{fig:seedtests}}
+
+\subsection{T2: full backend suite and lint}
+\begin{checkinfo}
+Actual & Backend: 961 tests, 961 pass, 0 fail (165\,s). Lint: 0 errors, 7 known warnings. The change touched exactly the 3 expected files (Figure~\ref{fig:diff}). \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{01-diff-stat.png}{0.75}{The change before committing: exactly 3 files.\label{fig:diff}}
+\shot{03-backend-961.png}{0.7}{Full backend suite: 961 pass, 0 fail.}
+\shot{04-lint.png}{0.62}{Lint: 0 errors, 7 warnings.}
+
+\subsection{T3: CI on the pull request}
+\begin{checkinfo}
+Actual & All four checks successful, including \emph{Lint (ESLint)}, which this PR received from \texttt{main} after Task 4 (\#49) was merged (Figure~\ref{fig:pr}). \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{06-pr50-checks.png}{0.95}{PR \#50: four green checks.\label{fig:pr}}
+
+\subsection{T4: manual run on Windows}
+\begin{checkinfo}
+Steps & In \texttt{backend/}: \texttt{npm run seed}, then \texttt{npm run seed -- --reset} (Windows PowerShell 5.1). \\
+Expected & The first run seeds; the second prints ``Removed the old demo data: 5 users, 2 projects'' and seeds again. \\
+Actual & The first run seeded 5 users (including the Platform Admin from Sprint 6 M8), 2 projects and 9 tasks. The second run answered
+``Seed accounts already exist. Run with --reset to recreate them'': the flag never reached the script (Figure~\ref{fig:ps}). \\
+Cause & Windows PowerShell treats a bare \texttt{--} as ``end of parameters'' and drops it when it runs npm's PowerShell shim (\texttt{npm.ps1}).
+npm then receives \texttt{run seed --reset}, takes \texttt{--reset} as an option for itself, and does not pass it to \texttt{seed.js}.
+The same command works in Git Bash, macOS and Linux. \\
+Workaround & \texttt{node scripts/seed.js --reset}, or \texttt{npm run seed '--' --reset} (quoted). \\
+Result & Seeding \PASS; \texttt{--reset} through npm in PowerShell: observation \textbf{O7} \\
+\end{checkinfo}
+\shot{05-seed-run-powershell.png}{0.75}{Manual run: seeding works; in PowerShell the \texttt{--reset} flag is dropped (O7).\label{fig:ps}}
+
+\section{Observations}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endhead
+O7 & Low & The README command \texttt{npm run seed -- --reset} does not pass \texttt{--reset} in Windows PowerShell (most of the team uses Windows). &
+Add to the README: ``On Windows PowerShell, which drops a bare \texttt{--}, run \texttt{npm run seed '--' --reset} or \texttt{node scripts/seed.js --reset} instead.''
+Planned for the Task 7 docs PR. \\
+O8 & Info & The seed cannot remove a GitHub webhook created for a demo project (it works offline). & Documented in the README; remove such webhooks in the repository settings. \\
+\bottomrule\end{xltabular}}
+
+\section{Conclusion}
+\texttt{--reset} now leaves no orphaned data behind. Everything created with the demo accounts or inside the demo projects is removed,
+including stored file bytes, images and profile photos, and real posts keep correct scores. Real users and projects are unchanged.
+The fix is covered by a new regression test, and the full suite, lint and CI pass. It was merged as \texttt{12cc67a}.
+One documentation gap remains for Windows users (O7).
+
+\vspace{1cm}\noindent
+\begin{tabularx}{\linewidth}{X X}
+Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt}\\[2pt]
+Urvish Babariya (tester) & \\[14pt]
+Date: 16 November 2026 & Date: \rule{3.5cm}{0.4pt}\\
+\end{tabularx}
+\end{document}

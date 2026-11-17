@@ -1,0 +1,158 @@
+% DevOrbit - Sprint 1 test report (tester: Urvish Babariya). Compile: pdflatex sprint1-test-report.tex (twice).
+\documentclass[11pt,a4paper]{article}
+\input{preamble}
+\lhead{\small DevOrbit -- Sprint 1 test report}\rhead{\small Accounts, profiles, projects, roles}
+\hypersetup{pdftitle={DevOrbit Sprint 1 test report}, pdfauthor={Urvish Babariya}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Sprint 1 Test Report\par}\vspace{0.3cm}
+{\Large Accounts, profiles, projects and roles\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l l}
+User stories  & US-01, US-02, US-03, US-05, US-08, US-09 \\
+Plan lines    & Project setup and CI; leftover plan items (domain list, starting members,\\
+              & photo storage, PR template, lint/format rules, seed process) \\
+Test types    & API and unit tests (backend), component tests (frontend), end-to-end, CI checks \\
+Tester        & Urvish Babariya \\
+Testing period & 12 October -- 16 November 2026 \\
+Final run     & 17 November 2026 on \texttt{main} at \texttt{3b35514} (all six sprints merged) \\
+Repository    & \url{https://github.com/Heer64/DevOrbit} \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Summary}
+Sprint 1 is complete and passes its exit criteria. Every Sprint 1 user story is covered by automated tests that pass on the final code,
+and the leftover Sprint 1 plan items were added and tested on 3 November.
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Exit criterion (README, ``Sprint 1 is done when'')} & \textbf{Result}\\\midrule
+1 & A new user can register, log in, edit their profile and create a project & \PASS\\
+2 & Role rules work (for example, a Viewer can't change roles) & \PASS\\
+3 & Tests pass and the setup steps work on a fresh clone & \PASS\\
+\midrule
+\multicolumn{3}{l}{\textit{Sprint 1 plan items}}\\
+A & CI runs the tests on every pull request (and, since 16 Nov, lint) & \PASS\\
+B & Domain from an agreed fixed list; optional starting members with roles & \PASS\\
+C & Profile photos in persistent storage (MongoDB GridFS) & \PASS\\
+D & PR template, lint and format rules, seed process & \PASS\\
+\midrule
+D6 & New finding: own Profile page shows fixed sample text and statistics & \OPEN\\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Scope}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X}\toprule
+\textbf{Story} & \textbf{What it covers}\\\midrule
+US-01 & Register an account (password stored as a salted hash, never plain text) \\
+US-02 & Log in \\
+US-03 & Log out \\
+US-05 & Edit my profile: photo (JPEG or PNG, up to 2 MB), bio (up to 500 characters), up to 10 skill tags \\
+US-08 & Create a project: name, description, domain, Public or Private; the creator becomes Owner \\
+US-09 & Assign project roles: Owner, Admin, Contributor, Viewer, enforced on the server (403 otherwise) \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Test environment}
+\begin{itemize}
+\item \textbf{Local:} Windows laptop, Node v22.16.0, npm 10.9.2, local MongoDB service. Backend tests use \texttt{MONGODB\_URI\_TEST} (a throw-away database per run);
+      E2E uses \texttt{E2E\_MONGODB\_URI} and Playwright (Chromium), which starts its own API and a production build of the frontend.
+\item \textbf{CI:} GitHub Actions (\path{.github/workflows/ci.yml}). Lint (Node 22), backend tests, frontend tests and build on Node 20 and 22 with a MongoDB 7 service, then E2E.
+\item \textbf{Frameworks:} \texttt{node:test} + supertest + mongodb-memory-server (backend), Vitest + Testing Library + jsdom (frontend), Playwright (E2E).
+\end{itemize}
+
+\section{Exit criteria in detail}
+\subsection{EC1: register, log in, edit the profile, create a project}
+\begin{checkinfo}
+Automated & \path{backend/test/auth.test.js} (7): register returns a session; passwords stored as salted bcrypt hashes; duplicate/bad emails and short passwords refused;
+log in with the right password and fails with the wrong one; five wrong passwords lock the account; protected routes need a token; log out revokes the session on the server.\\
+& \path{backend/test/profile.test.js} (13): bio 500 accepted, 501 refused; 10 skills accepted, 11 refused; photo exactly 2 MB accepted, one byte over refused (413);
+non-JPEG/PNG refused (415); a file that only claims to be an image refused; replacing a photo deletes the old file; photo stored in MongoDB, not on disk. \\
+& \path{backend/test/projects.test.js} (15): create stores name, description, domain and visibility and makes the creator Owner; name required; visibility must be Public or Private. \\
+& \path{backend/test/projectCreate.test.js} (6) and \path{projectSetup.test.js} (7): domain must come from the agreed list; starting members added with roles; one bad starting member means nothing is created. \\
+End to end & \path{e2e/tests/auth.spec.js}: a new user signs up, logs out and logs back in; a wrong password shows an error and stays on the login page.
+\path{e2e/tests/role-permissions.spec.js} creates a project with a starting member through the real create form. \\
+Result & \PASS{} -- all pass in the final run (Section~\ref{sec:results}). \\
+\end{checkinfo}
+
+\subsection{EC2: role rules work}
+\begin{checkinfo}
+Automated & \path{backend/test/permissions.test.js} (16 unit tests of the rules) and \path{projects.test.js}: a Viewer cannot change roles (403, nothing changes); a Contributor cannot add, change or remove members;
+non-members get 403 on every members endpoint; the Owner can promote and demote; an Admin can manage only Contributors and Viewers; nobody can create a second Owner or change the Owner;
+private projects are 403 for non-members. \\
+End to end & \path{e2e/tests/role-permissions.spec.js} (added by the tester, PR \#51), two browsers: the Owner adds the Member as a Viewer; the Viewer sees no \emph{Add task} button,
+a read-only message and no role menus; the Owner promotes them to Contributor; the Contributor can add a task but still cannot change roles. \\
+Mutation check & With \texttt{canWriteTasks} temporarily allowing Viewers, the E2E test failed at the Viewer step (Figure~\ref{fig:mut}); the file was restored. So the test really detects a broken role rule. \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{role-test-pass.png}{0.75}{The role-permissions E2E test passes.}
+\shot{role-mutation-fail.png}{0.75}{Mutation check: the same test fails when Viewers are wrongly allowed to write tasks.\label{fig:mut}}
+
+\subsection{EC3: tests pass and setup works on a fresh clone}
+\begin{checkinfo}
+Evidence & CI checks out a clean copy and installs from the lockfiles (\texttt{npm ci}) on every pull request, then runs lint, the backend and frontend tests and the build on Node 20 and 22, and the E2E suite.
+It has run on every PR since 15 October (PR \#2, set up by the tester). On 17 November the tester also pulled the final \texttt{main}, reinstalled every package with \texttt{npm ci}, and ran everything locally (Section~\ref{sec:results}).
+The README documents the setup, and \texttt{npm run seed} fills an empty database with demo accounts and projects. \\
+Result & \PASS \\
+\end{checkinfo}
+
+\section{Boundary value checks}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l l X}\toprule
+\textbf{Field} & \textbf{Limit} & \textbf{Values tested} & \textbf{Result}\\\midrule
+Bio & 500 characters & 500 / 501 & 500 saved, 501 refused \\
+Skill tags & 10 & 10 / 11 & 10 saved, 11 refused; duplicates collapse \\
+Profile photo & 2 MB & exactly 2 MB / 2 MB + 1 byte & accepted / 413 \\
+Photo type & JPEG, PNG & PNG, JPEG, other formats, a fake ``image'' & accepted / 415 / refused by file signature \\
+Password & minimum 8 & short password & refused at sign-up \\
+Login attempts & 5 & five wrong passwords & account locked for a while \\
+Starting members & 20 & invalid or unknown entry in the list & whole create refused, nothing saved \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Tester's work for Sprint 1}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{Date} & \textbf{Commit / PR} & \textbf{Work}\\\midrule
+12 Oct & \texttt{4f69052} & Sprint 1 criteria in the README brought in line with the plan \\
+15 Oct & \texttt{1985946}, PR \#2 & GitHub Actions CI pipeline: tests run on every push and pull request \\
+17 Oct & \texttt{7b9e52a}, PR \#11 & Frontend tests and an E2E job added to CI; first E2E journeys, including \path{auth.spec.js} \\
+3 Nov & \texttt{7841eaf}, PR \#31 & Sprint 1 gaps: domain list, starting members, photos in GridFS, PR template, lint/format, seed, with tests (\path{projectCreate}, \path{projectSetup}, \path{seed}) \\
+16 Nov & PR \#49 & Lint enforced in CI (Task 4 report) \\
+16 Nov & PR \#50 & \texttt{seed --reset} removes everything made with the demo accounts (Task 5 report) \\
+16 Nov & PR \#51 & E2E role-permissions test with a mutation check (Task 6 report) \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Results of the final run}\label{sec:results}
+On 17 November 2026, on \texttt{main} at \texttt{3b35514} (all six sprints merged), after a fresh \texttt{npm ci} in every package:
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{Suite} & \textbf{Result} & \textbf{Sprint 1 files in it}\\\midrule
+Backend & 988 / 988 pass & auth 7, profile 13, projects 15, permissions 16, projectCreate 6, projectSetup 7, seed 6, avatar-lib 4 \\
+Frontend & 618 / 618 pass & \path{CreateProject.test.jsx}, \path{LoginPage.test.jsx} \\
+E2E & 22 / 22 pass & \path{auth.spec.js} (2), \path{role-permissions.spec.js} (1) \\
+Lint & 0 errors & whole repository \\
+\bottomrule\end{tabularx}\end{center}
+\shot{run-backend-988.png}{0.65}{Backend: 988 tests pass.}
+\shot{run-e2e-22.png}{0.62}{E2E: 22 tests pass, including sign-up/login and roles.}
+
+\section{Findings}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endhead
+D6 & Low--Med & On the user's own Profile page (\path{frontend/src/pages/ProfilePage.jsx}, about lines 184 and 199--202) the \emph{About} panel shows fixed sample text,
+and \emph{Contribution snapshot} shows fixed numbers (18 commits, 24 tasks, 12 collaborators, 86\% momentum) to every real user.
+The saved bio and skills work (tested above); only these panels are prototype leftovers. &
+Show the user's own bio in \emph{About}; hide the snapshot or fill it from real data (the portfolio statistics from Sprint 5 exist). \\
+O7 & Low & \texttt{npm run seed -- --reset} does not pass \texttt{--reset} in Windows PowerShell, which drops a bare \texttt{--} (Task 5 report). &
+README note: use \texttt{npm run seed '--' --reset} or \texttt{node scripts/seed.js --reset}. \\
+O4 & Info & 7 \texttt{no-unused-vars} lint warnings remain (unused imports). & Clean up in a small PR. \\
+\bottomrule\end{xltabular}}
+
+\section{Conclusion}
+All three Sprint 1 exit criteria pass. Registration, login and logout, profile editing (with its limits), project creation and role rules
+are covered by backend, frontend and end-to-end tests that pass on the final code, and CI runs them on every pull request.
+The remaining Sprint 1 plan items (domain list, starting members, persistent photos, PR template, lint and seed) are on \texttt{main} and tested.
+One display defect on the Profile page (D6) is recorded for the team.
+
+\signoff{17 November 2026}
+\end{document}

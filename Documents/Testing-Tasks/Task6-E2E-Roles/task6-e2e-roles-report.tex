@@ -1,0 +1,139 @@
+% DevOrbit - Task 6 report: E2E role permissions (PR #51) and the flaky DecisionsPanel test found on the way.
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage{graphicx}\usepackage{float}\usepackage{booktabs}\usepackage{tabularx}\usepackage{xltabular}
+\usepackage{array}\usepackage[table]{xcolor}\usepackage{enumitem}\usepackage{caption}\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}\usepackage{xurl}
+\definecolor{passgreen}{HTML}{1E8E4E}\definecolor{failred}{HTML}{C62828}\definecolor{pendorange}{HTML}{E08A00}\definecolor{headgray}{HTML}{EEF0F5}\definecolor{accent}{HTML}{6343D7}
+\newcommand{\PASS}{\textbf{\textcolor{passgreen}{PASS}}}
+\newcommand{\FAIL}{\textbf{\textcolor{failred}{FAIL}}}
+\newcommand{\OPEN}{\textbf{\textcolor{pendorange}{OPEN}}}
+\newcommand{\shot}[3]{\begin{figure}[H]\centering\includegraphics[width=#2\linewidth,height=0.42\textheight,keepaspectratio]{images/#1}\caption{#3}\end{figure}}
+\newenvironment{checkinfo}{\par\smallskip\noindent\tabularx{\linewidth}{>{\bfseries}p{2.6cm} X}\toprule}{\bottomrule\endtabularx\par\medskip}
+\setlist{itemsep=2pt,topsep=4pt}\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}\fancyhf{}\lhead{\small DevOrbit -- Task 6: E2E role permissions}\rhead{\small PR \#51 \texttt{test/e2e-role-permissions}}\cfoot{\small\thepage}
+\hypersetup{pdftitle={DevOrbit Task 6 - E2E role permissions}, pdfauthor={Urvish Babariya}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Task 6 Report\par}\vspace{0.3cm}
+{\Large End-to-end test: project roles and permissions\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l l}
+User stories & US-08 (create a project with starting members), US-09 (assign project roles) \\
+             & Read-only Viewers (Sprint 2, Pair D) \\
+Pull request & \#51 \texttt{test(e2e): Viewer is read-only; Contributor can add tasks but not change roles} \\
+Branch       & \texttt{test/e2e-role-permissions} $\rightarrow$ \texttt{main} (base \texttt{12cc67a}) \\
+New file     & \path{e2e/tests/role-permissions.spec.js} (Playwright, two browser contexts) \\
+Test type    & End-to-end (black-box, through the real UI and API), plus a mutation check \\
+Tester       & Urvish Babariya (Sprints 1, 2 and 4) \\
+Date         & 16 November 2026 \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Summary}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Check} & \textbf{Result}\\\midrule
+1 & New test \texttt{role-permissions.spec.js}, local run & \PASS\\
+2 & Whole E2E suite (21 tests, including the new one) & \PASS\\
+3 & Lint: 0 errors & \PASS\\
+4 & Mutation check: with Viewers wrongly allowed to write tasks, the test fails & \PASS{} (test catches the bug)\\
+5 & PR \#51 CI: all four checks green (after re-running a flaky unrelated job) & \PASS\\
+F2 & Flaky frontend test \texttt{DecisionsPanel.highlight.test.jsx} failed once on Node 20 & \OPEN{} (fix PR prepared)\\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Why this test}
+Roles are the base of DevOrbit's permissions: Owner, Admin, Contributor and Viewer (\path{frontend/src/roles.js}, mirrored by
+\path{backend/src/lib/permissions.js}). The backend tests already check that the API answers 403. No end-to-end test, however, checked what each
+role actually sees and can do in the browser, nor that a role change made by the Owner takes effect for the other person.
+That gap was in the tester's area (Sprint 1 roles, Sprint 2 tasks).
+
+\section{The test}
+One Playwright test (\path{e2e/tests/role-permissions.spec.js}, 78 lines) with two browser contexts, so there are two logged-in users at the same time:
+\begin{enumerate}
+\item \textbf{Setup:} the Member signs up. The Owner signs up and creates a Private project with the Member as a \textbf{Viewer},
+      using the create form's \emph{Starting members} (US-08). The Owner's \emph{Team \& roles} shows the role menu for the Member set to Viewer.
+\item \textbf{Viewer:} opens the project by URL. Checked: ``You: Viewer''; the message ``You are a Viewer on this project, so tasks are read-only.'';
+      no \emph{Add task} button; ``Only Owners and Admins can change roles.''; no \emph{Role for \ldots} menus.
+\item \textbf{Role change:} the Owner selects \emph{Contributor} (US-09) and sees ``\ldots{} is now Contributor.'' After a reload, the menu still says Contributor (saved).
+\item \textbf{Contributor:} after a reload, ``You: Contributor'', the read-only message is gone, and they add a task, which appears in their list.
+      The Owner reloads and sees the same task, so it was saved through the API.
+\item \textbf{Contributor still cannot change roles:} no \emph{Role for \ldots} menus at all, including none for the Owner.
+\end{enumerate}
+Selectors use roles, labels and visible text, the same way the existing specs and the shared helpers (\texttt{signUp}, \texttt{addTask}, \texttt{taskRow}) do.
+
+\section{Results}
+\subsection{T1: local run of the new test}
+\begin{checkinfo}
+Steps & \texttt{cd e2e}; \texttt{npm ci}; \texttt{npx playwright install chromium}; \texttt{E2E\_MONGODB\_URI=mongodb://127.0.0.1:27017/devorbit\_e2e};
+\texttt{npx playwright test tests/role-permissions.spec.js}. Playwright starts its own API and a production build of the frontend. \\
+Actual & 1 passed (test 9.9\,s, run 30.8\,s), exit code 0 (Figure~\ref{fig:pass}). It passed on the first run. \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{01-role-test-pass.png}{0.7}{The new role-permissions test passes locally.\label{fig:pass}}
+
+\subsection{T2: whole E2E suite and lint}
+\begin{checkinfo}
+Actual & 21 passed in 2.4\,min (Figure~\ref{fig:suite}); the new test is number 19. Lint: 0 errors, 7 known warnings. \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{02-e2e-suite-21.png}{0.7}{Whole E2E suite: 21 passed.\label{fig:suite}}
+
+\subsection{T3: mutation check (does the test catch a real bug?)}
+\begin{checkinfo}
+Steps & Temporarily changed \texttt{canWriteTasks} in \path{frontend/src/roles.js} to also allow \texttt{'Viewer'} (a realistic permission bug), ran the new test, then restored the file with \texttt{git checkout -- frontend/src/roles.js}. \\
+Expected & The test fails at the Viewer step. \\
+Actual & 1 failed, exit code 1, at line 47: \texttt{getByText('You are a Viewer on this project, so tasks are read-only.')} was not visible,
+because the app now treated the Viewer as able to write (Figures~\ref{fig:mut} and~\ref{fig:mut47}). After the restore, \texttt{git status} showed only the new spec file. \\
+Result & \PASS{} (the test detects the bug) \\
+\end{checkinfo}
+\shot{03-mutation-fail.png}{0.7}{Mutation check: the test fails when Viewers are allowed to write tasks.\label{fig:mut}}
+\shot{04-mutation-line47.png}{0.7}{The failing line: the read-only message for Viewers is missing.\label{fig:mut47}}
+
+\subsection{T4: CI on PR \#51}
+\begin{checkinfo}
+First run & Node 22, Lint: green. \textbf{Node 20: failed}, and E2E was skipped (\texttt{needs: test}) (Figure~\ref{fig:flaky}).
+The failing test was \emph{not} in this PR: \texttt{DecisionsPanel.highlight.test.jsx > scrolls to and highlights the linked decision only},
+\texttt{AssertionError: expected [] to deeply equal [ 'd2' ]} (Figure~\ref{fig:flakylog}). \\
+Re-run & \emph{Re-run failed jobs}: all four checks green, including E2E with the new test (Figure~\ref{fig:green}). \\
+Result & \PASS{} for this PR; flaky test recorded as F2 \\
+\end{checkinfo}
+\shot{05-pr51-flaky-node20.png}{0.9}{First CI run: Node 20 failed on an unrelated frontend test; E2E skipped.\label{fig:flaky}}
+\shot{06-flaky-log.png}{0.95}{The failing test: \texttt{DecisionsPanel.highlight}, expected the scroll to \texttt{d2} but got nothing.\label{fig:flakylog}}
+\shot{07-pr51-all-green.png}{0.9}{After the re-run: all four checks green.\label{fig:green}}
+
+\section{Finding F2: flaky \texttt{DecisionsPanel.highlight} test}
+\begin{checkinfo}
+Where & \path{frontend/src/components/DecisionsPanel.highlight.test.jsx} (Sprint 6 M4, US-42; outside this tester's sprints). \\
+Symptom & Fails at random on CI (here Node 20 only, while Node 22 passed on the same code); passes on re-run. \\
+Cause & \path{DecisionsPanel.jsx} calls \texttt{scrollIntoView} in a \texttt{useEffect} (lines 116--121), which React runs after the rows are drawn.
+The test checked the scroll once, right after \texttt{findByText('Deploy on Render')}. On a slow runner the check ran before the effect: a race. \\
+Impact & Random red CI on unrelated pull requests, and the E2E job is skipped for that run. \\
+Fix & Wait for the effect: \texttt{await waitFor(() => expect(scrolled).toEqual(['d2']))}. Test-only, two lines, in a separate PR (branch \texttt{fix/flaky-decisions-highlight-test}). \\
+\end{checkinfo}
+
+\section{Observations for the regression report}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endhead
+O9 & Low & E2E backend log: \texttt{express deprecated res.clearCookie: Passing "options.maxAge" is deprecated} (\path{backend/src/routes/auth.js:186}). Ignored in Express 5. & Drop \texttt{maxAge} from the \texttt{clearCookie} options. \\
+O10 & Info & Vite build: ``Some chunks are larger than 500 kB after minification''. The whole frontend is one large bundle, so the first load is slower. & Split routes with \texttt{React.lazy} or dynamic \texttt{import()}. \\
+\bottomrule\end{xltabular}}
+
+\section{Conclusion}
+The new end-to-end test proves, through the real UI and API with two users, that a Viewer is read-only, that an Owner's role change takes
+effect for the other user, and that a Contributor can add tasks but cannot change roles. It passes locally, in the full suite and in CI, and the
+mutation check shows it fails when the permission rule is broken. Along the way, CI exposed a flaky frontend test from Sprint 6 (F2); its cause
+was found and a fix prepared.
+
+\vspace{1cm}\noindent
+\begin{tabularx}{\linewidth}{X X}
+Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt}\\[2pt]
+Urvish Babariya (tester) & \\[14pt]
+Date: 16 November 2026 & Date: \rule{3.5cm}{0.4pt}\\
+\end{tabularx}
+\end{document}
