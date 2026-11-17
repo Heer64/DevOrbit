@@ -118,6 +118,13 @@ export function summarizeReasons(reasons = []) {
     .sort((a, b) => b.count - a.count || order(a.reason) - order(b.reason));
 }
 
+// [Sprint 6 · M7] US-56: how a moderator resolved a report. Every open report of the post gets the same
+// resolution when a moderator chooses Remove, Warn or Dismiss (see lib/moderationRules.js).
+export const REPORT_RESOLUTION_REMOVED = 'removed';
+export const REPORT_RESOLUTION_WARNED = 'warned';
+export const REPORT_RESOLUTION_DISMISSED = 'dismissed';
+export const REPORT_RESOLUTIONS = Object.freeze([REPORT_RESOLUTION_REMOVED, REPORT_RESOLUTION_WARNED, REPORT_RESOLUTION_DISMISSED]);
+
 /*
  * ---------------------------------------------------------------------------
  * [Sprint 6 · M6] What this file does

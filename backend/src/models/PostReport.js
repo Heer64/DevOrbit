@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { REPORT_DETAILS_MAX, REPORT_REASON_VALUES, REPORT_STATUSES, REPORT_STATUS_OPEN } from '../lib/reportRules.js';
+import { REPORT_DETAILS_MAX, REPORT_REASON_VALUES, REPORT_RESOLUTIONS, REPORT_STATUSES, REPORT_STATUS_OPEN } from '../lib/reportRules.js'; // [Sprint 6 · M7] + REPORT_RESOLUTIONS
 
 /*
  * [Sprint 6 · M6] One user's report of one public post (US-55 Report a public post, FR-27).
@@ -38,6 +38,21 @@ const postReportSchema = new mongoose.Schema(
       type: String,
       enum: REPORT_STATUSES,
       default: REPORT_STATUS_OPEN,
+    },
+    // [Sprint 6 · M7] US-56: filled in when a Content Moderator resolves the report (Remove / Warn / Dismiss).
+    resolvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    resolvedAt: {
+      type: Date,
+      default: null,
+    },
+    resolution: {
+      type: String,
+      enum: [...REPORT_RESOLUTIONS, null],
+      default: null,
     },
   },
   { timestamps: true }

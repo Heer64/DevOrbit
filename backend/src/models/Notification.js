@@ -9,18 +9,27 @@ import mongoose from 'mongoose';
  * The three types come from US-30: "labelled Mention, Assignment or Deadline".
  * FR-33 also names "moderation warning"; add it here when the moderation stories (FR-27) are built.
  */
-export const NOTIFICATION_TYPES = ['mention', 'assignment', 'deadline'];
+// [Sprint 6 · M7] US-56 (FR-27, FR-33 "moderation warning") and FR-20 (the requester is told the outcome of a
+// join request). These are about the recipient personally, so they are shown to them whether or not they are a
+// member of a project (a warned post belongs to no project; a declined requester never became a member).
+export const PERSONAL_NOTIFICATION_TYPES = ['moderation_warning', 'join_approved', 'join_rejected'];
+export const NOTIFICATION_TYPES = ['mention', 'assignment', 'deadline', ...PERSONAL_NOTIFICATION_TYPES]; // [Sprint 6 · M7] + personal types
+// Types that belong to no project (the project field stays empty).
+export const PROJECTLESS_NOTIFICATION_TYPES = ['moderation_warning'];
 
 // Label the UI shows for each type (US-30 acceptance criteria wording).
 export const NOTIFICATION_LABELS = {
   mention: 'Mention',
   assignment: 'Assignment',
   deadline: 'Deadline',
+  moderation_warning: 'Moderation warning', // [Sprint 6 · M7] US-56
+  join_approved: 'Join request approved', // [Sprint 6 · M7] FR-20
+  join_rejected: 'Join request declined', // [Sprint 6 · M7] FR-20
 };
 
 // What a notification points at. Same names as Activity TARGET_TYPES (shared event schema).
 // mention -> 'message' (US-18) or 'comment' (US-20); assignment and deadline -> 'task' (US-22, US-23).
-export const NOTIFICATION_TARGET_TYPES = ['task', 'message', 'comment'];
+export const NOTIFICATION_TARGET_TYPES = ['task', 'message', 'comment', 'post', 'project']; // [Sprint 6 · M7] + post (warning), project (join outcome)
 
 // Links are in-app paths such as /project/<id>?tab=tasks&task=<taskId>.
 // Must start with one "/" so a stored link can never send the user to another site
@@ -44,7 +53,9 @@ const notificationSchema = new mongoose.Schema(
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
-      required: true,
+      // [Sprint 6 · M7] US-56: a moderation warning is about a public post, which belongs to no project.
+      required: function projectRequired() { return !PROJECTLESS_NOTIFICATION_TYPES.includes(this.type); },
+      default: null,
     },
     // Who caused it. null for system notifications such as Deadline.
     actor: {

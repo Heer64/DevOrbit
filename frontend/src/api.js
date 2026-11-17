@@ -646,8 +646,19 @@ export const adminApi = {
   suspend: (userId) => api(`${adminUserPath(userId)}/suspend`, { method: 'POST', body: JSON.stringify({}) }),
   reactivate: (userId) => api(`${adminUserPath(userId)}/reactivate`, { method: 'POST', body: JSON.stringify({}) }),
 };
+// [Sprint 6 · M7] US-56 moderator queue (Content Moderators and Platform Admins; everyone else gets 403).
+//   queue()             -> { reports: [{ post, ownPost, reportCount, reasons, notes, firstReportedAt, lastReportedAt }] }
+//   remove/warn/dismiss -> { action, postId, resolution, resolvedReports, notified, message, moderationAction }
+//                          404 no open reports, 409 another moderator already handled it
+//   actions()           -> { actions }  the moderation log, newest first
+const moderationReportPath = (postId, action) => `/moderation/reports/${encodeURIComponent(String(postId || ''))}/${action}`;
 export const moderationApi = {
   access: () => api('/moderation/access'),
+  queue: () => api('/moderation/reports'), // [Sprint 6 · M7] US-56
+  remove: (postId) => api(moderationReportPath(postId, 'remove'), { method: 'POST', body: JSON.stringify({}) }), // [Sprint 6 · M7]
+  warn: (postId) => api(moderationReportPath(postId, 'warn'), { method: 'POST', body: JSON.stringify({}) }), // [Sprint 6 · M7]
+  dismiss: (postId) => api(moderationReportPath(postId, 'dismiss'), { method: 'POST', body: JSON.stringify({}) }), // [Sprint 6 · M7]
+  actions: () => api('/moderation/actions'), // [Sprint 6 · M7] US-56 moderation log
 };
 
 // Uploaded photos are stored by the API as "/uploads/avatars/<file>"; turn that into a full URL.

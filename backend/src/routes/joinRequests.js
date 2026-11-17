@@ -7,6 +7,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { loadProjectForMember, memberRole, validId } from '../lib/projectAccess.js';
 import { canManageMembers, checkAddMember } from '../lib/permissions.js';
 import { logActivity } from '../lib/activity.js';
+import { notifyJoinRequestOutcome } from '../lib/joinRequestNotifications.js'; // [Sprint 6 · M7] FR-20
 
 /*
  * [Sprint 3 · M2] Join requests (US-12, US-47, FR-20), mounted at /api/projects/:id/join-requests
@@ -230,6 +231,8 @@ router.post('/:requestId/approve', async (req, res, next) => {
       targetLabel: name,
       meta: { role },
     });
+    // [Sprint 6 · M7] FR-20: the requester is told the outcome (in-app notification, pushed live).
+    await notifyJoinRequestOutcome({ joinRequest: decided, project, outcome: 'approved', role, actor: req.user.id });
 
     const joinRequest = await populated(JoinRequest.findById(decided._id)).lean();
     return res.json({ joinRequest });
@@ -256,6 +259,8 @@ router.post('/:requestId/reject', async (req, res, next) => {
       targetId: decided._id,
       targetLabel: name,
     });
+    // [Sprint 6 · M7] FR-20: the requester is told the outcome (in-app notification, pushed live).
+    await notifyJoinRequestOutcome({ joinRequest: decided, project: loaded.project, outcome: 'rejected' });
 
     const joinRequest = await populated(JoinRequest.findById(decided._id)).lean();
     return res.json({ joinRequest });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AtSign, Bell, Clock3, UserCheck } from 'lucide-react';
+import { AtSign, Bell, Clock3, ShieldAlert, UserCheck, UserX } from 'lucide-react'; // [Sprint 6 · M7] + ShieldAlert, UserX
 import { notificationApi } from '../api';
 import { timeAgo } from './activityDisplay';
 
@@ -18,6 +18,10 @@ export const NOTIFICATION_KINDS = {
   mention: { label: 'Mention', icon: AtSign, tone: 'purple' },
   assignment: { label: 'Assignment', icon: UserCheck, tone: 'blue' },
   deadline: { label: 'Deadline', icon: Clock3, tone: 'orange' },
+  // [Sprint 6 · M7] US-56 (moderation warning, no project) and FR-20 (join request outcome).
+  moderation_warning: { label: 'Moderation warning', icon: ShieldAlert, tone: 'orange' },
+  join_approved: { label: 'Join request approved', icon: UserCheck, tone: 'blue' },
+  join_rejected: { label: 'Join request declined', icon: UserX, tone: '' },
 };
 
 const PAGE_SIZE = 20;

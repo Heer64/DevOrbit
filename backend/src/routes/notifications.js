@@ -5,6 +5,7 @@ import Project from '../models/Project.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validId } from '../lib/projectAccess.js';
 import { emitNotificationRead } from '../lib/realtime.js'; // [Sprint 3 · M7 Part 2]
+import { visibleNotificationFilter } from '../lib/notifications.js'; // [Sprint 6 · M7] US-56, FR-20
 
 /*
  * [Sprint 3 · M7 Part 1] The signed-in user's own notifications, mounted at /api/notifications (US-30, FR-33).
@@ -48,14 +49,15 @@ async function memberProjectIds(userId) {
 }
 
 function unreadCountFor(userId, projectIds) {
-  return Notification.countDocuments({ recipient: userId, project: { $in: projectIds }, read: false });
+  // [Sprint 6 · M7] + personal notifications (moderation warning, join request outcome), shown to members or not.
+  return Notification.countDocuments({ ...visibleNotificationFilter(userId, projectIds), read: false });
 }
 
 router.get('/', async (req, res, next) => {
   try {
     const limit = readLimit(req.query.limit, 20, 50);
     const projectIds = await memberProjectIds(req.user.id);
-    const filter = { recipient: req.user.id, project: { $in: projectIds } };
+    const filter = visibleNotificationFilter(req.user.id, projectIds); // [Sprint 6 · M7] was { recipient, project: { $in } }
 
     if (req.query.unread !== undefined) {
       const unread = String(req.query.unread).toLowerCase();
@@ -98,7 +100,7 @@ router.patch('/:notificationId/read', async (req, res, next) => {
 
     // A notification from a project the caller has left answers 404, like a missing one.
     const projectIds = await memberProjectIds(req.user.id);
-    const owned = { _id: req.params.notificationId, recipient: req.user.id, project: { $in: projectIds } };
+    const owned = { _id: req.params.notificationId, ...visibleNotificationFilter(req.user.id, projectIds) }; // [Sprint 6 · M7]
 
     // Only unread rows are changed, so repeating the call keeps the original readAt.
     const marked = await Notification.updateOne({ ...owned, read: false }, { $set: { read: true, readAt: new Date() } });

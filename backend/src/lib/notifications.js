@@ -1,4 +1,4 @@
-import Notification from '../models/Notification.js';
+import Notification, { PERSONAL_NOTIFICATION_TYPES, PROJECTLESS_NOTIFICATION_TYPES } from '../models/Notification.js'; // [Sprint 6 · M7] + personal types
 import Project from '../models/Project.js';
 import { validId } from './projectAccess.js';
 import { emitNotificationCreated, realtimeActive } from './realtime.js'; // [Sprint 3 · M7 Part 2]
@@ -23,7 +23,24 @@ const PROJECT_FIELDS = 'name color';
  */
 export async function unreadCountFor(userId) {
   const projects = await Project.find({ 'members.user': userId }).select('_id').lean();
-  return Notification.countDocuments({ recipient: userId, project: { $in: projects.map((p) => p._id) }, read: false });
+  // [Sprint 6 · M7] Personal notifications (moderation warning, join request outcome) count too.
+  return Notification.countDocuments({ ...visibleNotificationFilter(userId, projects.map((p) => p._id)), read: false });
+}
+
+/*
+ * [Sprint 6 · M7] US-56, FR-20: which of a user's notifications they may see right now.
+ *   - mention / assignment / deadline: only from projects they are a member of NOW (the Sprint 3 rule, unchanged)
+ *   - moderation_warning / join_approved / join_rejected: always (they are about the recipient personally)
+ * Used by the list, the unread count and mark-read (routes/notifications.js) and by unreadCountFor() above.
+ */
+export function visibleNotificationFilter(userId, memberProjectIds = []) {
+  return {
+    recipient: userId,
+    $or: [
+      { type: { $nin: PERSONAL_NOTIFICATION_TYPES }, project: { $in: memberProjectIds } },
+      { type: { $in: PERSONAL_NOTIFICATION_TYPES } },
+    ],
+  };
 }
 
 // Pushes a newly stored notification to the recipient's open tabs. Never throws.
@@ -38,6 +55,64 @@ async function publish(saved) {
     emitNotificationCreated(notification, await unreadCountFor(notification.recipient));
   } catch (error) {
     if (process.env.NODE_ENV !== 'test') console.error('Could not push notification:', error.message);
+  }
+}
+
+/*
+ * [Sprint 6 · M7] US-56, FR-20: store a notification that is about the recipient personally:
+ *   moderation_warning   a Content Moderator warned them about their post (no project)
+ *   join_approved        their join request was approved (project = that project)
+ *   join_rejected        their join request was declined (project = that project; they are NOT a member)
+ * Unlike createNotification() there is no "must be a member" check, because these people may not be members.
+ * Only these three types are accepted. Same rules otherwise: never to the actor themselves, idempotent with a
+ * dedupeKey, never throws (returns null), pushed live like every other notification.
+ */
+export async function createPersonalNotification({
+  recipient,
+  type,
+  project = null,
+  actor = null,
+  summary,
+  targetType,
+  targetId,
+  targetLabel = '',
+  link,
+  dedupeKey,
+}) {
+  if (!PERSONAL_NOTIFICATION_TYPES.includes(type)) return null;
+  const recipientId = idString(recipient);
+  const projectId = idString(project);
+  const actorId = idString(actor);
+
+  if (!validId(recipientId)) return null;
+  if (!PROJECTLESS_NOTIFICATION_TYPES.includes(type) && !validId(projectId)) return null;
+  if (actorId && actorId === recipientId) return null;
+
+  const fields = {
+    recipient: recipientId,
+    type,
+    project: validId(projectId) ? projectId : null,
+    actor: actorId || null,
+    summary: String(summary ?? '').slice(0, 300),
+    targetType,
+    targetId: idString(targetId) || null,
+    targetLabel: String(targetLabel ?? '').slice(0, 200),
+    link,
+  };
+  if (typeof dedupeKey === 'string' && dedupeKey.trim()) fields.dedupeKey = dedupeKey.trim().slice(0, 200);
+
+  try {
+    const saved = await Notification.create(fields);
+    await publish(saved);
+    return saved;
+  } catch (error) {
+    if (error?.code === 11000 && fields.dedupeKey) {
+      return Notification.findOne({ recipient: recipientId, dedupeKey: fields.dedupeKey }).catch(() => null);
+    }
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Could not store notification:', error.message);
+    }
+    return null;
   }
 }
 
