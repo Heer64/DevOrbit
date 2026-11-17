@@ -1,0 +1,216 @@
+% DevOrbit - Task 4 report: ESLint enforced in CI (Sprint 1 plan line A / NFR-31), PR #49.
+% Compile: pdflatex task4-ci-lint-report.tex (twice).
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{fancyvrb}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+
+\definecolor{passgreen}{HTML}{1E8E4E}
+\definecolor{failred}{HTML}{C62828}
+\definecolor{pendorange}{HTML}{E08A00}
+\definecolor{headgray}{HTML}{EEF0F5}
+\definecolor{accent}{HTML}{6343D7}
+\newcommand{\PASS}{\textbf{\textcolor{passgreen}{PASS}}}
+\newcommand{\FAIL}{\textbf{\textcolor{failred}{FAIL}}}
+\newcommand{\OPEN}{\textbf{\textcolor{pendorange}{OPEN}}}
+
+\newcommand{\shot}[3]{%
+  \begin{figure}[H]\centering
+    \includegraphics[width=#2\linewidth,height=0.42\textheight,keepaspectratio]{images/#1}
+    \caption{#3}
+  \end{figure}}
+\newenvironment{checkinfo}{\par\smallskip\noindent\tabularx{\linewidth}{>{\bfseries}p{2.6cm} X}\toprule}{\bottomrule\endtabularx\par\medskip}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}\fancyhf{}
+\lhead{\small DevOrbit -- Task 4: lint enforced in CI}
+\rhead{\small PR \#49 \texttt{ci/run-lint}}
+\cfoot{\small \thepage}
+\hypersetup{pdftitle={DevOrbit Task 4 - ESLint in CI (NFR-31)}, pdfauthor={Urvish Babariya}}
+
+\begin{document}
+\begin{titlepage}\centering
+  \vspace*{2.5cm}
+  {\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+  {\LARGE Task 4 Report\par}\vspace{0.3cm}
+  {\Large Lint rules enforced in CI (ESLint job)\par}\vspace{1.5cm}
+  \begin{tabular}{>{\bfseries}l l}
+    Requirement   & Sprint 1 plan line A, NFR-31 (lint rules enforced) \\
+    Pull request  & \#49 \texttt{ci: run ESLint on every push and pull request (NFR-31)} \\
+    Branch        & \texttt{ci/run-lint} $\rightarrow$ \texttt{main} \\
+    Base code     & \texttt{main} at \texttt{0dd6dcf} (includes PRs \#46, \#47, \#48) \\
+    Test type     & CI pipeline change, positive and negative test \\
+    Tester        & Urvish Babariya (Sprints 1, 2 and 4) \\
+    Date          & 16 November 2026 \\
+    Status        & All checks green; waiting for review (Squash and merge) \\
+  \end{tabular}
+  \vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Summary}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Check} & \textbf{Result}\\\midrule
+1 & \texttt{npm run lint} on the latest \texttt{main}: 0 errors, 7 warnings, exit code 0 & \PASS\\
+2 & PR \#49: all four CI checks pass (Lint, tests on Node 20 and 22, E2E) & \PASS\\
+3 & Negative test: a commit with \texttt{debugger;} fails locally (exit code 1) and turns \emph{Lint (ESLint)} red on the PR & \PASS\\
+4 & Revert: the error is removed, Lint is green again, and the PR still changes only \texttt{ci.yml} & \PASS\\
+F1 & Checks are not \emph{required} on \texttt{main}: a red Lint check does not block merging & \OPEN{} (repo owner)\\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Why this change}
+ESLint was added in Sprint 1 (\texttt{eslint.config.mjs}, root scripts \texttt{lint} / \texttt{lint:fix}), but
+\path{.github/workflows/ci.yml} only ran the backend tests, the frontend tests, the frontend build and the Playwright E2E tests.
+Lint therefore depended on each developer remembering to run it, and a pull request with lint \emph{errors} could still go green.
+The Sprint 1 plan (line A) and NFR-31 ask for the lint rules to be \emph{enforced}, not just available.
+
+\section{What was changed}
+\subsection{Files changed}
+\begin{center}\begin{tabularx}{\linewidth}{l l X}\toprule
+\textbf{File} & \textbf{Change} & \textbf{Description}\\\midrule
+\path{.github/workflows/ci.yml} & +20 / $-$0 & New job \texttt{lint} (``Lint (ESLint)''). No existing line was changed.\\
+\bottomrule\end{tabularx}\end{center}
+The temporary file \path{backend/src/lint-gate-check.js} was added and reverted inside the PR (negative test), so it is not part of the net change.
+
+\subsection{The new job}
+\begin{Verbatim}[fontsize=\small,frame=single]
+  # Sprint 1 plan line A / NFR-31: lint rules are enforced, not just available.
+  # Runs once (not per Node version) and needs no database, so it is quick.
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install root dev tools (ESLint, Prettier)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+\end{Verbatim}
+
+\subsection{Design decisions}
+\begin{itemize}
+  \item \textbf{A separate job, not a step in the test job.} The test job runs twice (Node 20 and 22) and starts a MongoDB service.
+        Lint needs neither, so it runs once and finishes in about 10 seconds. It also shows as its own check, so a reviewer sees at once
+        whether a PR failed on style or on tests.
+  \item \textbf{Errors fail, warnings do not.} ESLint exits with code 1 only when there is an error (for example \texttt{no-debugger},
+        \texttt{no-undef}, \texttt{eqeqeq}), and GitHub Actions fails a step on a non-zero exit code. Rules such as
+        \texttt{no-unused-vars} are set to \texttt{warn} in \texttt{eslint.config.mjs}, so they are shown but do not block.
+  \item \textbf{Root lockfile.} ESLint and Prettier are dev dependencies of the root \texttt{package.json}, so the job installs with
+        \texttt{npm ci} from the root \texttt{package-lock.json} and caches it.
+\end{itemize}
+
+\subsection{Commits on the branch}
+\begin{center}\small\begin{tabularx}{\linewidth}{l X}\toprule
+\textbf{Commit} & \textbf{Message / purpose}\\\midrule
+\texttt{3ee1f14} & ci: run ESLint on every push and pull request (NFR-31)\\
+\texttt{8ac6509} & Merge branch \texttt{main} into \texttt{ci/run-lint} (bring in \#46, \#47, \#48 so the new code is linted too)\\
+\texttt{3da84ec} & ci: restore the E2E test step that was commented out by mistake (Section~\ref{sec:incident})\\
+\texttt{898e1df} & test: temporary lint error to prove the CI gate fails (negative test)\\
+\texttt{9c04078} & Revert of \texttt{898e1df}\\
+\bottomrule\end{tabularx}\end{center}
+Recommended merge method: \textbf{Squash and merge}, so \texttt{main} receives one clean commit.
+
+\section{Testing}
+\subsection{T1: lint on the latest code (local)}
+\begin{checkinfo}
+Steps & On \texttt{ci/run-lint} after merging the latest \texttt{main}: \texttt{npm ci}, \texttt{npm run lint}, \verb|echo "exit code: $LASTEXITCODE"|. \\
+Expected & No errors, exit code 0 (otherwise the new job would turn every PR red). \\
+Actual & \texttt{0 errors, 7 warnings}, \texttt{exit code: 0}. The new Sprint 6 M8 and password-reset code is clean. \\
+Result & \PASS \\
+\end{checkinfo}
+
+\subsection{T2: all checks on the PR}
+\begin{checkinfo}
+Expected & Four checks: Lint (ESLint), Backend tests, frontend tests and build (Node 20) and (Node 22), End-to-end tests (Playwright); all green. \\
+Actual & All four successful: Lint in 9\,s, Node 20 in 3\,min, Node 22 in 2\,min, E2E in 2\,min (Figure~\ref{fig:green}).
+E2E appears only after the test jobs pass, because of \texttt{needs: test}. \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{03-all-four-green.png}{0.95}{PR \#49: all four checks successful, including the new \emph{Lint (ESLint)}.\label{fig:green}}
+
+\subsection{T3: negative test (the gate catches a lint error)}
+\begin{checkinfo}
+Steps & Added \path{backend/src/lint-gate-check.js} containing \texttt{debugger;}; ran lint locally; committed and pushed to the PR. \\
+Expected & Locally: an error and exit code 1. On the PR: \emph{Lint (ESLint)} fails. \\
+Actual & Locally: \texttt{1:1 error Unexpected 'debugger' statement no-debugger}, \texttt{8 problems (1 error, 7 warnings)}, \texttt{exit code: 1}
+(Figure~\ref{fig:local}). On the PR: \emph{CI / Lint (ESLint)} ``Failing after 19s'' (Figure~\ref{fig:red}). \\
+Result & \PASS{} (the check fails as it should) \\
+\end{checkinfo}
+\shot{04-local-lint-error.png}{0.62}{Negative test, local: one \texttt{no-debugger} error, exit code 1.\label{fig:local}}
+\shot{05-lint-red-on-pr.png}{0.95}{Negative test, on the PR: \emph{Lint (ESLint)} fails. Note ``Able to merge'': the checks are not required (finding F1).\label{fig:red}}
+
+\subsection{T4: revert}
+\begin{checkinfo}
+Steps & \texttt{git revert --no-edit HEAD}, \texttt{git push}. \\
+Expected & Lint green again; the PR's net change is still only \texttt{ci.yml}. \\
+Actual & Commit \texttt{9c04078} removes the file. Lint ``Successful in 12s'', Node 20 and 22 green, E2E running when the screenshot was taken
+(Figure~\ref{fig:after}). \emph{Files changed}: 1. Comparing the branch with \texttt{main} gives \texttt{ci.yml | 20 +} and nothing else. \\
+Result & \PASS \\
+\end{checkinfo}
+\shot{06-after-revert.png}{0.85}{After the revert: 5 commits, 1 file changed, Lint green again.\label{fig:after}}
+
+\section{Incident during the task: a workflow that ran nothing}\label{sec:incident}
+\begin{checkinfo}
+Symptom & After the first push, PR \#49 showed \textbf{Checks 0} and ``Ready to merge'' (Figure~\ref{fig:zero}): a false green. \\
+Cause & While editing \texttt{ci.yml}, the line \texttt{- name: End-to-end tests} had been commented out (Figure~\ref{fig:commented}).
+Its \texttt{working-directory} and \texttt{run} lines then belonged to the step above, which already had both keys.
+A step with duplicate keys makes the whole workflow file invalid, so GitHub ran \emph{no} job at all, not even the old ones. \\
+Fix & Restored \texttt{main}'s file (\texttt{git checkout main -- .github/workflows/ci.yml}), added the lint job again, saved without formatting,
+and checked with \texttt{git diff main} that only lines were added (commit \texttt{3da84ec}). The YAML was also checked for duplicate keys. \\
+Side issue & VS Code's formatter changed \texttt{MONGOMS\_DISABLE\_POSTINSTALL: '1'} to \texttt{"1"} on save. Harmless, but unrelated to the PR;
+reverted, and the file is now saved with \emph{File: Save without Formatting}. \\
+Lesson & A broken workflow does not fail, it simply does not run. Always check that the expected checks \emph{appear} on a PR,
+and compare workflow edits with \texttt{git diff main} before pushing. \\
+\end{checkinfo}
+\shot{01-zero-checks-false-green.png}{0.9}{First push: 0 checks and ``Ready to merge'' because the workflow file was invalid.\label{fig:zero}}
+\shot{02-commented-e2e-step.png}{0.6}{The cause: \texttt{- name: End-to-end tests} commented out in the first commit.\label{fig:commented}}
+
+\section{Findings and observations}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Observation} & \textbf{Recommendation}\\\midrule\endhead
+F1 & Medium & \texttt{main} has no branch protection, so every check is ``non-required''. With Lint red the PR still said
+``Able to merge'' (Figure~\ref{fig:red}). The lint job reports errors but does not yet \emph{block} them. &
+Repo owner: \emph{Settings $\rightarrow$ Rules $\rightarrow$ Rulesets $\rightarrow$ New branch ruleset}, target the default branch,
+require a pull request and require the status checks \emph{Lint (ESLint)}, both \emph{Backend tests \ldots} jobs and \emph{End-to-end tests (Playwright)}. \\
+O4 & Info & 7 \texttt{no-unused-vars} warnings (unused imports or variables) in \path{githubRepository.js}, \path{tasks.js}, \path{ChatPanel.jsx},
+\path{DashboardPage.jsx}, \path{DiscoverPage.jsx}, \path{ProfilePage.jsx}, \path{ProjectPage.jsx}. & Clean up in a separate small PR; not mixed into this one. \\
+O5 & Info & \texttt{npm ci} in the root reports 3 moderate vulnerabilities in dev tools. & Review with \texttt{npm audit} in a separate PR. \\
+O6 & Info & Commit signing is not configured on the tester's laptop (\texttt{commit.gpgsign} empty), so the PR commits are not Verified. &
+Use Squash and merge (GitHub signs the squashed commit), or set up SSH signing for future commits. \\
+\bottomrule\end{xltabular}}
+
+\section{Conclusion}
+CI now runs ESLint on every push and pull request to \texttt{main} and \texttt{develop} as a separate, fast \emph{Lint (ESLint)} check.
+The latest code passes (0 errors), and the negative test shows that a lint error turns the check red, both locally (exit code 1) and on the PR.
+The PR's net change is 20 added lines in \texttt{ci.yml}. To make the rule fully \emph{enforced}, the repository owner should make the
+checks required on \texttt{main} (F1).
+
+\vspace{1cm}\noindent
+\begin{tabularx}{\linewidth}{X X}
+Tested by: \rule{5cm}{0.4pt} & Reviewed by: \rule{5cm}{0.4pt}\\[2pt]
+Urvish Babariya (tester) & \\[14pt]
+Date: 16 November 2026 & Date: \rule{3.5cm}{0.4pt}\\
+\end{tabularx}
+\end{document}

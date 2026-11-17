@@ -1,0 +1,118 @@
+% DevOrbit - final regression report (Task 7) for the tester of Sprints 1, 2 and 4.
+\documentclass[11pt,a4paper]{article}
+\input{preamble}
+\lhead{\small DevOrbit -- Final regression report}\rhead{\small Sprints 1, 2 and 4 (tester: Urvish Babariya)}
+\hypersetup{pdftitle={DevOrbit final regression report}, pdfauthor={Urvish Babariya}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Final Regression Report\par}\vspace{0.3cm}
+{\Large Whole application after all six sprints\\ with the status of every finding from Sprints 1, 2 and 4\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l l}
+Code version & \texttt{main} at \texttt{3b35514} (Merge PR \#52, Sprint 6 M7: the last feature) \\
+Test types   & Full regression: backend, frontend, build, lint, end-to-end \\
+Tester       & Urvish Babariya (tester for Sprints 1, 2 and 4) \\
+Date         & 17 November 2026 \\
+Verdict      & \textbf{\textcolor{passgreen}{GO}} -- all suites green; open findings are low severity \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Purpose}
+After the last Sprint 6 feature (M7, moderation of reported posts) was merged, the whole application was tested again on the final code.
+A regression run checks that nothing that worked before was broken by later changes. It was also the go/no-go check before deployment.
+
+\section{Result}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{X l l l}\toprule
+\textbf{Check} & \textbf{Command} & \textbf{Result} & \textbf{Exit code}\\\midrule
+Backend tests (\texttt{node:test}) & \texttt{npm test} in \texttt{backend} & 988 / 988 pass, 0 fail & 0\\
+Frontend tests (Vitest) & \texttt{npm test} in \texttt{frontend} & 72 files, 618 / 618 pass & 0\\
+Frontend production build (Vite) & \texttt{npm run build} & built in 2.95\,s & 0\\
+Lint (ESLint) & \texttt{npm run lint} & 0 errors, 7 warnings & 0\\
+End-to-end (Playwright, Chromium) & \texttt{npx playwright test} & 22 / 22 pass (2.3\,min) & 0\\
+\bottomrule\end{tabularx}\end{center}
+\textbf{Verdict: GO.} Every suite passed on the first run. The flaky frontend test seen earlier (F2) passed this time.
+
+\subsection{Compared with earlier runs}
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabular}{l l l l}\toprule
+\textbf{Date} & \textbf{Code} & \textbf{Backend} & \textbf{E2E}\\\midrule
+16 Nov & Task 5 and Task 6 branches (before \#52) & 961 pass & 21 pass \\
+17 Nov & \texttt{3b35514} (final) & 988 pass (+27, M7) & 22 pass (+1, M7 moderation) \\
+\bottomrule\end{tabular}\end{center}
+The new tests come from Sprint 6 M7 (moderation). No test was removed or skipped (\texttt{skipped 0}, \texttt{todo 0}).
+
+\section{Environment and procedure}
+\begin{enumerate}
+\item Windows laptop, Node v22.16.0, npm 10.9.2, local MongoDB service; all \texttt{npm run dev} servers stopped.
+\item \texttt{git switch main}, \texttt{git pull}: \texttt{3b35514}.
+\item Fresh install from the lockfiles: \texttt{npm ci} in the root, \texttt{backend}, \texttt{frontend} and \texttt{e2e}.
+\item \texttt{MONGODB\_URI\_TEST} and \texttt{E2E\_MONGODB\_URI} pointed at separate test databases on the local MongoDB (never the development database).
+\item The five commands above, in order, each followed by \verb|echo $LASTEXITCODE|.
+\end{enumerate}
+
+\section{Evidence}
+\shot{run-backend-988.png}{0.62}{Backend: 988 tests, 988 pass, 0 fail.}
+\shot{run-frontend-618.png}{0.62}{Frontend: 72 test files, 618 tests pass.}
+\shot{run-build.png}{0.7}{Production build succeeds (the 500 kB chunk warning is O10).}
+\shot{run-lint.png}{0.62}{Lint: 0 errors.}
+\shot{run-e2e-22.png}{0.6}{End-to-end: 22 tests pass, from sign-up to moderation.}
+
+\section{Testing work by the tester (Sprints 1, 2 and 4)}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{When} & \textbf{Work} & \textbf{Report}\\\midrule
+15 Oct & CI pipeline (PR \#2) & Sprint 1, Sprint 2 \\
+17 Oct & Frontend + E2E in CI, first E2E journeys, Discover/my-tasks tests (PR \#11) & Sprint 2 \\
+3 Nov & Sprint 4 E2E: files, docs, health, complete/reopen (PR \#30) & Sprint 4 \\
+3 Nov & Sprint 1 gaps with tests; Sprint 4 GitHub exit checks with real GitHub (PR \#31) & Sprint 1, Sprint 4 \\
+15 Nov & Re-test of D1/D2 after the Sprint 6 M1 fix; new findings D3--D5 (PR \#47) & Sprint 4 \\
+16 Nov & Task 4: lint enforced in CI (PR \#49) & Task 4 \\
+16 Nov & Task 5: \texttt{seed --reset} clean-up (PR \#50) & Task 5 \\
+16 Nov & Task 6: E2E role permissions with mutation check (PR \#51) & Task 6 \\
+17 Nov & Task 7: this final regression & this report \\
+\bottomrule\end{tabularx}\end{center}
+
+\section{Status of every finding}
+{\small\rowcolors{2}{white}{headgray}
+\begin{xltabular}{\linewidth}{l l l X X}\toprule
+\textbf{ID} & \textbf{Sev.} & \textbf{Status} & \textbf{Finding} & \textbf{Next step / owner}\\\midrule\endfirsthead
+\toprule\textbf{ID} & \textbf{Sev.} & \textbf{Status} & \textbf{Finding} & \textbf{Next step / owner}\\\midrule\endhead
+D1 & Medium & \FIXED & Rate limits behind a proxy (\texttt{trust proxy}); fixed in PR \#40, re-tested 15 Nov & Set \texttt{TRUST\_PROXY} on the deployed API and repeat the check there \\
+D2 & Low & \FIXED & Opened issue titled ``updated''; fixed in PR \#40, re-tested & -- \\
+D3 & Low--Med & \OPEN & \emph{Code \& files} panel shows sample repository stats and files on real projects & Team \\
+D4 & Low & \OPEN & Disconnect does not warn when GitHub refused to delete the webhook & Team \\
+D5 & Low & \OPEN & A forwarded IP address with a port gives each request its own rate-limit bucket & Team \\
+D6 & Low--Med & \OPEN & Own Profile page: fixed ``About'' text and ``Contribution snapshot'' numbers & Team \\
+D7 & Low & \OPEN & Dashboard ``Weekly project goal 4 of 5'' is a fixed value & Team \\
+F1 & Medium & \OPEN & CI checks not required on \texttt{main} (no branch protection) & Repository owner \\
+F2 & Low & \OPEN & Flaky \path{DecisionsPanel.highlight.test.jsx} (race with \texttt{useEffect}) & Sprint 6 tester (Sumit); fix described in the Task 6 report \\
+O1 & Info & Resolved & GitHub token expiry switched off for the OAuth App & -- \\
+O2 & Info & Noted & \texttt{ipconfig /flushdns} needs an administrator terminal & Test procedure \\
+O3 & Info & Handled & Local secrets were exposed during setup and replaced & Masked checks only \\
+O4 & Info & \OPEN & 7 \texttt{no-unused-vars} lint warnings & Small clean-up PR \\
+O5 & Low & \OPEN & \texttt{npm audit}: 3 moderate (root dev tools), 1 high (backend) & Review in a separate PR \\
+O7 & Low & \OPEN & \texttt{npm run seed -- --reset} drops the flag in Windows PowerShell & README note (docs PR with these reports) \\
+O8 & Info & Noted & The seed cannot remove a GitHub webhook of a demo project & Documented in README \\
+O9 & Low & \OPEN & Express deprecation: \texttt{res.clearCookie} with \texttt{maxAge} (\path{auth.js:186}) & Remove the option \\
+O10 & Info & \OPEN & Frontend bundle 595 kB (over Vite's 500 kB warning) & Split routes with lazy loading \\
+\bottomrule\end{xltabular}}
+
+\section{Deployment readiness (from this review)}
+The code passes every test, but three settings are needed for the planned deployment (Vercel frontend, Render API, MongoDB Atlas):
+\begin{itemize}
+\item \textbf{Refresh cookie and two domains.} The refresh cookie is \texttt{SameSite=Lax}, so a page on \texttt{*.vercel.app} would not send it to \texttt{*.onrender.com}
+      and users would be logged out on every reload. Plan: Vercel rewrites \texttt{/api} and \texttt{/uploads} to Render, so the API is same-site; socket.io connects to Render directly.
+\item \textbf{Single-page routes.} A rewrite of all other paths to \texttt{index.html}, so reloading \texttt{/project/\ldots} does not give 404.
+\item \textbf{Environment.} \texttt{TRUST\_PROXY}, \texttt{CLIENT\_ORIGIN}, a new \texttt{JWT\_SECRET}, a production GitHub OAuth App and webhook URL, mail provider, Platform Admin.
+\end{itemize}
+A smoke test of the deployed site (login survives a reload, live chat and task moves, file upload survives a redeploy, password-reset email, GitHub events, D1/D5 on Render) will follow the deployment.
+
+\section{Conclusion}
+The final code passes the full regression: 988 backend, 618 frontend and 22 end-to-end tests, a clean build and lint with no errors.
+Sprints 1, 2 and 4 have passed their exit checks; D1 and D2 are fixed and re-tested. The remaining findings are low or medium severity and are listed
+with an owner above. The application is ready to deploy, with the three deployment settings described in the previous section.
+
+\signoff{17 November 2026}
+\end{document}
