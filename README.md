@@ -1357,3 +1357,35 @@ npm test --prefix backend -- test/passwordReset.test.js        # the API, every 
 npm test --prefix frontend -- PasswordReset                    # the pages and the login link
 ```
 
+
+## Sprint 6 — M7: Moderate reported posts (US-56) + join request outcome notifications (FR-20)
+
+**Moderator queue (US-56, FR-27, NFR-19, NFR-22).** Content Moderators and Platform Admins get a **Moderation** link in the sidebar (`/moderation`). The queue lists every public post that has open reports, the one that has waited longest first, with its author, text, image, **report count**, the **reasons with their counts** and what reporters wrote in "details". It never shows **who** reported a post. For each post the moderator chooses one action:
+
+| Action | What happens | Report resolution |
+|---|---|---|
+| **Remove** (asks first) | The post is deleted for everyone, with its image and votes (same clean-up as the author's own delete). | `removed` |
+| **Warn** | The post stays. Its author gets an in-app **Moderation warning** ("A Content Moderator warned you about your post "…" (reason: …)"), pushed live to the bell. The moderator's name is not shown to the author. | `warned` |
+| **Dismiss** | Nothing changes on the post. | `dismissed` |
+
+Every open report of that post is marked **resolved** with `resolvedBy`, `resolvedAt` and `resolution`, and the post leaves the queue. Users who already reported it cannot report it again (US-55), but a **new** reporter puts it back in the queue. If two moderators act on the same post at the same moment, only one action happens (a short per-post lock, `models/ModerationLock.js`); the other gets **409** "This report was already handled." A moderator may resolve reports on their **own** post; Warn then sends no notification to themselves (the response says `notified: false`).
+
+**Moderation log.** Every outcome is stored in `ModerationAction` (moderator, action, post, post author, report count, reasons, a 60-character quote of the post) and shown on the page as **Recent decisions**. The server log line has the action and IDs only (`[moderation] warn post=… moderator=… author=… reports=…`): never tokens, passwords, emails, cookies or request bodies.
+
+| Call | Who | Notes |
+|---|---|---|
+| `GET /api/moderation/reports` | Content Moderator, Platform Admin | `{ reports: [{ post { _id, author, text, hasImage, imageUrl, edited, createdAt }, ownPost, reportCount, reasons [{ reason, label, count }], notes [{ reason, label, details, reportedAt }], firstReportedAt, lastReportedAt }] }` |
+| `POST /api/moderation/reports/:postId/remove` | same | → 200 `{ action, postId, resolution, resolvedReports, notified, message, moderationAction }` |
+| `POST /api/moderation/reports/:postId/warn` | same | as above; 400 bad ID, 404 no reports, 409 already handled |
+| `POST /api/moderation/reports/:postId/dismiss` | same | as above |
+| `GET /api/moderation/actions` | same | `{ actions }`, the moderation log, newest first |
+
+All of them are behind the router's `requireAuth` + `requireModerator` guard: **401** without login, **403** for everyone else, checked on every request (a revoked moderator is refused on their next request). `backend/test/adminRouteAudit.test.js` covers them automatically.
+
+**Join request outcome (FR-20).** When an Owner/Admin approves or rejects a join request, the requester gets an in-app notification: **Join request approved** ("<name> approved your request to join "<project>" as <role>", opens the project) or **Join request declined** ("Your request to join "<project>" was declined.", opens the public project page; no name shown). One per decision.
+
+**Personal notifications.** `moderation_warning`, `join_approved` and `join_rejected` are about the recipient personally, so the bell shows them whether or not the person is a member of a project (`lib/notifications.js` `createPersonalNotification()` and `visibleNotificationFilter()`). Mention, Assignment and Deadline notifications keep the Sprint 3 rule: only from projects you are a member of right now.
+
+**Files:** `backend/src/lib/moderationRules.js` (rules, no database), `backend/src/lib/moderation.js` (queue, actions, log), `backend/src/lib/joinRequestNotifications.js`, `backend/src/models/ModerationAction.js`, `backend/src/models/ModerationLock.js`; marked changes in `routes/moderation.js`, `routes/joinRequests.js`, `routes/notifications.js`, `lib/notifications.js`, `lib/reportRules.js`, `models/PostReport.js`, `models/Notification.js`. Frontend: `pages/ModerationPage.jsx`; marked changes in `App.jsx` (`/moderation`), `components/AppShell.jsx` (Moderation link), `components/NotificationBell.jsx` (three new kinds), `api.js` (`moderationApi` queue/remove/warn/dismiss/actions).
+
+**Tests:** `backend/test/moderationRules.test.js`, `backend/test/moderation.test.js` (all three acceptance criteria, Remove/Warn/Dismiss effects, privacy of the queue and log, 401/403/404/400, revoked moderator, Platform Admin, two moderators at once, own post), `backend/test/joinRequestOutcome.test.js` (approve/reject notifications, no duplicates, the "member right now" rule for project notifications), `backend/test/notifications.test.js` (type list updated), `frontend/src/pages/ModerationPage.test.jsx`, `frontend/src/components/AppShell.moderation.test.jsx`, `frontend/src/components/NotificationBell.personal.test.jsx`, `e2e/tests/moderation.spec.js` (report → queue → Warn → bell; Remove → gone from the feed).

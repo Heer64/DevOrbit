@@ -16,6 +16,7 @@ import PublicProjectPage from './pages/PublicProjectPage'; // [Sprint 5 · M2] U
 import FeedPage from './pages/FeedPage'; // [Sprint 5 · M6] US-50, US-51
 import MessagesPage from './pages/MessagesPage'; // [Sprint 6 · M2] US-19
 import AdminPage from './pages/AdminPage'; // [Sprint 6 · M8] US-57, US-58
+import ModerationPage from './pages/ModerationPage'; // [Sprint 6 · M7] US-56
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
 // visitors get the light PublicShell; logged-in users keep the normal AppShell around the same page.
@@ -61,6 +62,8 @@ export default function App() {
         <Route path="messages/:conversationId" element={<MessagesPage />} />
         {/* [Sprint 6 · M8] US-57, US-58: Admin panel. The page shows "admins only" to anyone else; the API answers 403. */}
         <Route path="admin" element={<AdminPage />} />
+        {/* [Sprint 6 · M7] US-56: moderator queue. The page shows "Content Moderators only" to anyone else; the API answers 403. */}
+        <Route path="moderation" element={<ModerationPage />} />
       </Route>
       {/* [Sprint 5 · M1] US-45: Discover works logged out (PublicShell) and logged in (AppShell). */}
       <Route path="/discover" element={<PublicOrAppShell />}>

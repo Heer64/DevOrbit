@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Search, ShieldCheck, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, Flag, FolderKanban, Globe2, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Search, ShieldCheck, Sun, UserPlus, UserRound, X } from 'lucide-react';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +10,7 @@ import NotificationBell from './NotificationBell'; // [Sprint 3 · M7 Part 2] US
 import DmUnreadBadge from './DmUnreadBadge'; // [Sprint 6 · M2] US-19
 import { MAX_STARTING_MEMBERS, PROJECT_DOMAINS as DOMAINS, STARTING_MEMBER_ROLES, startingMembersPayload } from '../domains'; // [Sprint 1 · gaps]
 import { ROLE_HELP } from '../roles';
-import { isPlatformAdmin } from '../platformRoles'; // [Sprint 6 · M8] US-57, US-58
+import { canModerate, isPlatformAdmin } from '../platformRoles'; // [Sprint 6 · M8] US-57, US-58 · [Sprint 6 · M7] + canModerate (US-56)
 
 const VISIBILITIES = [
   { value: 'Private', label: 'Private', hint: 'Only members can open it', icon: Lock },
@@ -109,6 +109,8 @@ export default function AppShell() {
     { to: '/messages', label: 'Messages', icon: MessageCircle }, // [Sprint 6 · M2] US-19 direct messages
     { to: '/profile', label: 'My profile', icon: UserRound },
     // [Sprint 6 · M8] US-57, US-58: only Platform Admins see the link (the server checks the role again).
+    // [Sprint 6 · M7] US-56: Content Moderators and Platform Admins see the moderator queue link (the server checks again).
+    ...(canModerate(user) ? [{ to: '/moderation', label: 'Moderation', icon: Flag }] : []),
     ...(isPlatformAdmin(user) ? [{ to: '/admin', label: 'Admin panel', icon: ShieldCheck }] : []),
   ];
   const displayName = user?.name || 'Demo user';
@@ -237,5 +239,6 @@ function pageTitle(path) {
   if (path === '/feed') return 'Community feed'; // [Sprint 5 · M6]
   if (path.startsWith('/messages')) return 'Messages'; // [Sprint 6 · M2] US-19
   if (path === '/admin') return 'Admin panel'; // [Sprint 6 · M8] US-57, US-58
+  if (path === '/moderation') return 'Moderator queue'; // [Sprint 6 · M7] US-56
   return 'Overview';
 }

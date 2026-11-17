@@ -31,6 +31,7 @@ import PostCreateLog from '../models/PostCreateLog.js';
 import PostReport from '../models/PostReport.js';
 import Session from '../models/Session.js';
 import PasswordResetToken from '../models/PasswordResetToken.js'; // [Sprint 6 · M1] US-04
+import ModerationAction from '../models/ModerationAction.js'; // [Sprint 6 · M7] US-56
 import { deleteFileBytes } from '../lib/projectFiles.js';
 import { deletePostImage } from '../lib/postImages.js';
 import { removeAvatarFile } from '../lib/avatar.js';
@@ -284,6 +285,8 @@ export async function removeSeedData() {
     Session.deleteMany({ user: bySeedUsers }),
     PasswordResetToken.deleteMany({ user: bySeedUsers }),
     GithubOAuthState.deleteMany({ user: bySeedUsers }),
+    // [Sprint 6 · M7] US-56: moderation log rows made by a seed moderator/admin or about a seed account's post.
+    ModerationAction.deleteMany({ $or: [{ moderator: bySeedUsers }, { postAuthor: bySeedUsers }, { post: { $in: postIds } }] }),
   ]);
   // [Sprint 5 · M8] US-54: follows to or from removed seed accounts would inflate follower counts.
   await Follow.deleteMany({ $or: [{ follower: { $in: userIds } }, { following: { $in: userIds } }] });

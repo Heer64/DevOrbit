@@ -28,6 +28,7 @@ import PostCreateLog from '../src/models/PostCreateLog.js';
 import PostReport from '../src/models/PostReport.js';
 import Session from '../src/models/Session.js';
 import PasswordResetToken from '../src/models/PasswordResetToken.js';
+import ModerationAction from '../src/models/ModerationAction.js'; // [Sprint 6 · M7] US-56
 import { storeFileBytes, fileBytesExist } from '../src/lib/projectFiles.js';
 import { storePostImage, postImageExists } from '../src/lib/postImages.js';
 import { saveAvatar, findAvatar, AVATAR_URL_PREFIX } from '../src/lib/avatar.js';
@@ -135,6 +136,12 @@ test('--reset also removes what testers made with seed accounts, and keeps real 
   await raw(PostVote, { post: realPost.insertedId, user: riya._id, value: 1 });
   await raw(PostReport, { post: realPost.insertedId, reporter: aarav._id, reason: 'spam', status: 'open' });
 
+  // [Sprint 6 · M7] US-56: moderation log rows. A seed moderator's decision, a real moderator's decision about a
+  // seed account's post (both go), and one between real users (kept).
+  await raw(ModerationAction, { moderator: aarav._id, action: 'dismiss', post: realPost.insertedId, postAuthor: outsiderId, reportCount: 1 });
+  await raw(ModerationAction, { moderator: outsiderId, action: 'warn', post: seedPost.insertedId, postAuthor: aarav._id, reportCount: 1 });
+  const realDecision = await raw(ModerationAction, { moderator: outsiderId, action: 'dismiss', post: realPost.insertedId, postAuthor: outsiderId, reportCount: 2 });
+
   // A profile photo for a seed account (GridFS bucket "avatars").
   const avatarUrl = await saveAvatar(String(aarav._id), Buffer.from('photo'), 'png');
   await User.updateOne({ _id: aarav._id }, { $set: { avatarUrl } });
@@ -165,6 +172,9 @@ test('--reset also removes what testers made with seed accounts, and keeps real 
   assert.equal(await postImageExists(imageId), false, 'the post image is deleted from GridFS');
   assert.equal(await PostVote.countDocuments({ user: { $in: oldSeedIds } }), 0, 'votes by seed accounts');
   assert.equal(await PostReport.countDocuments({ reporter: { $in: oldSeedIds } }), 0, 'reports by seed accounts');
+  // [Sprint 6 · M7] US-56
+  assert.equal(await ModerationAction.countDocuments({ $or: [{ moderator: { $in: oldSeedIds } }, { postAuthor: { $in: oldSeedIds } }] }), 0, 'moderation log rows of seed accounts');
+  assert.equal(await ModerationAction.countDocuments({ _id: realDecision.insertedId }), 1, "a real moderator's decision about a real post is kept");
   assert.equal(await findAvatar(avatarUrl.slice(AVATAR_URL_PREFIX.length)), null, 'the profile photo is deleted from GridFS');
 
   // Real data is kept, and the real post's score no longer counts the removed seed vote.
