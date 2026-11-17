@@ -17,7 +17,7 @@ export function ThemeProvider({ children }) {
     root.dataset.theme = theme;
     try { localStorage.setItem('devorbit_theme', theme); } catch { /* storage unavailable */ }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#10131b' : '#f6f7fb');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#120b09' : '#f7f3ee');
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((current) => (current === 'dark' ? 'light' : 'dark')), []);

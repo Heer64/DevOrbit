@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Bell, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, Globe2, LayoutDashboard, ListTodo, Lock, MessageCircle, Milestone as MilestoneIcon, Paperclip, Scale, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { assetUrl, liveApi, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
 import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
@@ -166,6 +166,13 @@ export default function ProjectPage() {
       .catch(() => {});
   }, [id, isLive, user]);
   const openAddTask = () => { setActiveTab('Tasks'); setAddTaskSignal((n) => n + 1); };
+  // [Solar Ember] "Ask Copilot" in the header scrolls to the project's Copilot panel and focuses its question box.
+  const askCopilot = () => {
+    const panel = document.getElementById('project-copilot');
+    if (!panel) { setNotice('Copilot is available to project members in real projects.'); return; }
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => panel.querySelector('textarea, input')?.focus({ preventScroll: true }), 350);
+  };
   // [Sprint 4 · M8] US-15: show the new status at once after the Owner completes or reopens the project.
   const onCompletionChanged = useCallback((updated) => {
     if (updated) setLiveProject(toWorkspaceProject(updated, user));
@@ -181,18 +188,28 @@ export default function ProjectPage() {
 
   return (
     <>
-      <button className="back-link" onClick={() => navigate('/dashboard')}><ArrowLeft size={16} /> Back to workspace</button>
+      <div className="p-crumb">
+        <button className="back-link" onClick={() => navigate('/dashboard')}><ArrowLeft size={15} /> Back to workspace</button>
+        <span aria-hidden="true">/</span><span className="p-crumb-name">{project.name}</span>
+      </div>
       {projectLoadError && <div className="form-error" role="alert" style={{ marginBottom: 14 }}>{projectLoadError}</div>}
 
       <div className="project-heading">
-        <div className={`project-avatar huge ${color}`}>{project.name.slice(0, 1)}</div>
         <div className="project-title">
-          <div className="kicker"><span className="eyebrow">PROJECT WORKSPACE</span><span className="pill">{project.domain}</span><span className="health"><i /> {project.health}</span></div>
-          <h1>{project.name}</h1>
+          <div className="p-title-row">
+            <i className={`sq big ${color}`} aria-hidden="true" />
+            <h1>{project.name}</h1>
+            <span className="health"><i /> {project.health}</span>
+            {liveProject?.visibility && <span className="pill">{liveProject.visibility === 'Public' ? <Globe2 size={12} /> : <Lock size={12} />} {liveProject.visibility}</span>}
+            <span className="pill">{project.domain}</span>
+            {membershipRole && <span className="pill purple">{`Your role · ${membershipRole}`}</span>}
+          </div>
           <p>{project.description}</p>
           <div className="meta"><span><Github size={13} />{repoLabel}</span><span><Users size={13} />{memberCount} members</span><span><GitBranch size={13} /> main</span></div>
         </div>
         <div className="project-actions">
+          <div className="stack p-avatars" aria-label={`${memberCount} members`}>{shownMembers.slice(0, 4).map((m, i) => <Avatar key={m + i} initials={m} src={team ? assetUrl(team[i].avatarUrl) : ''} tone={AVATAR_TONES[i % 4]} small />)}{shownMembers.length > 4 && <span className="avatar small more">+{shownMembers.length - 4}</span>}</div>
+          <Btn secondary icon={Sparkles} className="ask-copilot" onClick={askCopilot}>Ask Copilot</Btn>
           {canWriteTasks(taskRole) && <Btn icon={Plus} onClick={openAddTask}>Add task</Btn>}
           {/* [Sprint 4 · M8] US-15: Owner only (the component renders nothing for other roles). */}
           {isLive && liveProject && (
@@ -203,31 +220,10 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      <div className="project-summary">
-        <section className="panel">
-          <div className="panel-head"><div><h2>Project progress</h2><p>{isCompleted && project.completedAt ? `Completed on ${formatCompletedOn(project.completedAt)}.` : 'Keep the work visible and the next step clear.'}</p></div><span className="pill green">{isCompleted ? 'Completed' : project.progress >= 100 ? 'All tasks done' : 'In progress'}</span></div>
-          <div className="big-progress">{project.progress}% <small>overall completion</small></div>
-          <div className="progress"><i className={color} style={{ width: `${project.progress}%` }} /></div>
-          <div className="stats"><div><small>Members</small><b>{memberCount}</b></div><div><small>Open tasks</small><b>{taskList.filter((t) => t.status !== 'Done').length}</b></div><div><small>Health</small><b style={{ fontSize: 13 }}>{project.health}</b></div></div>
-        </section>
-        <section className="panel north-star">
-          <div className="panel-head"><div><div className="eyebrow">PROJECT NORTH STAR</div></div></div>
-          <h2>{project.goal}</h2>
-          <p>Keep the work visible, the context connected, and the next step clear.</p>
-          <div className="about-row" style={{ marginBottom: 0 }}><small>TEAM</small></div>
-          <div className="team-row">
-            <div className="stack">{shownMembers.map((m, i) => <Avatar key={m + i} initials={m} src={team ? assetUrl(team[i].avatarUrl) : ''} tone={AVATAR_TONES[i % 4]} small />)}</div>
-            <button className="link" onClick={() => navigate('/discover')}>Find people <ArrowUpRight size={13} /></button>
-          </div>
-        </section>
-      </div>
+      <ProjectTabs activeTab={activeTab} onSelect={(t) => setActiveTab(t)} />
 
       <div className="project-body">
-        <section className="panel work-panel">
-          <div className="panel-head"><div><h2>Project workspace</h2><p>Make it happen.</p></div><MoreHorizontal size={18} /></div>
-          <div className="project-tabs">
-            {PROJECT_TABS.map((t) => <button key={t} className={activeTab === t ? 'active' : ''} aria-pressed={activeTab === t} onClick={() => setActiveTab(t)}>{t}</button>)}
-          </div>
+        <section className="panel work-panel" aria-label={`${activeTab} section`}>
           {/* [Sprint 4 · M7] US-39: project dashboard. Members only; numbers come from the API. */}
           {activeTab === 'Dashboard' && isLive && membershipRole && (
             <ProjectDashboard
@@ -350,6 +346,23 @@ export default function ProjectPage() {
         </section>
 
         <aside className="stack-right">
+          {/* Project progress and north star sit at the top of the side column on every tab. */}
+          <section className="panel p-progress">
+            <div className="panel-head"><div><h2>Project progress</h2><p>{isCompleted && project.completedAt ? `Completed on ${formatCompletedOn(project.completedAt)}.` : 'Keep the work visible and the next step clear.'}</p></div><span className="pill green">{isCompleted ? 'Completed' : project.progress >= 100 ? 'All tasks done' : 'In progress'}</span></div>
+            <div className="big-progress">{project.progress}% <small>overall completion</small></div>
+            <div className="progress"><i className={color} style={{ width: `${project.progress}%` }} /></div>
+            <div className="stats"><div><small>Members</small><b>{memberCount}</b></div><div><small>Open tasks</small><b>{taskList.filter((t) => t.status !== 'Done').length}</b></div><div><small>Health</small><b style={{ fontSize: 13 }}>{project.health}</b></div></div>
+          </section>
+          <section className="panel north-star">
+            <div className="panel-head"><div><div className="eyebrow">PROJECT NORTH STAR</div></div></div>
+            <h2>{project.goal}</h2>
+            <p>Keep the work visible, the context connected, and the next step clear.</p>
+            <div className="about-row" style={{ marginBottom: 0 }}><small>TEAM</small></div>
+            <div className="team-row">
+              <div className="stack">{shownMembers.map((m, i) => <Avatar key={m + i} initials={m} src={team ? assetUrl(team[i].avatarUrl) : ''} tone={AVATAR_TONES[i % 4]} small />)}</div>
+              <button className="link" onClick={() => navigate('/discover')}>Find people <ArrowUpRight size={13} /></button>
+            </div>
+          </section>
           {/* [Sprint 3 · M2] Visitors of a Public project can ask to join (US-47). */}
           {liveProject && !membershipRole && liveProject.visibility === 'Public' && (
             <JoinRequestCard projectId={id} />
@@ -389,9 +402,9 @@ export default function ProjectPage() {
           {/* [Sprint 6 · M3] US-41: real projects, members of any role, ask the Copilot. */}
           {/* [Sprint 6 · M5] US-44: members catch up on what happened since their previous login. */}
           {isLive && membershipRole && <CatchMeUpPanel projectId={id} />}
-          {isLive && membershipRole && <CopilotPanel projectId={id} />}
+          {isLive && membershipRole && <div id="project-copilot"><CopilotPanel projectId={id} /></div>}
           {/* Demo / sample projects keep the sample commit recap (layout preview only). */}
-          {!isLive && <section className="panel copilot-panel">
+          {!isLive && <section className="panel copilot-panel" id="project-copilot">
             <div className="panel-head"><div><div className="eyebrow">AI PROJECT MEMORY</div><h2 className="with-icon" style={{ marginTop: 6 }}><Sparkles size={17} /> Commit recap</h2></div><span className="ai-chip">DEMO</span></div>
             <div className="ai-summary"><span><Sparkles size={14} /></span><p>Here's the story behind the <strong>last 18 commits</strong> — grouped into the changes that matter.</p></div>
             <div className="commit-list">
@@ -416,6 +429,34 @@ export default function ProjectPage() {
       {notice && <div className="toast" role="status"><CheckCircle2 size={16} />{notice}<button className="task-more" onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button></div>}
 
     </>
+  );
+}
+
+// [Solar Ember] Full-width pill tab bar with icons and a sliding indicator. The buttons keep their exact names.
+const TAB_ICONS = { Dashboard: LayoutDashboard, Tasks: ListTodo, Chat: MessageCircle, Milestones: MilestoneIcon, Decisions: Scale, Files: Paperclip, Docs: BookOpen, Activity };
+function ProjectTabs({ activeTab, onSelect }) {
+  const navRef = useRef(null);
+  const [ind, setInd] = useState(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const nav = navRef.current;
+      const btn = nav?.querySelector('button.active');
+      if (!nav || !btn) return;
+      setInd({ left: btn.offsetLeft, width: btn.offsetWidth });
+      if (nav.scrollWidth > nav.clientWidth) btn.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [activeTab]);
+  return (
+    <nav className="project-tabs" ref={navRef} aria-label="Project sections">
+      {ind && <span className="tab-ind" aria-hidden="true" style={{ left: ind.left, width: ind.width }} />}
+      {PROJECT_TABS.map((t) => {
+        const Icon = TAB_ICONS[t];
+        return <button key={t} type="button" className={activeTab === t ? 'active' : ''} aria-pressed={activeTab === t} onClick={() => onSelect(t)}>{Icon && <Icon size={16} aria-hidden="true" />}{t}</button>;
+      })}
+    </nav>
   );
 }
 

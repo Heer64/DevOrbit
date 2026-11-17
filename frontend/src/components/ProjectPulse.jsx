@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, MoreHorizontal } from 'lucide-react';
+import { Activity, ArrowRight, MoreHorizontal, Sparkles } from 'lucide-react';
 import { activityApi } from '../api';
 import { activityLook, activitySentence, timeAgo } from './activityDisplay';
 
 // Dashboard "Project pulse": the latest events across all of the user's projects (GET /api/activity/me).
 // Demo users keep the sample feed passed in as demoActivities.
-export default function ProjectPulse({ user, demoActivities = [], fallbackProjectId }) {
+export default function ProjectPulse({ user, demoActivities = [], fallbackProjectId, variant = 'pulse' }) {
+  const catchup = variant === 'catchup';
   const navigate = useNavigate();
   const [events, setEvents] = useState(null);
   const [error, setError] = useState('');
@@ -27,8 +28,17 @@ export default function ProjectPulse({ user, demoActivities = [], fallbackProjec
   const latestProjectId = events?.[0]?.project?._id || fallbackProjectId;
 
   return (
-    <section className="panel">
-      <div className="panel-head"><div><h2>Project pulse</h2><p>The latest from your workspace.</p></div><MoreHorizontal size={18} /></div>
+    <section className={`panel ${catchup ? 'catchup ring-border' : ''}`} aria-label={catchup ? 'Catch me up' : 'Project pulse'}>
+      {catchup ? (
+        <div className="catchup-head">
+          <span className="catchup-icon"><Sparkles size={20} /></span>
+          <div><h2>Catch me up</h2><p>Project pulse · the latest from your workspace</p></div>
+          <span className="chip mono">Copilot</span>
+        </div>
+      ) : (
+        <div className="panel-head"><div><h2>Project pulse</h2><p>The latest from your workspace.</p></div><MoreHorizontal size={18} /></div>
+      )}
+      <div className="pulse-list">
 
       {user?.isDemo && demoActivities.map((a, i) => (
         <div className="event" key={a.title + i}>
@@ -59,7 +69,11 @@ export default function ProjectPulse({ user, demoActivities = [], fallbackProjec
         );
       })}
 
-      <button className="link" onClick={() => navigate(`/project/${latestProjectId}`)}>Open project activity <ArrowRight size={14} /></button>
+      </div>
+      <div className="pulse-foot">
+        <button className={catchup ? 'btn secondary small' : 'link'} onClick={() => navigate(`/project/${latestProjectId}`)}>Open project activity <ArrowRight size={14} /></button>
+        {catchup && <button className="link" onClick={() => navigate('/feed')}>See the community feed</button>}
+      </div>
     </section>
   );
 }
