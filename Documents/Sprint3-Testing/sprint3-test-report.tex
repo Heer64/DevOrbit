@@ -1,0 +1,129 @@
+% DevOrbit - Sprint 3 test report. Compile twice with pdflatex sprint3-test-report.tex.
+% No personal names included in the document, metadata or signature.
+\documentclass[11pt,a4paper]{article}
+\input{preamble}
+\lhead{\small DevOrbit -- Sprint 3 test report}\rhead{\small Team collaboration}
+\hypersetup{pdftitle={DevOrbit Sprint 3 test report}, pdfauthor={DevOrbit Software Engineering Team}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Sprint 3 Test Report\par}\vspace{0.3cm}
+{\Large Team collaboration: invitations, memberships, threads, comments, due dates, notifications and decisions\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l p{10cm}}
+User stories & US-10, US-11, US-12, US-13, US-14, US-17, US-18, US-20, US-23, US-30, US-35, US-36, US-47 \\
+Test types & Playwright end-to-end functional tests, permission/confirmation checks, persistence and validation \\
+Testing period & November 2026 \\
+Test run & 12/12 Playwright E2E tests passed locally (consolidated screenshot included) \\
+Testing PR & \url{https://github.com/Heer64/DevOrbit/pull/57} \\
+Branch & \texttt{testing/sprint3-testing} into \texttt{main} \\
+Repository & \url{https://github.com/Heer64/DevOrbit} \\
+\end{tabular}\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+\section{Summary}
+Sprint 3 focuses on collaboration inside projects. Eight new Playwright specification files cover 12 representative browser journeys across M1, M2, M3, M4, M5, M7 and M8. All 12 cases passed in one combined local Playwright execution (3.4 minutes); the screenshot of the complete test list and summary is preserved in the evidence section. No production application files were changed by testing PR \#57.
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{\#} & \textbf{Area and checked outcome} & \textbf{Result}\\\midrule
+M1 & Invitations: invite and accept & \PASS\\
+M2 & Public project join request and approval & \PASS\\
+M3 & Remove member; lone Owner cannot leave & \PASS\\
+M4 & Thread replies, task comments and an @mention & \PASS\\
+M5 & Due today, overdue and persistence after reload & \PASS\\
+M7 & Notification empty state; mention unread/read state & \PASS\\
+M8 & Decisions: create, edit, required fields, reload & \PASS\\
+\midrule
+CI & PR \#57 GitHub Actions status at last supplied screenshot & \OPEN\\
+\bottomrule\end{tabularx}\end{center}
+These are the outcomes of the new E2E cases, not proof that every Sprint 3 edge case or the whole repository test suite passed.
+\section{Scope}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X}\toprule
+\textbf{Story} & \textbf{Sprint 3 feature in the project README}\\\midrule
+US-10/11 & Invite an existing user with a project role; invitation may be accepted or declined and expires in seven days\\
+US-12/47 & Public project join requests; Owner/Admin approval or rejection\\
+US-13/14 & Remove a member or leave, with confirmation and access changes\\
+US-17/20 & Thread replies, reply counts and task comments\\
+US-18 & @mentions in channel messages and thread replies\\
+US-23 & Due today/tomorrow/overdue calendar-day deadlines\\
+US-30 & Notification list, unread count and mark as read\\
+US-35/36 & Record, view and update project decisions\\
+\bottomrule\end{tabularx}\end{center}
+The README assigns no separate M6 implementation row for Sprint 3. The new tests focus on the implemented M1--M5, M7 and M8 functionality.
+\section{Test environment}
+\begin{itemize}
+\item \textbf{Browser automation:} Playwright with Chromium headless shell, JavaScript spec files under \path{e2e/tests/}.
+\item \textbf{App:} React frontend, Node.js/Express backend and MongoDB, as configured in DevOrbit.
+\item \textbf{Isolation:} Playwright web server uses an in-memory MongoDB instance. Helpers create unique test users and projects.
+\item \textbf{How to run:} from \path{e2e/}, execute \texttt{npx playwright test "sprint3-.*\\.spec\\.js"}.
+\item \textbf{CI:} GitHub Actions checks are attached to testing PR \#57; at the last screenshot two checks were pending, so CI success is not certified here.
+\end{itemize}
+\section{Sprint 3 test cases in detail}
+\begin{checkinfo}
+M1 -- Invitations & \path{sprint3-invitations.spec.js}: create owner and invitee, send invitation as Contributor, accept invitation and verify invitee's access to the private project.\\
+Result & \PASS{} -- 1 E2E case.\\
+\end{checkinfo}
+\begin{checkinfo}
+M2 -- Join requests & \path{sprint3-join-requests.spec.js}: a visitor requests entry to a public project; Owner approves; requester can open the project.\\
+Result & \PASS{} -- 1 E2E case.\\
+\end{checkinfo}
+\begin{checkinfo}
+M3 -- Membership & \path{sprint3-members.spec.js}: remove after confirmation, cancellation keeps the member, removed member loses private project access; sole Owner cannot leave without transferring ownership.\\
+Result & \PASS{} -- 2 E2E cases.\\
+\end{checkinfo}
+\begin{checkinfo}
+M4 -- Discussions & \path{sprint3-discussions.spec.js}: channel reply appears with reply count and persists after reload; task comment persists after reload. \path{sprint3-mentions.spec.js} exercises @mention selection as part of the notification scenario.\\
+Result & \PASS{} -- 2 discussion cases, plus 1 shared mention/notification case.\\
+\end{checkinfo}
+\begin{checkinfo}
+M5 -- Due dates & \path{sprint3-due-dates.spec.js}: due-today and overdue labels appear; due-tomorrow task remains correct after reload.\\
+Result & \PASS{} -- 2 E2E cases.\\
+\end{checkinfo}
+\begin{checkinfo}
+M7 -- Notifications & \path{sprint3-notifications.spec.js}: new user's bell shows empty state. \path{sprint3-mentions.spec.js}: mention a teammate, verify unread notification and subsequent read state.\\
+Result & \PASS{} -- 1 notification case plus 1 shared mention/notification case.\\
+\end{checkinfo}
+\begin{checkinfo}
+M8 -- Decisions & \path{sprint3-decisions.spec.js}: create and edit decisions, verify saved state after reload; submitting empty required fields shows an error.\\
+Result & \PASS{} -- 2 E2E cases.\\
+\end{checkinfo}
+\section{Test file inventory and results}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{X l l}\toprule
+\textbf{File under e2e/tests/} & \textbf{Cases} & \textbf{Status}\\\midrule
+\path{sprint3-invitations.spec.js} & 1 & \PASS\\
+\path{sprint3-join-requests.spec.js} & 1 & \PASS\\
+\path{sprint3-members.spec.js} & 2 & \PASS\\
+\path{sprint3-discussions.spec.js} & 2 & \PASS\\
+\path{sprint3-due-dates.spec.js} & 2 & \PASS\\
+\path{sprint3-notifications.spec.js} & 1 & \PASS\\
+\path{sprint3-mentions.spec.js} & 1 & \PASS\\
+\path{sprint3-decisions.spec.js} & 2 & \PASS\\\midrule
+Total & 12 & \PASS\\
+\bottomrule\end{tabularx}\end{center}
+The final local pass result is supported by the consolidated Playwright terminal screenshot below. Two additional screenshots document the separate Decisions and Due Dates runs.
+\section{Execution evidence}
+\shot{sprint3-all-tests-pass.png}{0.98}{Combined local Playwright run: 12 of 12 Sprint 3 E2E cases passed across eight specification files. The terminal output was cropped to show test evidence without local account details.}
+\shot{decisions-pass.png}{0.90}{Local Playwright Decisions checks: two passing tests.}
+\shot{due-dates-pass.png}{0.90}{Local Playwright Due Dates checks: two passing tests.}
+\section{Test development findings}
+The following were test setup or automation issues encountered and corrected; they were not confirmed production defects:
+\begin{itemize}
+\item Chromium headless shell was initially missing; the Playwright browser was installed.
+\item A member list on the owner's page required reload after invitation acceptance before checking the Remove action.
+\item Mention-capable textareas use the ARIA \texttt{combobox} role, so \texttt{textbox} locators were corrected.
+\item Thread selectors were scoped to the channel list to avoid matching both the parent and thread copies of the message.
+\item Task comments were opened through the task's Edit button.
+\end{itemize}
+\section{Work submitted and open checks}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X}\toprule
+\textbf{Commit / PR} & \textbf{Contribution}\\\midrule
+\texttt{a9d36ef} & First two E2E files for Decisions and Due Dates\\
+PR \#57 & Additional tests for invitations, join requests, membership, discussions, mentions and notifications, eight files in total\\
+\bottomrule\end{tabularx}\end{center}
+PR \#57 was still Draft in the supplied screenshots. Team review, CI verification and merge are separate steps. This report does not mark the GitHub checks as passed.
+\section{Limitations and conclusion}
+The selected E2E cases passed locally. They are representative functional journeys, not exhaustive coverage of invitation expiry, rejection cooldowns, every permission combination, all notification types, realtime timing and every possible decision link. No unresolved application defect was established from these completed test runs. Review the GitHub Actions results and request team review before merging.
+\par\medskip\noindent\textbf{Report date:} 19 November 2026.\quad \textbf{Review status:} Team review pending.
+\end{document}
