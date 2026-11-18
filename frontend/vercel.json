@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://devorbit-api-bdtr.onrender.com/api/:path*" },
+    { "source": "/uploads/:path*", "destination": "https://devorbit-api-bdtr.onrender.com/uploads/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

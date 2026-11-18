@@ -1,4 +1,8 @@
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+// [Deploy] Live updates (socket.io) can go to a different address than the API. On Vercel the API is reached
+// through a same-site rewrite (VITE_API_URL=/api, see frontend/vercel.json), but Vercel cannot forward WebSockets,
+// so VITE_SOCKET_URL points straight at the Render API. Unset (local development): same server as the API.
+const SOCKET_ORIGIN = (import.meta.env.VITE_SOCKET_URL || API_BASE.replace(/\/api$/, '')).replace(/\/$/, '');
 
 // Access tokens live only in memory. The HttpOnly refresh cookie is managed by the API.
 let currentAccessToken = null;
@@ -267,7 +271,7 @@ export const taskApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToProjectTasks(
-          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
           id,
           onTaskUpdated,
           onTaskDeleted
@@ -306,7 +310,7 @@ export const liveApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToProjectEvent(
-          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
           id,
           eventName,
           handler
@@ -326,7 +330,7 @@ export const liveApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToUserEvent(
-          { origin: API_BASE.replace(/\/api$/, ''), getToken: () => currentAccessToken },
+          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
           eventName,
           handler
         );
