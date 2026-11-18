@@ -1,0 +1,101 @@
+% Sprint 5 Test Report - anonymised, reproducible. Compile twice with pdflatex.
+\documentclass[11pt,a4paper]{article}
+\input{preamble}
+\lhead{\small DevOrbit -- Sprint 5 Test Report}\rhead{\small Discovery and community}
+\hypersetup{pdftitle={DevOrbit Sprint 5 Test Report},pdfauthor={DevOrbit Software Engineering Team}}
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.3cm}
+{\Huge\bfseries\color{accent} DevOrbit\par}\vspace{0.6cm}
+{\LARGE Sprint 5 Test Report\par}\vspace{0.4cm}
+{\Large Discovery, profiles, portfolio, community posts, voting, trending and follows\par}\vspace{1.5cm}
+\begin{tabular}{>{\bfseries}l p{10cm}}
+Test types & Playwright end-to-end browser journeys; state persistence, visibility, editing, voting and navigation \\
+Test execution & 5 of 5 new Sprint 5 E2E tests passed locally in Chromium (44.4 seconds) \\
+Testing period & November 2026 \\
+Testing PR & \url{https://github.com/Heer64/DevOrbit/pull/58} \\
+Branch & \texttt{testing/sprint5-testing} to \texttt{main} \\
+Repository & \url{https://github.com/Heer64/DevOrbit} \\
+\end{tabular}
+\vfill{\small Course team project -- Software Engineering\par}
+\end{titlepage}
+\tableofcontents\newpage
+\section{Summary}
+Sprint 5 covers public discovery and community participation. The newly submitted test contribution contains three Playwright specification files with five automated browser tests. All five passed in the combined local Chromium run, as shown by the preserved terminal evidence. Existing repository tests already exercise public project discovery and public project pages; they are described separately, but were \emph{not} counted among the five new passing tests.
+\begin{center}\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{l X l}\toprule
+\textbf{Module} & \textbf{Checked capability} & \textbf{Result}\\\midrule
+M1 & Discover public projects: pre-existing E2E test & Existing\\
+M2 & Public project details and join request: pre-existing E2E tests & Existing\\
+M3 & Privacy settings saved and persisted & \PASS\\
+M4 & Collaborator search filter with saved skill & \PASS\\
+M5 & Portfolio privacy and visibility & \PASS\\
+M6 & Publish, edit and delete a community post & \PASS\\
+M7 & Add and retract an upvote & \PASS\\
+M8 & Latest/Trending tabs; follow/unfollow a post author & \PASS\\
+\bottomrule\end{tabularx}\end{center}
+\noindent\textbf{Coverage note:} M3/M5 and M6/M8 share a test case; therefore the number of checked modules differs from the number of tests. Five is the exact number of new browser tests, not the total number of features or the entire suite.
+\section{Scope and test environment}
+\subsection{Scope}
+\begin{itemize}
+\item \textbf{Existing coverage (not newly authored):} \path{discover-public.spec.js}, \path{discover.spec.js}, \path{public-project-page.spec.js} test public discovery and project pages, including visitor visibility and request-to-join scenarios.
+\item \textbf{New coverage:} private profile and public portfolio toggles; collaborator skill filter; community post lifecycle; vote toggle; feed order; following a public post author.
+\item \textbf{Out of scope for these five tests:} exhaustive search rankings, all feed algorithms, abuse/moderation flows, every privacy permutation and cross-browser compatibility.
+\end{itemize}
+\subsection{Environment and command}
+\begin{itemize}
+\item Framework: Playwright (JavaScript); browser: Chromium.
+\item Application under test: DevOrbit React frontend and Node/Express API, with isolated test data through Playwright's in-memory MongoDB setup.
+\item New test files: \path{e2e/tests/sprint5-*.spec.js}; shared setup: \path{e2e/tests/helpers.js}.
+\item Execute from \path{e2e/}: \texttt{npx playwright test "sprint5-.*\\.spec\\.js"}.
+\item Local combined result: \textbf{5 passed, 0 failed, 44.4 seconds}; provided screenshot captured after execution.
+\item GitHub CI and merge are independently verified on PR \#58; local browser passes do not imply CI passes.
+\end{itemize}
+\section{Detailed test cases}
+\begin{checkinfo}
+TC-S5-01: M6/M8 & \path{sprint5-community.spec.js}. Sign up; open Latest feed; publish a post; edit its text; verify updated content and edit indicator; switch to Trending and return to Latest; delete using confirmation; verify disappearance.\\
+Outcome & \PASS{} -- 1 test (post lifecycle and feed navigation).\\
+\end{checkinfo}
+\begin{checkinfo}
+TC-S5-02: M7 & \path{sprint5-community.spec.js}. Publish post; verify zero votes; upvote to one; retract vote; verify zero and initial button state restored.\\
+Outcome & \PASS{} -- 1 test (vote toggle).\\
+\end{checkinfo}
+\begin{checkinfo}
+TC-S5-03: M8 & \path{sprint5-follows.spec.js}. Create author and visitor accounts; visitor opens author profile from post; follows the author; follow state persists on reload; unfollows successfully.\\
+Outcome & \PASS{} -- 1 test (follow state and persistence).\\
+\end{checkinfo}
+\begin{checkinfo}
+TC-S5-04: M3/M5 & \path{sprint5-profile-discovery.spec.js}. Disable discoverability and public portfolio; save and reload; verify both disabled and private portfolio message; enable, save, reload and verify visible portfolio editing field.\\
+Outcome & \PASS{} -- 1 test (privacy settings and portfolio).\\
+\end{checkinfo}
+\begin{checkinfo}
+TC-S5-05: M4 & \path{sprint5-profile-discovery.spec.js}. Add and save a skill to user profile; open Discover people search; apply skill chip and clear; verify filter chip removal.\\
+Outcome & \PASS{} -- 1 test (skill-based filtering UI).\\
+\end{checkinfo}
+\section{Test execution matrix}
+\begin{center}\small\rowcolors{2}{white}{headgray}
+\begin{tabularx}{\linewidth}{X l l}\toprule
+\textbf{New E2E file} & \textbf{Tests} & \textbf{Outcome}\\\midrule
+\path{sprint5-community.spec.js} & 2 & \PASS\\
+\path{sprint5-follows.spec.js} & 1 & \PASS\\
+\path{sprint5-profile-discovery.spec.js} & 2 & \PASS\\\midrule
+\textbf{Combined total} & \textbf{5} & \PASS\\
+\bottomrule\end{tabularx}\end{center}
+\section{Evidence}
+\shot{sprint5-all-tests-pass.png}{0.97}{Combined Sprint 5 Playwright run: five tests passed in Chromium in 44.4 seconds. Screenshot cropped to omit local account and workspace details.}
+\shot{sprint5-community-pass.png}{0.97}{Separate run of the two community and voting tests: both passed.}
+\section{Automation findings and changes}
+The post-lifecycle test originally timed out while trying to click \texttt{Save} after editing post text. The locator matched the card using its \emph{old} text, but the edited text had changed. The test was corrected to locate the editor's Save action directly; the rerun showed both community tests passing. This was a \textbf{test selector issue}, not a confirmed application defect.
+\par\smallskip\noindent A representative example of the corrected locator strategy:
+\begin{quote}\small\ttfamily
+await editForm.getByRole('button', \{ name: 'Save', exact: true \}).click();
+\end{quote}
+This snippet illustrates the test strategy; actual submitted source remains in the Playwright spec file.
+\section{Submission and conclusion}
+\begin{itemize}
+\item Branch: \texttt{testing/sprint5-testing}; PR: \url{https://github.com/Heer64/DevOrbit/pull/58}.
+\item Three new test files were committed and pushed to that branch; PR \#58 was visible as open in the supplied GitHub screenshot.
+\item Last visible PR-list screenshot showed checks still in progress (2/5). Their final outcome and the team's merge decision must be checked on GitHub; they are not claimed complete here.
+\item All five newly created Sprint 5 Playwright tests passed locally. No unresolved application bug is demonstrated by this run. Broader regression and CI review remain separate activities.
+\end{itemize}
+\noindent\textbf{Report date:} 19 November 2026.\quad \textbf{Status:} Local E2E run complete; team review/merge pending.
+\end{document}
