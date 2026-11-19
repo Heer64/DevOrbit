@@ -1,7 +1,7 @@
 // [Sprint 6 · M4] US-42: a Copilot source links to one decision (?tab=decisions&decision=<id>);
 // the Decisions tab scrolls to it and highlights it.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import DecisionsPanel from './DecisionsPanel';
 
@@ -47,7 +47,9 @@ describe('DecisionsPanel highlightId', () => {
     const scrolled = await renderPanel('d2');
     const rows = screen.getAllByTestId('decision');
     expect(rows.map((row) => row.className.includes('decision-highlight'))).toEqual([false, true]);
-    expect(scrolled).toEqual(['d2']);
+    await waitFor(() => {
+  expect(scrolled).toEqual(['d2']);
+});
   });
 
   it('no link, or an unknown id: nothing is highlighted', async () => {
