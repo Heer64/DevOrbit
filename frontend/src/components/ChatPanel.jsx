@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Hash, Loader2, MessageSquare, Plus, RefreshCw, Reply, Send, X } from 'lucide-react';
 import { assetUrl, channelApi } from '../api';
 import { canManageChannels, canPostMessages } from '../roles';

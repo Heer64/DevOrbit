@@ -34,13 +34,6 @@ function validId(id) {
   return mongoose.isValidObjectId(id);
 }
 
-function isMember(project, userId) {
-  return (project.members || []).some(
-    (member) =>
-      member.user?._id?.toString() === userId ||
-      member.user?.toString() === userId
-  );
-}
 
 function memberRole(project, userId) {
   const member = (project.members || []).find(

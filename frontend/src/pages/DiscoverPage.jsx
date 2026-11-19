@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, BadgeCheck, Bookmark, BriefcaseBusiness, Chec
 import { LogoMark } from '../components/Logo';
 import { AVATAR_TONES, Avatar, Btn, EmptyPanel, Heading, initialsOf, tone } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import { projectApi, publicApi, userApi } from '../api'; // [Sprint 5 · M1] US-45: publicApi (no login)
+import { publicApi, userApi } from '../api'; // [Sprint 5 · M1] US-45: publicApi (no login)
 import { publicProjectPath } from '../lib/publicLinks'; // [Sprint 5 · M1] US-45: the one place card links are made
 
 // Sample data for the demo workspace only. Signed-in users load real public projects
@@ -139,7 +139,6 @@ function useDiscoverList(enabled, query, load, map) {
   };
 }
 
-const loadProjects = (q) => projectApi.discover(q);
 const mapProjects = (result) => (result.projects || []).map(toDiscoverProject);
 const loadPeople = loadPeopleSearch; // [Sprint 5 · M4] US-48: was (q) => userApi.search(q); plain text still goes there
 const mapPeople = (result) => (result.people || []).map(toDiscoverPerson);

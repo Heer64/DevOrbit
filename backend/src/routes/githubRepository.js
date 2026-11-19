@@ -17,7 +17,6 @@ import {
   storedRepository,
 } from '../lib/githubRepos.js';
 import { setupProjectWebhook } from '../lib/githubWebhookSetup.js'; // [Sprint 4 · M4] US-34
-import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
 
 /*
  * [Sprint 4 · M2] US-32 Connect a repository (FR-11).

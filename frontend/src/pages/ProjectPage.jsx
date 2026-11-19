@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, Globe2, LayoutDashboard, ListTodo, Lock, MessageCircle, Milestone as MilestoneIcon, Paperclip, Scale, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowUpRight, Bell, BookOpen, Globe2, LayoutDashboard, ListTodo, Lock, MessageCircle, Milestone as MilestoneIcon, Paperclip, Scale, Check, CheckCircle2, ChevronDown, Circle, Code2, ExternalLink, File, FileCode2, FileText, Folder, GitBranch, GitCommitHorizontal, GitFork, GitPullRequest, Github, MoreHorizontal, Plus, Settings, Sparkles, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { assetUrl, liveApi, milestoneApi, projectApi, taskApi, toWorkspaceProject } from '../api';
 import { AVATAR_TONES, Avatar, Btn, initialsOf, tone } from '../components/ui';
