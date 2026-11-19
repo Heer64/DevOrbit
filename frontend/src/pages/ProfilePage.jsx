@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, CalendarDays, Camera, Check, Code2, Edit3, ExternalLink, Github, Globe2, Linkedin, MapPin, Plus, Save, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Camera, Check, Code2, Edit3, ExternalLink, Github, Globe2, Linkedin, MapPin, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { profileApi, projectApi, toProfileProject } from '../api';
 import { Avatar, Btn, Heading, tone } from '../components/ui';
