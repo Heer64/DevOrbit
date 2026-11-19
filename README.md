@@ -82,7 +82,25 @@ npm run seed               # does nothing if the demo data is already there
 npm run seed -- --reset    # removes the demo accounts, their projects and what was made with them, then adds them again
 ```
 
-It prints the demo logins (`aarav@seed.devorbit.test` and others, password `DevOrbit@2026`, or `SEED_PASSWORD` from `backend/.env`). `admin@seed.devorbit.test` is the Platform Admin (Sprint 6 M8). It never touches other data and refuses to run when `NODE_ENV=production`. On Windows PowerShell, which drops a bare `--`, run `npm run seed '--' --reset` or `node scripts/seed.js --reset` instead.
+It prints the demo logins (`aarav@seed.devorbit.test` and others, password `DevOrbit@2026`, or `SEED_PASSWORD` from `backend/.env`). `admin@seed.devorbit.test` is the Platform Admin (Sprint 6 M8). It never touches other data and refuses to run when `NODE_ENV=production`.
+
+### Resetting demo data on Windows PowerShell
+
+On Windows PowerShell, the standalone `--` separator may not be forwarded correctly by npm. Open PowerShell in the `backend` folder and run either:
+
+```powershell
+npm run seed '--' --reset
+```
+
+Or run the script directly:
+
+```powershell
+node scripts/seed.js --reset
+```
+
+Both commands pass `--reset` to the seed script.
+
+**Warning:** Reset deletes and recreates the demo accounts, their projects and associated test data. Use only with a development database. The seed script refuses to run when `NODE_ENV=production`.
 
 `--reset` also removes everything made with the demo accounts or inside the demo projects while you tested: decisions, docs, task comments, files (and their stored bytes), invitations, join requests, notifications, GitHub connection records, posts (with images), votes, reports, follows, direct messages, sessions, password reset links and profile photos. A real post a demo account voted on is recounted. A GitHub webhook created for a demo project is not removed on GitHub (the seed works offline): delete it in the repository's Settings → Webhooks.
 
