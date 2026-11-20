@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AtSign, Bell, Clock3, ShieldAlert, UserCheck, UserX } from 'lucide-react'; // [Sprint 6 · M7] + ShieldAlert, UserX
+import { AtSign, Bell, Clock3, MessageCircle, ShieldAlert, UserCheck, UserX } from 'lucide-react'; // [Sprint 6 · M7] + ShieldAlert, UserX; [Sprint 7 · M3] + MessageCircle
 import { notificationApi } from '../api';
 import { timeAgo } from './activityDisplay';
 
@@ -22,6 +22,8 @@ export const NOTIFICATION_KINDS = {
   moderation_warning: { label: 'Moderation warning', icon: ShieldAlert, tone: 'orange' },
   join_approved: { label: 'Join request approved', icon: UserCheck, tone: 'blue' },
   join_rejected: { label: 'Join request declined', icon: UserX, tone: '' },
+  // [Sprint 7 · M3] someone commented on your post or replied to your comment (opens the feed).
+  post_reply: { label: 'Reply', icon: MessageCircle, tone: 'purple' },
 };
 
 const PAGE_SIZE = 20;

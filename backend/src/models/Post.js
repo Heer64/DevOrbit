@@ -53,6 +53,9 @@ const postSchema = new mongoose.Schema(
     // [Sprint 5 · M8] US-53: score / (ageHours + 2)^1.5, written only by lib/trending.js at least every
     // 5 minutes (FR-25, NFR-15). A new post starts at 0, which is its true value (no votes yet).
     trendingScore: { type: Number, default: 0 },
+    // [Sprint 7 · M3] Comments + replies that are not deleted. Moved only by lib/postComments.js
+    // with one atomic $inc per change. Posts made before Sprint 7 have no field and count as 0.
+    commentCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 );

@@ -1,0 +1,39 @@
+/* [Sprint 7 · M3] Comments and replies under a feed post (PostComments.jsx, PostCard.jsx).
+   Its own file, so it never conflicts with other Sprint 7 changes to styles.css. Uses the theme
+   variables of styles.css / solar-ember.css, with fallbacks. */
+
+.post-comments-bar{display:flex;align-items:center;gap:8px;padding-top:2px}
+.post-comments-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);color:var(--muted);padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.post-comments-toggle:hover,.post-comments-toggle[aria-expanded=true]{color:var(--text);border-color:var(--accent);background:var(--soft)}
+.post-comments-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.pc{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.pc-note{margin:0;font-size:13.5px;color:var(--muted)}
+.pc-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.pc-replies{margin:10px 0 0 38px;padding-left:12px;border-left:2px solid var(--line);gap:10px}
+.pc-item{min-width:0}
+.pc-row{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.pc-photo{flex:none;text-decoration:none}
+.pc-photo .avatar{width:28px;height:28px;font-size:11px}
+.pc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.pc-meta{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pc-name{text-decoration:none;color:var(--text)}
+.pc-name b{font-size:13.5px}
+.pc-meta small{font-size:12.5px;color:var(--muted)}
+.pc-edited{font-style:italic}
+.pc-text{margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dim,var(--text))}
+.pc-actions{display:flex;gap:12px;flex-wrap:wrap}
+.pc-link{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:2px 0;color:var(--muted);font-size:12.5px;font-weight:600;cursor:pointer}
+.pc-link:hover{color:var(--accent)}
+.pc-link.danger:hover{color:var(--danger,#e5484d)}
+.pc-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.pc-deleted-text{margin:0;font-size:13.5px;font-style:italic;color:var(--muted);padding:6px 10px;border:1px dashed var(--line);border-radius:10px;display:inline-block}
+.pc-reply-box{display:flex;gap:8px;margin:10px 0 0 38px}
+.pc-reply-arrow{flex:none;color:var(--muted);margin-top:10px}
+.pc-form{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.pc-input{width:100%;resize:vertical;min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.pc-form-bar{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.pc-form-bar .char-count{margin-right:auto;align-self:center}
+.pc-more{align-self:flex-start}
+.pc .pc-notice{margin:0}
+@media(max-width:560px){.pc-replies,.pc-reply-box{margin-left:14px}}

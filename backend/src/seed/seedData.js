@@ -29,6 +29,7 @@ import PostVote from '../models/PostVote.js';
 import PostVoteLog from '../models/PostVoteLog.js';
 import PostCreateLog from '../models/PostCreateLog.js';
 import PostReport from '../models/PostReport.js';
+import PostComment from '../models/PostComment.js'; // [Sprint 7 · M3]
 import Session from '../models/Session.js';
 import PasswordResetToken from '../models/PasswordResetToken.js'; // [Sprint 6 · M1] US-04
 import ModerationAction from '../models/ModerationAction.js'; // [Sprint 6 · M7] US-56
@@ -36,6 +37,7 @@ import { deleteFileBytes } from '../lib/projectFiles.js';
 import { deletePostImage } from '../lib/postImages.js';
 import { removeAvatarFile } from '../lib/avatar.js';
 import { recountPostVotes } from '../lib/postVotes.js';
+import { recountPostComments } from '../lib/postComments.js'; // [Sprint 7 · M3]
 import { ensureDefaultChannel } from '../lib/channels.js';
 import { logActivity, quote } from '../lib/activity.js';
 import { domainTags } from '../lib/projectSetup.js';
@@ -56,7 +58,8 @@ import { PLATFORM_ROLE_ADMIN, PLATFORM_ROLE_USER, platformRoleLabel } from '../l
  *     projects (tasks, milestones, channels, messages, activity, decisions, docs, task comments, files
  *     and their stored bytes, invitations, join requests, notifications, GitHub connection records),
  *     plus what the seed accounts themselves created anywhere (posts with their images, votes, reports,
- *     follows, direct messages, sessions, password reset links, profile photos), then seeds again. Real users and their
+ *     comments and replies [Sprint 7 · M3], follows, direct messages, sessions, password reset links,
+ *     profile photos), then seeds again. Real users and their
  *     projects are kept; a real post's score is recounted if a seed account had voted on it.
  *   - It refuses to run when NODE_ENV=production (scripts/seed.js).
  *   - [Sprint 6 · M8] FR-27: it also creates the first Platform Admin for development and demos,
@@ -269,6 +272,22 @@ export async function removeSeedData() {
   await Promise.all(posts.map((post) => deletePostImage(post.image?.storageId)));
   await Promise.all([PostVote.deleteMany({ post: { $in: postIds } }), PostReport.deleteMany({ post: { $in: postIds } })]);
   await Post.deleteMany({ _id: { $in: postIds } });
+  // [Sprint 7 · M3] Comments: everything on the seed posts goes with them.
+  await PostComment.deleteMany({ post: { $in: postIds } });
+  // Comments and replies seed accounts wrote on real posts. A seed comment that a real user replied to
+  // becomes a "Comment deleted" placeholder, so the real reply is kept; then the counts are recounted.
+  const commentedPostIds = await PostComment.distinct('post', { author: bySeedUsers });
+  await PostComment.deleteMany({ author: bySeedUsers, parent: { $ne: null } });
+  const seedComments = await PostComment.find({ author: bySeedUsers, parent: null }).select('_id').lean();
+  const answered = await PostComment.distinct('parent', { parent: { $in: seedComments.map((c) => c._id) } });
+  const answeredIds = new Set(answered.map(String));
+  await PostComment.deleteMany({ _id: { $in: seedComments.filter((c) => !answeredIds.has(String(c._id))).map((c) => c._id) } });
+  await PostComment.updateMany({ _id: { $in: answered } }, { $set: { deletedAt: new Date(), text: '', editedAt: null } });
+  // Placeholders whose only replies were by seed accounts have nothing left to explain.
+  const placeholders = await PostComment.find({ post: { $in: commentedPostIds }, parent: null, deletedAt: { $ne: null } }).select('_id').lean();
+  const stillAnswered = new Set((await PostComment.distinct('parent', { parent: { $in: placeholders.map((c) => c._id) } })).map(String));
+  await PostComment.deleteMany({ _id: { $in: placeholders.filter((c) => !stillAnswered.has(String(c._id))).map((c) => c._id) } });
+  await Promise.all(commentedPostIds.map((postId) => recountPostComments(postId)));
   // Votes seed accounts cast on real posts: remove them, then recount those posts so their scores stay right.
   const votedPostIds = await PostVote.distinct('post', { user: bySeedUsers });
   await PostVote.deleteMany({ user: bySeedUsers });

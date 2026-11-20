@@ -8,6 +8,7 @@ import { validId } from './projectAccess.js';
 import { openReportQueue } from './postReports.js';
 import { deletePostImage } from './postImages.js';
 import { deleteVotesForPost } from './postVotes.js';
+import { deleteCommentsForPost } from './postComments.js'; // [Sprint 7 · M3]
 import { createPersonalNotification } from './notifications.js';
 import { postView } from './postRules.js';
 import { REPORT_STATUS_OPEN, REPORT_STATUS_RESOLVED, reportReasonLabel, summarizeReasons } from './reportRules.js';
@@ -187,11 +188,12 @@ export async function moderatePost({ postId, action, moderatorId }) {
     let message = MODERATION_MESSAGES.dismissed;
 
     if (action === MODERATION_ACTION_REMOVE) {
-      // Same clean-up as the author's own delete (routes/posts.js DELETE): the post, its image and its votes.
+      // Same clean-up as the author's own delete (routes/posts.js DELETE): the post, its image, its votes and comments.
       const removed = await Post.findOneAndDelete({ _id: post });
       if (removed) {
         await deletePostImage(removed.image?.storageId);
         await deleteVotesForPost(removed._id);
+        await deleteCommentsForPost(removed._id); // [Sprint 7 · M3] its comments and replies go with it
       }
       message = MODERATION_MESSAGES.removed;
     } else if (action === MODERATION_ACTION_WARN) {

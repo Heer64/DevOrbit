@@ -29,6 +29,7 @@ import PostReport from '../src/models/PostReport.js';
 import Session from '../src/models/Session.js';
 import PasswordResetToken from '../src/models/PasswordResetToken.js';
 import ModerationAction from '../src/models/ModerationAction.js'; // [Sprint 6 · M7] US-56
+import PostComment from '../src/models/PostComment.js'; // [Sprint 7 · M3]
 import { storeFileBytes, fileBytesExist } from '../src/lib/projectFiles.js';
 import { storePostImage, postImageExists } from '../src/lib/postImages.js';
 import { saveAvatar, findAvatar, AVATAR_URL_PREFIX } from '../src/lib/avatar.js';
@@ -186,6 +187,49 @@ test('--reset also removes what testers made with seed accounts, and keeps real 
   const delivery = await WebhookDelivery.findOne({ deliveryId: 'delivery-1' }).lean();
   assert.deepEqual(delivery.projects.map(String), [String(realProject._id)], 'the delivery log keeps the real project only');
   assert.ok(await Project.exists({ _id: realProject._id }));
+});
+
+// [Sprint 7 · M3] Comments and replies made with seed accounts are removed; a real reply is never lost.
+test('--reset removes comments and replies of seed accounts and recounts real posts', async () => {
+  const raw = (Model, doc) => Model.collection.insertOne(doc);
+  const aarav = await User.findOne({ email: seedEmail('aarav') }).lean();
+  const riya = await User.findOne({ email: seedEmail('riya') }).lean();
+  const outsiderId = new mongoose.Types.ObjectId(outsider.user.id);
+  const live = { editedAt: null, deletedAt: null, createdAt: new Date(), updatedAt: new Date() };
+
+  const seedPost = await raw(Post, { author: aarav._id, text: 'Seed post', commentCount: 1 });
+  const realPost = await raw(Post, { author: outsiderId, text: 'Real post', commentCount: 6 });
+  const on = (postId) => ({ post: postId.insertedId });
+
+  // On the seed post: everything goes with the post, even a real user's comment.
+  const onSeedPost = await raw(PostComment, { ...on(seedPost), author: outsiderId, parent: null, text: 'Hi', ...live });
+  // On the real post:
+  const seedAlone = await raw(PostComment, { ...on(realPost), author: aarav._id, parent: null, text: 'Seed, no replies', ...live });
+  const seedAnswered = await raw(PostComment, { ...on(realPost), author: riya._id, parent: null, text: 'Seed, answered', ...live });
+  const realReply = await raw(PostComment, { ...on(realPost), author: outsiderId, parent: seedAnswered.insertedId, text: 'Real reply', ...live });
+  const realComment = await raw(PostComment, { ...on(realPost), author: outsiderId, parent: null, text: 'Real comment', ...live });
+  const seedReply = await raw(PostComment, { ...on(realPost), author: aarav._id, parent: realComment.insertedId, text: 'Seed reply', ...live });
+  const realPlaceholder = await raw(PostComment, { ...on(realPost), author: outsiderId, parent: null, text: '', ...live, deletedAt: new Date() });
+  const onlySeedReply = await raw(PostComment, { ...on(realPost), author: riya._id, parent: realPlaceholder.insertedId, text: 'Only reply', ...live });
+
+  const result = await seedDatabase({ reset: true, password: 'seed-password-123' });
+  assert.equal(result.seeded, true);
+
+  const exists = (inserted) => PostComment.exists({ _id: inserted.insertedId });
+  assert.equal(await exists(onSeedPost), null, 'comments on the seed post are removed with it');
+  assert.equal(await exists(seedAlone), null, 'a seed comment without replies is removed');
+  assert.equal(await exists(seedReply), null, 'a seed reply is removed');
+  assert.equal(await exists(onlySeedReply), null);
+  assert.equal(await exists(realPlaceholder), null, 'a placeholder left with no replies is removed');
+  assert.ok(await exists(realComment), 'a real comment is kept');
+  assert.ok(await exists(realReply), 'a real reply is kept');
+  const answered = await PostComment.findById(seedAnswered.insertedId).lean();
+  assert.ok(answered?.deletedAt, 'a seed comment a real user replied to becomes "Comment deleted"');
+  assert.equal(answered.text, '');
+
+  const post = await Post.findById(realPost.insertedId).lean();
+  assert.equal(post.commentCount, 2, 'the real post counts only the real comment and the real reply');
+  assert.equal(await PostComment.countDocuments({ author: { $in: [aarav._id, riya._id] }, deletedAt: null }), 0);
 });
 
 test('the seed password follows the sign-up rule', async () => {

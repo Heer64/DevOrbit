@@ -102,7 +102,7 @@ Both commands pass `--reset` to the seed script.
 
 **Warning:** Reset deletes and recreates the demo accounts, their projects and associated test data. Use only with a development database. The seed script refuses to run when `NODE_ENV=production`.
 
-`--reset` also removes everything made with the demo accounts or inside the demo projects while you tested: decisions, docs, task comments, files (and their stored bytes), invitations, join requests, notifications, GitHub connection records, posts (with images), votes, reports, follows, direct messages, sessions, password reset links and profile photos. A real post a demo account voted on is recounted. A GitHub webhook created for a demo project is not removed on GitHub (the seed works offline): delete it in the repository's Settings → Webhooks.
+`--reset` also removes everything made with the demo accounts or inside the demo projects while you tested: decisions, docs, task comments, files (and their stored bytes), invitations, join requests, notifications, GitHub connection records, posts (with images), votes, reports, post comments and replies, follows, direct messages, sessions, password reset links and profile photos. A real post a demo account voted on or commented on is recounted (a demo comment that a real user replied to stays as "Comment deleted", so the real reply is kept). A GitHub webhook created for a demo project is not removed on GitHub (the seed works offline): delete it in the repository's Settings → Webhooks.
 
 Then start both parts:
 
