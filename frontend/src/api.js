@@ -274,6 +274,8 @@ export const projectApi = {
   addMember: (id, payload) => api(`/projects/${encodeURIComponent(id)}/members`, { method: 'POST', body: JSON.stringify(payload) }),
   setMemberRole: (id, userId, role) => api(`/projects/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   removeMember: (id, userId) => api(`/projects/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+  // [Sprint 7 · M7] Owner only: the member becomes the Owner and the caller an Admin. -> { members, membershipRole: 'Admin' }
+  transferOwnership: (id, userId) => api(`/projects/${encodeURIComponent(id)}/transfer-ownership`, { method: 'POST', body: JSON.stringify({ userId, confirm: true }) }),
 };
 
 // Tasks inside one project. Contract: backend/src/routes/tasks.js
@@ -591,7 +593,7 @@ export const activityApi = {
 // Personal task views for the dashboard (Sprint 2 leftovers). Contract: backend/src/routes/myTasks.js
 //   upcoming -> { tasks, days }   open tasks due from today to `days` ahead, soonest first (US-23)
 //   mine     -> { tasks, total }  open tasks assigned to me
-//   stats    -> { completedLast7Days, openAssignedToMe }
+//   stats    -> { completedLast7Days, openAssignedToMe, weekGoal: { from, to, total, done, percent } }  ([Sprint 7 · M7] D7)
 // Each task has project { _id, name, color } and assignee populated.
 export const myTaskApi = {
   upcoming: (days = 7, limit = 6) => api(`/tasks/upcoming?days=${encodeURIComponent(days)}&limit=${encodeURIComponent(limit)}`),

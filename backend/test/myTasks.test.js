@@ -115,14 +115,17 @@ test('mine: open tasks assigned to me, dated first, undated last', async () => {
 test('stats: tasks completed in the last 7 days and my open tasks', async () => {
   const before = await as(member).get('/api/tasks/stats');
   assert.equal(before.status, 200, JSON.stringify(before.body));
-  assert.deepEqual(before.body, { completedLast7Days: 1, openAssignedToMe: 4 });
+  // [Sprint 7 · M7] The answer now also has weekGoal (D7), tested in test/weeklyGoal.test.js.
+  const counts = ({ completedLast7Days, openAssignedToMe }) => ({ completedLast7Days, openAssignedToMe });
+  assert.deepEqual(counts(before.body), { completedLast7Days: 1, openAssignedToMe: 4 });
+  assert.equal(typeof before.body.weekGoal, 'object');
 
   // An old completion does not count.
   const old = await createTask(owner, projectId, { title: 'Finished long ago', status: 'Done' });
   await Task.updateOne({ _id: old._id }, { completedAt: new Date(Date.now() - 10 * DAY_MS) });
 
   const after = await as(member).get('/api/tasks/stats');
-  assert.deepEqual(after.body, { completedLast7Days: 1, openAssignedToMe: 4 });
+  assert.deepEqual(counts(after.body), { completedLast7Days: 1, openAssignedToMe: 4 });
 });
 
 test('a member who leaves a project no longer sees its tasks', async () => {

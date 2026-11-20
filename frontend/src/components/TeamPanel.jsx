@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut, ShieldCheck, X } from 'lucide-react';
+import { Crown, LogOut, ShieldCheck, X } from 'lucide-react';
 import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import { projectApi, assetUrl } from '../api';
-import { ROLE_HELP, assignableRoles, canActOnMember, canManageMembers } from '../roles';
+import { ROLE_HELP, assignableRoles, canActOnMember, canManageMembers, canTransferOwnership } from '../roles';
 import ConfirmDialog from './ConfirmDialog'; // [Sprint 3 · M3] US-13, US-14
 
 // Team & roles for one project. Buttons are hidden when the role cannot use them,
 // but the API checks every request again and answers 403 if the rules are broken.
 // [Sprint 3 · M3] Removing a member and leaving the project both ask for confirmation first (US-13, US-14).
 // projectName is optional and only used in the confirmation text.
+// [Sprint 7 · M7] The Owner can make another member the Owner (crown button, after confirming); the Owner
+// then becomes an Admin and onRoleChange('Admin') tells the page. After that, leaving works like for any Admin.
 // [Sprint 3 · M1] New people now join through an invitation they accept (US-10, US-11, see InvitationsPanel),
 // so the old "Add to project" form is gone from here. The API's POST /members (US-09) is unchanged.
-export default function TeamPanel({ projectId, projectName = '', myRole, currentUserId, onMembers, onLeft }) {
+export default function TeamPanel({ projectId, projectName = '', myRole, currentUserId, onMembers, onLeft, onRoleChange }) {
   const [members, setMembers] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  // [Sprint 3 · M3] Open confirmation: { kind: 'remove', member } | { kind: 'leave' } | { kind: 'owner-leave' } | null
+  // [Sprint 3 · M3] Open confirmation: { kind: 'remove', member } | { kind: 'leave' } | { kind: 'owner-leave' }
+  // | [Sprint 7 · M7] { kind: 'transfer', member } | null
   const [confirm, setConfirm] = useState(null);
   const [confirmError, setConfirmError] = useState('');
 
@@ -59,6 +62,24 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
     }
   };
 
+  // [Sprint 7 · M7] Make another member the Owner after confirming. I become an Admin.
+  const confirmTransfer = async () => {
+    const { member } = confirm;
+    setConfirmError(''); setBusy(true);
+    try {
+      const result = await projectApi.transferOwnership(projectId, member.userId);
+      apply(result.members || []);
+      setConfirm(null);
+      setNotice(`${member.name} is now the Owner. You are now an Admin.`);
+      onRoleChange?.(result.membershipRole || 'Admin');
+      window.dispatchEvent(new Event('devorbit:projects-updated'));
+    } catch (e) {
+      setConfirmError(e.message || 'Could not transfer ownership.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // US-14: leave after confirming.
   const confirmLeave = async () => {
     setConfirmError(''); setBusy(true);
@@ -75,6 +96,7 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
   };
 
   const manage = canManageMembers(myRole);
+  const canTransfer = canTransferOwnership(myRole);
   const roleChoices = assignableRoles(myRole);
   const projectLabel = projectName ? `“${projectName}”` : 'this project';
 
@@ -99,6 +121,9 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
                 <select aria-label={`Role for ${member.name}`} value={member.role} disabled={busy} onChange={(e) => changeRole(member, e.target.value)}>
                   {roleChoices.map((role) => <option key={role}>{role}</option>)}
                 </select>
+                {canTransfer && (
+                  <button className="iconbtn" disabled={busy} aria-label={`Make ${member.name} the Owner`} title="Transfer ownership" onClick={() => openConfirm({ kind: 'transfer', member })}><Crown size={14} /></button>
+                )}
                 <button className="iconbtn" disabled={busy} aria-label={`Remove ${member.name}`} title="Remove from project" onClick={() => openConfirm({ kind: 'remove', member })}><X size={14} /></button>
               </>
             ) : (
@@ -153,6 +178,21 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
         <p>Your messages and tasks stay in the project. To come back, an Owner or Admin has to add you again.</p>
       </ConfirmDialog>
 
+      {/* [Sprint 7 · M7] Transfer ownership */}
+      <ConfirmDialog
+        open={confirm?.kind === 'transfer'}
+        title={`Make ${confirm?.member?.name || 'this member'} the Owner?`}
+        confirmLabel="Transfer ownership"
+        danger
+        busy={busy}
+        error={confirmError}
+        onConfirm={confirmTransfer}
+        onCancel={closeConfirm}
+      >
+        <p>{confirm?.member?.name || 'They'} will become the Owner of {projectLabel}, with full control over its members and settings.</p>
+        <p>You will become an Admin. You cannot undo this yourself: only the new Owner can make you the Owner again.</p>
+      </ConfirmDialog>
+
       <ConfirmDialog
         open={confirm?.kind === 'owner-leave'}
         title="Transfer ownership first"
@@ -162,6 +202,9 @@ export default function TeamPanel({ projectId, projectName = '', myRole, current
         onCancel={closeConfirm}
       >
         <p>You are the only Owner of {projectLabel}. Every project needs an Owner, so make another member the Owner before you leave.</p>
+        <p>{(members || []).some((member) => member.userId !== currentUserId)
+          ? 'Use the crown button next to a member to transfer ownership. You become an Admin and can then leave.'
+          : 'Add or invite another member first, then use the crown button next to them to transfer ownership.'}</p>
       </ConfirmDialog>
     </section>
   );

@@ -16,10 +16,12 @@ import { buildProjectDashboard } from '../lib/projectDashboard.js';
  *        milestones: { total, completed, items: [{ _id, title, description, dueDate, taskCount, doneCount, progress, completed }] },
  *        tasks:      { total, open, done, byStatus: { 'To do', 'In progress', 'Blocked', 'Done' } },
  *        dueSoon:    { days: 7, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD', total, limit, tasks: [{ _id, title, status, priority, dueDate, assignee, milestone }] },
+ *        overdue:    { total, limit, tasks: [{ ..., daysOverdue }] }   [Sprint 7 · M7] FR-15, most overdue first
  *        generatedAt
  *      }
  *   Rules (open task, 7-day window, milestone %): lib/dashboardRules.js.
- *   Overdue and blocked lists belong to project health (US-40, M8), not this endpoint.
+ *   [Sprint 7 · M7] Overdue tasks are now listed here too (FR-15), with project health's rule; every member
+ *   sees them. Blocked tasks and the activity level stay in project health (US-40), which is Owner/Admin only.
  */
 const router = Router({ mergeParams: true });
 router.use(requireAuth);

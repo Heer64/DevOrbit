@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarClock, Check, Circle, Flag, LayoutDashboard, ListTodo, RefreshCw } from 'lucide-react';
+import { AlarmClock, CalendarClock, Check, Circle, Flag, LayoutDashboard, ListTodo, RefreshCw } from 'lucide-react';
 import { dashboardApi, taskApi } from '../api';
 
 /*
@@ -14,6 +14,8 @@ import { dashboardApi, taskApi } from '../api';
  *   onOpenTask(id)     open a task in the Tasks tab
  *   onOpenMilestones() switch to the Milestones tab
  * Teammates' task changes arrive live (task:created/updated/deleted) and trigger a reload.
+ * [Sprint 7 · M7] FR-15: also shows overdue tasks (open, due day has ended; most overdue first), from the
+ * API's `overdue` field. An older API without that field simply shows no overdue section.
  */
 
 const STATUS_PILL = { Done: 'green', 'In progress': 'purple', Blocked: 'red', 'To do': 'orange' }; // same as TasksPanel
@@ -120,6 +122,30 @@ function DueTaskRow({ task, fromDay, onOpen }) {
   );
 }
 
+// "1 day overdue", "12 days overdue" (daysOverdue comes from the server).
+export function overdueLabel(days) {
+  const n = Number.isFinite(days) && days > 0 ? Math.round(days) : 1;
+  return `${n} day${n === 1 ? '' : 's'} overdue`;
+}
+
+function OverdueTaskRow({ task, onOpen }) {
+  return (
+    <li>
+      <button type="button" className="pd-due-task" onClick={onOpen} aria-label={`Open overdue task ${task.title}`}>
+        <span className="pd-due-day overdue">
+          <b>{overdueLabel(task.daysOverdue)}</b>
+          <small>Due {formatDueDay(task.dueDate)}</small>
+        </span>
+        <span className="pd-due-main">
+          <b>{task.title}</b>
+          <small>{task.assignee?.name || 'Unassigned'}{task.milestone?.title ? ` · ${task.milestone.title}` : ''}</small>
+        </span>
+        <span className={`pill ${STATUS_PILL[task.status] || ''}`}>{task.status}</span>
+      </button>
+    </li>
+  );
+}
+
 export default function ProjectDashboard({ projectId, refreshKey = 0, onOpenTask, onOpenMilestones }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -178,6 +204,8 @@ export default function ProjectDashboard({ projectId, refreshKey = 0, onOpenTask
 
   const { milestones, tasks, dueSoon } = data;
   const hiddenDue = Math.max(0, dueSoon.total - dueSoon.tasks.length);
+  const overdue = data.overdue && Array.isArray(data.overdue.tasks) ? data.overdue : null; // [Sprint 7 · M7]
+  const hiddenOverdue = overdue ? Math.max(0, overdue.total - overdue.tasks.length) : 0;
 
   return (
     <div className="pd" aria-busy={loading}>
@@ -193,7 +221,7 @@ export default function ProjectDashboard({ projectId, refreshKey = 0, onOpenTask
         </div>
       )}
 
-      <div className="pd-stats">
+      <div className={`pd-stats${overdue ? ' pd-stats-4' : ''}`}>
         <StatTile icon={ListTodo} tone="purple" label="Open tasks" value={tasks.open} detail={tasks.total === 0 ? 'No tasks yet' : `of ${plural(tasks.total, 'task')} not Done`}>
           <ul className="pd-status-list" aria-label="Open tasks by status">
             {OPEN_STATUSES.map((status) => (
@@ -202,6 +230,9 @@ export default function ProjectDashboard({ projectId, refreshKey = 0, onOpenTask
           </ul>
         </StatTile>
         <StatTile icon={CalendarClock} tone="orange" label="Due in the next 7 days" value={dueSoon.total} detail={`${formatDueDay(dueSoon.from)} – ${formatDueDay(dueSoon.to)}`} />
+        {overdue && (
+          <StatTile icon={AlarmClock} tone="red" label="Overdue" value={overdue.total} detail={overdue.total === 0 ? 'Nothing is overdue' : 'open tasks past their due day'} />
+        )}
         <StatTile
           icon={Flag}
           tone="green"
@@ -210,6 +241,25 @@ export default function ProjectDashboard({ projectId, refreshKey = 0, onOpenTask
           detail={milestones.total === 0 ? 'No milestones yet' : `${plural(milestones.total - milestones.completed, 'milestone')} in progress`}
         />
       </div>
+
+      {overdue && (
+        <section className="pd-card pd-overdue" aria-labelledby="pd-overdue-title">
+          <div className="pd-card-head">
+            <h3 id="pd-overdue-title">Overdue</h3>
+            <span className="muted">Open tasks whose due day has passed, most overdue first</span>
+          </div>
+          {overdue.tasks.length === 0 ? (
+            <div className="task-empty"><AlarmClock size={20} /><p>Nothing is overdue. Nice work.</p></div>
+          ) : (
+            <ul className="pd-list">
+              {overdue.tasks.map((task) => (
+                <OverdueTaskRow key={task._id} task={task} onOpen={() => onOpenTask?.(task._id)} />
+              ))}
+            </ul>
+          )}
+          {hiddenOverdue > 0 && <p className="preview-note">+{plural(hiddenOverdue, 'more overdue task')}. See the Tasks tab for all of them.</p>}
+        </section>
+      )}
 
       <div className="pd-columns">
         <section className="pd-card" aria-labelledby="pd-milestones-title">

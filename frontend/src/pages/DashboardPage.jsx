@@ -7,6 +7,7 @@ import { AVATAR_TONES, Avatar, Btn, tone } from '../components/ui';
 import ProjectPulse from '../components/ProjectPulse';
 import { MyTasks, UpcomingDeadlines, useTaskStats } from '../components/DashboardTasks';
 import MyInvitations from '../components/MyInvitations'; // [Sprint 3 · M1] US-10, US-11
+import { weekGoalView } from '../weekGoal'; // [Sprint 7 · M7] D7
 
 const baseProjects = [
   { id: 'orbit-dashboard', name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', tag: 'Product', color: 'violet', progress: 72, members: 5, due: 'Oct 18', initials: ['AM', 'RK', 'JS', '+2'] },
@@ -82,8 +83,10 @@ export default function DashboardPage() {
   const taskStats = useTaskStats(user);
   const statValue = (key) => (taskStats ? String(taskStats[key]) : '—');
 
-  const avgProgress = projects.length ? Math.round(projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length) : 0;
-  const ringPct = user?.isDemo ? 80 : avgProgress;
+  // [Sprint 7 · M7] D7: the weekly goal comes from the API (GET /api/tasks/stats -> weekGoal): my tasks due this
+  // week (Mon-Sun, UTC) and how many are Done. Only the demo account keeps sample numbers.
+  const goal = user?.isDemo ? null : weekGoalView(taskStats?.weekGoal);
+  const ringPct = user?.isDemo ? 80 : goal?.percent ?? 0;
 
   return (
     <>
@@ -120,9 +123,9 @@ export default function DashboardPage() {
             <text x="32" y="37" textAnchor="middle" fontFamily="Manrope, ui-sans-serif, system-ui, sans-serif" fontWeight="800" fontSize="14" fill="currentColor">{ringPct}%</text>
           </svg>
           <div className="ring-copy">
-            <span>{user?.isDemo ? 'Weekly project goal' : 'Average project progress'}</span>
-            <b>{user?.isDemo ? '4 of 5 done' : `${activeCount} active project${activeCount === 1 ? '' : 's'}`}</b>
-            <small>{user?.isDemo ? "You're close to the finish line on Orbit dashboard." : 'Choose one clear next step and keep your team moving.'}</small>
+            <span>{user?.isDemo ? 'Weekly project goal' : 'This week\'s goal'}</span>
+            <b>{user?.isDemo ? '4 of 5 done' : goal ? goal.headline : taskStats ? 'Not available' : 'Loading…'}</b>
+            <small>{user?.isDemo ? "You're close to the finish line on Orbit dashboard." : goal ? goal.detail : 'Your tasks due this week (Mon–Sun).'}</small>
             <button className="link" onClick={() => navigate(`/project/${firstProjectId}`)}>Open my task board <ArrowRight size={14} /></button>
           </div>
         </section>

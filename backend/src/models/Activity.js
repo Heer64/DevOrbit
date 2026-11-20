@@ -11,6 +11,7 @@ export const ACTIVITY_TYPES = [
   'member.role_changed',
   'member.removed',
   'member.left',
+  'member.ownership_transferred', // [Sprint 7 · M7]
   'task.created',
   'task.updated',
   'task.status_changed',

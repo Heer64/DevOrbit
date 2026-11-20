@@ -139,6 +139,18 @@ export default function ProjectPage() {
     });
   }, [id, isLive, membershipRole]);
 
+  // [Sprint 7 · M7] Ownership was transferred to or from me (possibly from another tab): use my new role
+  // at once and reload the team list. The server checks every request with the role it has stored anyway.
+  useEffect(() => {
+    if (!isLive || !membershipRole) return undefined;
+    return liveApi.onProject(id, 'project:role-changed', (payload) => {
+      if (!payload?.role) return;
+      setMembershipRole(payload.role);
+      setTeamVersion((n) => n + 1);
+      setNotice(payload.role === 'Owner' ? 'You are now the Owner of this project.' : `Your role is now ${payload.role}.`);
+    });
+  }, [id, isLive, membershipRole]);
+
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(() => setNotice(''), 3200);
@@ -368,7 +380,7 @@ export default function ProjectPage() {
             <JoinRequestCard projectId={id} />
           )}
           {liveProject && membershipRole && (
-            <TeamPanel key={teamVersion} projectId={id} projectName={liveProject.name} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} />
+            <TeamPanel key={teamVersion} projectId={id} projectName={liveProject.name} myRole={membershipRole} currentUserId={user.id} onMembers={setTeam} onLeft={() => navigate('/dashboard')} onRoleChange={setMembershipRole} />
           )}
           {/* [Sprint 3 · M1] Owners and Admins invite people and see accepted / declined invitations (US-10, US-11). */}
           {liveProject && canManageMembers(membershipRole) && (

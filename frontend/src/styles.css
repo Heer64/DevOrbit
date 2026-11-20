@@ -974,3 +974,12 @@ a.profile-project:hover b{color:var(--accent)}
 .about-empty{margin:4px 0 17px}
 .about-edit{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:760px){.about-edit{grid-template-columns:1fr}}
+
+/* [Sprint 7 · M7] FR-15 overdue on the project dashboard */
+.event-icon.red{background:var(--danger-bg);color:var(--danger)}
+.pd-stats.pd-stats-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pd-overdue{margin-bottom:12px;border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+.pd-due-day.overdue{width:96px}
+.pd-due-day.overdue b{color:var(--danger)}
+@media (max-width:1100px){.pd-stats.pd-stats-4{grid-template-columns:1fr 1fr}.pd-stats.pd-stats-4 .pd-stat:first-child{grid-column:auto}}
+@media (max-width:560px){.pd-stats.pd-stats-4{grid-template-columns:1fr}.pd-due-day.overdue{width:80px}}
