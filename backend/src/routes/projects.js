@@ -3,9 +3,9 @@ import mongoose from 'mongoose';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
-import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember } from '../lib/permissions.js';
+import { canEditProject, checkAddMember, checkRoleChange, checkRemoveMember, checkTransferOwnership } from '../lib/permissions.js';
 import { logActivity, quote } from '../lib/activity.js';
-import { revokeProjectAccess } from '../lib/realtime.js'; // [Sprint 3 · M3] US-13, US-14
+import { emitToUser, revokeProjectAccess } from '../lib/realtime.js'; // [Sprint 3 · M3] US-13, US-14 · [Sprint 7 · M7] role change
 import { domainTags, matchStartingMembers, readDomain, readStartingMembers, startingMemberLookup } from '../lib/projectSetup.js'; // [Sprint 1 · gaps] fixed domain list, starting members
 import { checkCompletionChange, completionFields, reopenFields, touchesCompletion, OWNER_ONLY_MESSAGE, ALREADY_COMPLETED_MESSAGE, NOT_COMPLETED_MESSAGE } from '../lib/projectCompletion.js'; // [Sprint 4 · M8] US-15
 
@@ -346,6 +346,66 @@ router.patch('/:id/members/:userId', async (req, res, next) => {
       });
     }
     return res.json({ members: await loadMembers(project) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/*
+ * [Sprint 7 · M7] Transfer ownership.
+ * POST /api/projects/:id/transfer-ownership   { userId, confirm: true }
+ *   Owner only. userId must be another current member. In ONE database update the member becomes the
+ *   Owner and the caller becomes an Admin, so the project never has zero or two Owners; the update also
+ *   requires the caller to still be the Owner, so two transfers at the same moment cannot both win.
+ *   200 { members, membershipRole: 'Admin' }
+ *   400 bad IDs, missing confirm, or yourself · 403 not the Owner · 404 not a member · 409 ownership changed meanwhile
+ *   Logged as member.ownership_transferred. Both people's open project pages get 'project:role-changed'.
+ *   Afterwards the former Owner can leave like any Admin (US-14).
+ */
+router.post('/:id/transfer-ownership', async (req, res, next) => {
+  try {
+    const loaded = await loadProjectForMember(req, res);
+    if (!loaded) return undefined;
+    const { project, role: actorRole } = loaded;
+    const targetId = String(req.body?.userId || '');
+    if (actorRole !== 'Owner') return res.status(403).json({ message: 'Only the project Owner can transfer ownership.' });
+    if (!validId(targetId)) return res.status(400).json({ message: 'Choose the member who should become the Owner.' });
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ message: 'Confirm the transfer: you will become an Admin and cannot undo this yourself.' });
+    }
+
+    const allowed = checkTransferOwnership(actorRole, memberRole(project, targetId), targetId === req.user.id);
+    if (!allowed.ok) return res.status(allowed.status).json({ message: allowed.message });
+
+    const ownerId = new mongoose.Types.ObjectId(req.user.id);
+    const heirId = new mongoose.Types.ObjectId(targetId);
+    const result = await Project.updateOne(
+      { _id: project._id, members: { $elemMatch: { user: ownerId, role: 'Owner' } }, 'members.user': heirId },
+      { $set: { 'members.$[owner].role': 'Admin', 'members.$[heir].role': 'Owner' } },
+      { arrayFilters: [{ 'owner.user': ownerId }, { 'heir.user': heirId }] }
+    );
+    if (result.matchedCount === 0) {
+      return res.status(409).json({ message: 'The team changed while you were doing this. Reload the team and try again.' });
+    }
+
+    const fresh = await Project.findById(project._id);
+    const target = await User.findById(targetId).select('name').lean();
+    const targetName = target?.name || 'a member';
+    const previousRole = memberRole(project, targetId);
+    await logActivity({
+      project: project._id,
+      actor: req.user.id,
+      type: 'member.ownership_transferred',
+      summary: `made ${targetName} the Owner and became an Admin`,
+      targetType: 'member',
+      targetId,
+      targetLabel: targetName,
+      meta: { from: previousRole, to: 'Owner', previousOwnerRole: 'Admin' },
+    });
+    const projectId = project._id.toString();
+    emitToUser(req.user.id, 'project:role-changed', { projectId, role: 'Admin' });
+    emitToUser(targetId, 'project:role-changed', { projectId, role: 'Owner' });
+    return res.json({ members: await loadMembers(fresh), membershipRole: 'Admin' });
   } catch (error) {
     return next(error);
   }

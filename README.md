@@ -281,3 +281,13 @@ DevOrbit was built in six sprints. Sprint 2 was split into pairs (one backend an
 | M6 | US-55 | Report someone else's public post with a reason. The report goes to the moderator queue, and reporting the same post twice says *already reported* |
 | M7 | US-56 | Moderator queue with **Remove**, **Warn** and **Dismiss**, and a log of moderation decisions. Requesters are also notified when their join request is approved or declined |
 | M8 | US-57, US-58 | Platform roles and an Admin panel: make or remove Content Moderators, suspend and reactivate accounts. The first Platform Admin comes from the seed script or environment variables |
+
+---
+
+## Sprint 7 — Polish and fixes
+
+| Part | Task | What we built |
+|---|---|---|
+| M7 | Transfer ownership | The Owner makes another member the Owner (crown button in Team & roles, after confirming) and becomes an Admin, in one step, so a project always has exactly one Owner. The former Owner can then leave. Logged in the activity feed; both people's open pages switch role live. `POST /api/projects/:id/transfer-ownership` |
+| M7 | Overdue on the dashboard (FR-15) | The project Dashboard tab now also shows **overdue** tasks (open, due day passed), most overdue first with *N days overdue*, using the same rule as project health. Every member sees it |
+| M7 | D7 | The Dashboard's progress card shows the real **weekly goal**: *X of Y done* for your tasks due this week (Mon–Sun, UTC), instead of the fixed "4 of 5". `GET /api/tasks/stats` returns `weekGoal` |

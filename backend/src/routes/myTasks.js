@@ -5,7 +5,7 @@ import Task from '../models/Task.js';
 import { requireAuth } from '../middleware/auth.js';
 import { DEADLINE_WINDOW_MS } from '../lib/dueDates.js'; // [Sprint 3 · M5]
 import { findTasksDueSoon } from '../lib/deadlines.js'; // [Sprint 3 · M5]
-import { upcomingWindow } from '../lib/dashboardRules.js'; // [Sprint 4 · M7] shared 7-day window (US-39)
+import { upcomingWindow, weekWindow, weeklyGoal } from '../lib/dashboardRules.js'; // [Sprint 4 · M7] shared 7-day window (US-39) · [Sprint 7 · M7] D7
 
 /*
  * Personal task views for the dashboard, mounted at /api/tasks (Sprint 2 leftovers).
@@ -28,8 +28,10 @@ import { upcomingWindow } from '../lib/dashboardRules.js'; // [Sprint 4 · M7] s
  *   -> { tasks, windowHours: 24, now }   each task also has deadline and dedupeKey
  *
  * GET /api/tasks/stats
- *   -> { completedLast7Days, openAssignedToMe }
+ *   -> { completedLast7Days, openAssignedToMe, weekGoal }
  *   completedLast7Days counts tasks marked Done in the last 7 days across the caller's projects.
+ *   [Sprint 7 · M7] D7 weekGoal { from, to, total, done, percent }: tasks assigned to the caller, in their
+ *   projects, due this week (Mon-Sun, UTC), and how many of them are Done. Replaces the fixed "4 of 5".
  *
  * Each task has assignee populated and project { _id, name, color }.
  */
@@ -129,15 +131,19 @@ router.get('/stats', async (req, res, next) => {
   try {
     const projectIds = await myProjectIds(req.user.id);
 
-    if (projectIds.length === 0) return res.json({ completedLast7Days: 0, openAssignedToMe: 0 });
+    const week = weekWindow(new Date());
+    if (projectIds.length === 0) return res.json({ completedLast7Days: 0, openAssignedToMe: 0, weekGoal: weeklyGoal(0, 0, week) });
 
     const since = new Date(Date.now() - 7 * DAY_MS);
-    const [completedLast7Days, openAssignedToMe] = await Promise.all([
+    const thisWeek = { project: { $in: projectIds }, assignee: req.user.id, dueDate: { $gte: week.from, $lt: week.until } };
+    const [completedLast7Days, openAssignedToMe, weekTotal, weekDone] = await Promise.all([
       Task.countDocuments({ project: { $in: projectIds }, status: 'Done', completedAt: { $gte: since } }),
       Task.countDocuments({ project: { $in: projectIds }, assignee: req.user.id, status: { $ne: 'Done' } }),
+      Task.countDocuments(thisWeek),
+      Task.countDocuments({ ...thisWeek, status: 'Done' }),
     ]);
 
-    return res.json({ completedLast7Days, openAssignedToMe });
+    return res.json({ completedLast7Days, openAssignedToMe, weekGoal: weeklyGoal(weekTotal, weekDone, week) });
   } catch (error) {
     return next(error);
   }

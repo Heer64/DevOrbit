@@ -99,3 +99,30 @@ describe('Dashboard invitations', () => {
     expect(screen.queryByRole('region', { name: 'Your invitations' })).toBeNull();
   });
 });
+
+// [Sprint 7 · M7] D7: the progress card shows the real weekly goal, not the fixed "4 of 5".
+describe('Dashboard weekly goal (D7)', () => {
+  it('shows my tasks due this week from the API', async () => {
+    auth.user = { id: 'u1', name: 'Riya Kapoor', isDemo: false };
+    mocks.myTaskApi.stats.mockResolvedValue({
+      completedLast7Days: 7,
+      openAssignedToMe: 3,
+      weekGoal: { from: '2026-11-16', to: '2026-11-22', total: 4, done: 3, percent: 75 },
+    });
+    renderDashboard();
+    const ring = screen.getByRole('region', { name: 'Project progress' });
+    expect(await within(ring).findByText('3 of 4 done')).toBeTruthy();
+    expect(within(ring).getByText("This week's goal")).toBeTruthy();
+    expect(within(ring).getByRole('img', { name: '75 percent' })).toBeTruthy();
+    expect(within(ring).queryByText('4 of 5 done')).toBeNull();
+    expect(within(ring).queryByText('Weekly project goal')).toBeNull();
+  });
+
+  it('an older server without weekGoal says it is not available instead of showing fake numbers', async () => {
+    auth.user = { id: 'u1', name: 'Riya Kapoor', isDemo: false };
+    renderDashboard();
+    const ring = screen.getByRole('region', { name: 'Project progress' });
+    expect(await within(ring).findByText('Not available')).toBeTruthy();
+    expect(within(ring).queryByText('4 of 5 done')).toBeNull();
+  });
+});

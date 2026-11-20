@@ -14,6 +14,8 @@ const LOOK = {
   'member.role_changed': { icon: ShieldCheck, tone: 'purple', title: 'Role changed' },
   'member.removed': { icon: UserMinus, tone: 'orange', title: 'Member removed' },
   'member.left': { icon: UserMinus, tone: 'orange', title: 'Member left' },
+  // [Sprint 7 · M7]
+  'member.ownership_transferred': { icon: UserRoundCheck, tone: 'purple', title: 'Ownership transferred' },
   'task.created': { icon: ListTodo, tone: 'purple', title: 'Task created' },
   'task.updated': { icon: Pencil, tone: 'blue', title: 'Task updated' },
   'task.status_changed': { icon: CheckCircle2, tone: 'green', title: 'Task moved' },

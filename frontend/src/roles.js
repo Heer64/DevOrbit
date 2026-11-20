@@ -16,6 +16,8 @@ export function canActOnMember(actorRole, targetRole) {
 }
 
 export const canManageMembers = (role) => role === 'Owner' || role === 'Admin';
+// [Sprint 7 · M7] Only the Owner can hand the project to another member (they then become an Admin).
+export const canTransferOwnership = (role) => role === 'Owner';
 
 // Task rules (same as canWriteTasks / canDeleteTask in backend/src/lib/permissions.js).
 export const canWriteTasks = (role) => role === 'Owner' || role === 'Admin' || role === 'Contributor';

@@ -2,6 +2,10 @@
 export const ROLES = ['Owner', 'Admin', 'Contributor', 'Viewer'];
 export const ASSIGNABLE_ROLES = ['Admin', 'Contributor', 'Viewer'];
 
+// [Sprint 7 · M7] The Owner role is only ever handed over with "Transfer ownership" (checkTransferOwnership),
+// never set through a role change or when adding someone, so a project always has exactly one Owner.
+export const OWNER_ROLE_MESSAGE = 'A project has one Owner. Use "Transfer ownership" to make another member the Owner.';
+
 export function isRole(value) {
   return ROLES.includes(value);
 }
@@ -40,7 +44,7 @@ export function checkRoleChange(actorRole, targetRole, newRole) {
     return { ok: false, status: 403, message: 'Only project Owners and Admins can change roles.' };
   }
   if (!isRole(newRole)) return { ok: false, status: 400, message: `Role must be one of: ${ROLES.join(', ')}.` };
-  if (newRole === 'Owner') return { ok: false, status: 400, message: 'A project has one Owner. Ownership transfer is not supported yet.' };
+  if (newRole === 'Owner') return { ok: false, status: 400, message: OWNER_ROLE_MESSAGE };
   if (targetRole === 'Owner') return { ok: false, status: 403, message: "The project Owner's role cannot be changed." };
   if (!canActOnMember(actorRole, targetRole)) {
     return { ok: false, status: 403, message: 'Admins can only manage Contributors and Viewers.' };
@@ -57,10 +61,24 @@ export function checkAddMember(actorRole, newRole) {
     return { ok: false, status: 403, message: 'Only project Owners and Admins can add members.' };
   }
   if (!isRole(newRole)) return { ok: false, status: 400, message: `Role must be one of: ${ROLES.join(', ')}.` };
-  if (newRole === 'Owner') return { ok: false, status: 400, message: 'A project has one Owner. Ownership transfer is not supported yet.' };
+  if (newRole === 'Owner') return { ok: false, status: 400, message: OWNER_ROLE_MESSAGE };
   if (!assignableRoles(actorRole).includes(newRole)) {
     return { ok: false, status: 403, message: `Your role cannot assign the ${newRole} role.` };
   }
+  return { ok: true };
+}
+
+/*
+ * [Sprint 7 · M7] Transfer ownership. Only the Owner may hand the project to another current member.
+ * The new member becomes the Owner and the old Owner becomes an Admin, in one step, so the project
+ * always has exactly one Owner. Afterwards the former Owner can leave like any Admin (US-14).
+ * Returns { ok: true } or { ok: false, status, message }. targetRole is null when the person is not a member.
+ */
+export function checkTransferOwnership(actorRole, targetRole, isSelf) {
+  if (actorRole !== 'Owner') return { ok: false, status: 403, message: 'Only the project Owner can transfer ownership.' };
+  if (isSelf) return { ok: false, status: 400, message: 'You are already the Owner. Choose another member.' };
+  if (!targetRole) return { ok: false, status: 404, message: 'That person is not a member of this project.' };
+  if (!isRole(targetRole)) return { ok: false, status: 400, message: 'That member has an unknown role.' };
   return { ok: true };
 }
 

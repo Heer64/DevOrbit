@@ -10,13 +10,18 @@ import {
   summarizeTaskCounts,
   upcomingWindow,
 } from './dashboardRules.js';
+import { daysOverdue, overdueFilter } from './healthRules.js'; // [Sprint 7 · M7] FR-15: same overdue rule as project health
 
 /*
  * [Sprint 4 · M7] Project dashboard data (US-39, FR-15). Rules: ./dashboardRules.js.
+ * [Sprint 7 · M7] FR-15 also asks for overdue tasks: open tasks whose due day has ended, using the exact
+ * rule of project health (US-40, lib/healthRules.js overdueFilter / daysOverdue), so both views agree.
+ * A task is never both overdue and "due in the next 7 days" (the windows meet at midnight UTC today).
  * Callers must check project membership first (routes/dashboard.js does).
  */
 
 export const TASK_STATUSES = Task.schema.path('status').enumValues;
+export const OVERDUE_LIST_LIMIT = 50;
 
 // Task counts per milestone: Map(milestoneId -> { total, done }).
 // Shared with routes/milestones.js so the Milestones tab and the dashboard agree.
@@ -58,11 +63,12 @@ const shapeTask = (task) => ({
  *   milestones: { total, completed, items: [{ _id, title, description, dueDate, taskCount, doneCount, progress, completed }] },
  *   tasks:      { total, open, done, byStatus: { 'To do', 'In progress', 'Blocked', 'Done' } },
  *   dueSoon:    { days, from, to, total, limit, tasks: [{ _id, title, status, priority, dueDate, assignee, milestone }] },
+ *   overdue:    { total, limit, tasks: [{ _id, title, status, priority, dueDate, daysOverdue, assignee, milestone }] }  most overdue first
  *   generatedAt
  * }
  * `now` is only for tests; the route always uses the current time.
  */
-export async function buildProjectDashboard(projectId, { now = new Date(), days = UPCOMING_DAYS, limit = DUE_SOON_LIST_LIMIT } = {}) {
+export async function buildProjectDashboard(projectId, { now = new Date(), days = UPCOMING_DAYS, limit = DUE_SOON_LIST_LIMIT, overdueLimit = OVERDUE_LIST_LIMIT } = {}) {
   const window = upcomingWindow(now, days);
   const dueFilter = {
     project: projectId,
@@ -70,7 +76,9 @@ export async function buildProjectDashboard(projectId, { now = new Date(), days 
     dueDate: { $gte: window.from, $lt: window.until },
   };
 
-  const [milestones, statusRows, dueTasks, dueTotal] = await Promise.all([
+  const lateFilter = overdueFilter(projectId, now);
+
+  const [milestones, statusRows, dueTasks, dueTotal, lateTasks, lateTotal] = await Promise.all([
     Milestone.find({ project: projectId }).select('title description dueDate createdAt').lean(),
     Task.aggregate([
       { $match: { project: projectId } },
@@ -84,6 +92,14 @@ export async function buildProjectDashboard(projectId, { now = new Date(), days 
       .populate('milestone', 'title')
       .lean(),
     Task.countDocuments(dueFilter),
+    Task.find(lateFilter)
+      .sort({ dueDate: 1, _id: 1 })
+      .limit(overdueLimit)
+      .select('title status priority dueDate assignee milestone')
+      .populate('assignee', 'name username avatarUrl')
+      .populate('milestone', 'title')
+      .lean(),
+    Task.countDocuments(lateFilter),
   ]);
 
   milestones.sort(compareMilestones);
@@ -104,6 +120,11 @@ export async function buildProjectDashboard(projectId, { now = new Date(), days 
       total: dueTotal,
       limit,
       tasks: dueTasks.map(shapeTask),
+    },
+    overdue: {
+      total: lateTotal,
+      limit: overdueLimit,
+      tasks: lateTasks.map((task) => ({ ...shapeTask(task), daysOverdue: daysOverdue(task, now) })),
     },
     generatedAt: new Date(now).toISOString(),
   };

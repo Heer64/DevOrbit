@@ -102,3 +102,33 @@ export function compareMilestones(a, b) {
 export function isoDay(value) {
   return startOfUtcDay(value).toISOString().slice(0, 10);
 }
+
+/*
+ * [Sprint 7 · M7] D7: the Dashboard's weekly goal, from real data instead of the fixed "4 of 5".
+ * The week is Monday 00:00 UTC up to (not including) next Monday 00:00 UTC, the same calendar-day
+ * rule as due dates. Use as { dueDate: { $gte: from, $lt: until } }.
+ *   weekWindow(Wed 18 Nov 2026) -> from Mon 16 Nov, until Mon 23 Nov, lastDay Sun 22 Nov
+ */
+export function weekWindow(now = new Date()) {
+  const today = startOfUtcDay(now);
+  const sinceMonday = (today.getUTCDay() + 6) % 7; // Monday 0 ... Sunday 6
+  const from = new Date(today.getTime() - sinceMonday * DAY_MS);
+  const until = new Date(from.getTime() + 7 * DAY_MS);
+  return { from, until, lastDay: new Date(until.getTime() - DAY_MS) };
+}
+
+/*
+ * weeklyGoal(total, done, window) -> { from, to, total, done, percent }
+ *   total = my tasks due this week, done = how many of them are Done, percent rounded (0 when total is 0).
+ */
+export function weeklyGoal(total = 0, done = 0, window = weekWindow()) {
+  const all = Math.max(0, Math.trunc(Number(total)) || 0);
+  const finished = Math.min(all, Math.max(0, Math.trunc(Number(done)) || 0));
+  return {
+    from: isoDay(window.from),
+    to: isoDay(window.lastDay),
+    total: all,
+    done: finished,
+    percent: all === 0 ? 0 : Math.round((finished / all) * 100),
+  };
+}
