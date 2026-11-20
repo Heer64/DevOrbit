@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import { readUsername } from './portfolioRules.js';
 import { PROFILE_FIELDS, profileView } from './userProfileRules.js';
 import { followerCount, isFollowing, totalVoteScore } from './follows.js'; // [Sprint 5 · M8] US-54
+import { followingCount } from './profileConnections.js'; // [Sprint 7 · M4]
 
 /*
  * [Sprint 5 · M3] US-06 View another user's profile (FR-19, FR-26).
@@ -20,8 +21,8 @@ import { followerCount, isFollowing, totalVoteScore } from './follows.js'; // [S
  * M7 votes). Never "likes" (NFR-27). See lib/follows.js.
  */
 export async function socialCountsFor(userId) {
-  const [followers, score] = await Promise.all([followerCount(userId), totalVoteScore(userId)]);
-  return { followerCount: followers, publicScore: score };
+  const [followers, following, score] = await Promise.all([followerCount(userId), followingCount(userId), totalVoteScore(userId)]);
+  return { followerCount: followers, followingCount: following, publicScore: score }; // [Sprint 7 · M4] + followingCount
 }
 
 // Returns the profile for a username, or null when there is no such user.

@@ -141,6 +141,19 @@ export const profileApi = {
   //   The profile (user() above) now also has isFollowing, and publicScore = total vote score (sum of net post scores).
   follow: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/follow`, { method: 'PUT' }),
   unfollow: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/follow`, { method: 'DELETE' }),
+  // [Sprint 7 · M4] Followers / following lists and projects on a profile. Contract: backend/src/routes/profile.js
+  //   followers(username, page) / following(username, page)
+  //     -> { people: [{ name, username, headline, avatarUrl }], total, page, pageSize, hasMore }   newest first, 20 a page
+  //   projects(username) -> { projects: [{ _id, name, description, domain, status, visibility, tags, color, role,
+  //                                         memberCount, viewerIsMember, path }] }   Public + Private you are in too
+  //   snapshot()         -> { snapshot: { projects, completedProjects, tasksCompleted, tasksCompletedThisWeek,
+  //                                       messagesPosted, decisionsRecorded, collaborators, followerCount,
+  //                                       followingCount, joinedAt } }   D6: My profile numbers
+  //   The profile (user() above) now also has followingCount.
+  followers: (username, page = 1) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/followers${page > 1 ? `?page=${page}` : ''}`),
+  following: (username, page = 1) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/following${page > 1 ? `?page=${page}` : ''}`),
+  projects: (username) => api(`/profile/users/${encodeURIComponent(String(username || ''))}/projects`),
+  snapshot: () => api('/profile/me/snapshot'),
 };
 
 // [Sprint 5 · M1] US-45: Discover for everyone, logged in or not. Contract: backend/src/routes/publicProjects.js

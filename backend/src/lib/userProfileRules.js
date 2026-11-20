@@ -35,7 +35,7 @@ const count = (value) => {
  * it is named here. A portfolio that was turned off (US-07) is never linked; the page shows
  * "not available" instead.
  */
-export function profileView(user, { followerCount = 0, publicScore = 0 } = {}, viewerId = null) {
+export function profileView(user, { followerCount = 0, followingCount = 0, publicScore = 0 } = {}, viewerId = null) {
   const portfolioAvailable = user.portfolioPublic !== false;
   return {
     name: user.name,
@@ -45,6 +45,7 @@ export function profileView(user, { followerCount = 0, publicScore = 0 } = {}, v
     avatarUrl: user.avatarUrl || '',
     skills: Array.isArray(user.skills) ? user.skills : [],
     followerCount: count(followerCount),
+    followingCount: count(followingCount), // [Sprint 7 · M4] how many people this user follows
     publicScore: Number.isFinite(Number(publicScore)) ? Math.trunc(Number(publicScore)) : 0,
     portfolio: {
       available: portfolioAvailable,

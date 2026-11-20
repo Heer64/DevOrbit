@@ -7,6 +7,9 @@ import { MAX_AVATAR_BYTES, detectImageType, saveAvatar, removeAvatarFile } from 
 import { loadUserProfile } from '../lib/userProfile.js'; // [Sprint 5 · M3] US-06
 import { PRIVACY_SETTING_MESSAGE, USER_NOT_FOUND_MESSAGE, badPrivacySetting } from '../lib/userProfileRules.js'; // [Sprint 5 · M3] US-06, US-07
 import { SKILL_SEARCH_LIMIT, parseSkillTags, rankBySkillMatch, skillTagFilter } from '../lib/skillSearchRules.js'; // [Sprint 5 · M4] US-48
+import { readUsername } from '../lib/portfolioRules.js'; // [Sprint 7 · M4]
+import { CONNECTION_KINDS, readPage } from '../lib/profileConnectionsRules.js'; // [Sprint 7 · M4]
+import { contributionSnapshot, listConnections, profileProjects } from '../lib/profileConnections.js'; // [Sprint 7 · M4]
 
 const router = Router();
 router.use(requireAuth);
@@ -73,6 +76,12 @@ router.patch('/me', async (req, res, next) => {
     }
     if (update.bio !== undefined && String(update.bio).length > 500) return res.status(400).json({ message: 'Bio must be 500 characters or fewer.' });
     if (update.headline !== undefined && String(update.headline).length > 120) return res.status(400).json({ message: 'Headline must be 120 characters or fewer.' });
+    // [Sprint 7 · M4] D6: the "About" section on My profile shows these three (they were stored but never shown).
+    for (const [field, label, max] of [['focus', 'Focus', 160], ['exploring', 'Exploring', 200], ['openTo', 'Open to', 200]]) {
+      if (update[field] === undefined) continue;
+      update[field] = String(update[field]).trim();
+      if (update[field].length > max) return res.status(400).json({ message: `${label} must be ${max} characters or fewer.` });
+    }
     if (update.skills !== undefined) {
       if (!Array.isArray(update.skills)) return res.status(400).json({ message: 'Skills must be a list.' });
       update.skills = [...new Set(update.skills.map((skill) => String(skill).trim()).filter(Boolean))];
@@ -140,6 +149,68 @@ router.get('/users/:username', async (req, res, next) => {
     const profile = await loadUserProfile(req.params.username, req.user.id);
     if (!profile) return res.status(404).json({ message: USER_NOT_FOUND_MESSAGE });
     return res.json({ profile });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/*
+ * [Sprint 7 · M4] Followers / following lists, projects on a profile, and D6 (real "About" and
+ * "Contribution snapshot" on My profile). Rules: lib/profileConnectionsRules.js, database: lib/profileConnections.js.
+ * All need login (router.use(requireAuth) above) and Cache-Control: no-store.
+ *
+ *   GET /api/profile/me/snapshot
+ *     200 { snapshot: { projects, completedProjects, tasksCompleted, tasksCompletedThisWeek, messagesPosted,
+ *                       decisionsRecorded, collaborators, followerCount, followingCount, joinedAt } }
+ *
+ *   GET /api/profile/users/:username/followers?page=1
+ *   GET /api/profile/users/:username/following?page=1
+ *     200 { people: [{ name, username, headline, avatarUrl }], total, page, pageSize, hasMore }
+ *     Newest first, 20 per page. No user IDs or emails. Works on your own and on other people's profiles.
+ *
+ *   GET /api/profile/users/:username/projects
+ *     200 { projects: [{ _id, name, description, domain, status, visibility, tags, color, role,
+ *                        memberCount, viewerIsMember, path }] }
+ *     Public projects of the user, plus Private ones only when the viewer is a member too.
+ *     path = /project/:id for members, /discover/:id (public project page) for everyone else.
+ *
+ *   404 { message: "User not found." } for an unknown username.
+ */
+router.get('/me/snapshot', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ snapshot: await contributionSnapshot(req.user.id) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+async function findProfileUser(req, res) {
+  const username = readUsername(req.params.username);
+  const user = username ? await User.findOne({ username }).select('_id').lean() : null;
+  if (!user) res.status(404).json({ message: USER_NOT_FOUND_MESSAGE });
+  return user;
+}
+
+for (const kind of CONNECTION_KINDS) {
+  router.get(`/users/:username/${kind}`, async (req, res, next) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      const user = await findProfileUser(req, res);
+      if (!user) return undefined;
+      return res.json(await listConnections(kind, user._id, readPage(req.query.page)));
+    } catch (error) {
+      return next(error);
+    }
+  });
+}
+
+router.get('/users/:username/projects', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const user = await findProfileUser(req, res);
+    if (!user) return undefined;
+    return res.json({ projects: await profileProjects(user._id, req.user.id) });
   } catch (error) {
     return next(error);
   }
