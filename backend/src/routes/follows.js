@@ -23,8 +23,9 @@ import { follow, followerCount, unfollow } from '../lib/follows.js';
  *   401                                  not logged in
  *
  * Privacy (M3, US-06/US-07): anyone logged in can open any profile by its link, so anyone logged in
- * can follow it; "appear in collaborator search" only affects search. Followers are never listed,
- * only counted.
+ * can follow it; "appear in collaborator search" only affects search.
+ * [Sprint 7 · M4] Followers and following are now also listed (GET .../followers and .../following in
+ * routes/profile.js), showing name, username, headline and photo only.
  */
 
 const router = Router({ mergeParams: true });

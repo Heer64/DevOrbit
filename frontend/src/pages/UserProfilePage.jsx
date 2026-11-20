@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Award, Lock, Users } from 'lucide-react';
+import { Award, Lock, UserCheck, Users } from 'lucide-react';
 import { assetUrl, directMessageApi, portfolioApi, profileApi } from '../api';
 import { Avatar, initialsOf } from '../components/ui';
 import PortfolioView from '../components/PortfolioView';
 import FollowButton from '../components/FollowButton'; // [Sprint 5 · M8] US-54
 import MessageUserButton from '../components/MessageUserButton'; // [Sprint 6 · M2] US-19
+import ProfileConnections from '../components/ProfileConnections'; // [Sprint 7 · M4] followers / following lists
+import ProfileProjects from '../components/ProfileProjects'; // [Sprint 7 · M4] projects on a profile
 
 /*
  * [Sprint 5 · M3] US-06 View another user's profile, read-only, at /people/:username (login required).
@@ -20,6 +22,10 @@ import MessageUserButton from '../components/MessageUserButton'; // [Sprint 6 ·
  *
  * [Sprint 6 · M2] US-19 AC1: a Message button next to Follow (not on your own profile) opens a private
  * direct conversation with this user at /messages/:conversationId, separate from all project channels.
+ *
+ * [Sprint 7 · M4] Followers / Following lists (each person links to their profile), the "Following"
+ * count next to Followers, and the user's projects: Public ones, plus Private ones only when you are
+ * a member too, each linking to its project page.
  */
 
 export const PORTFOLIO_NOT_AVAILABLE = 'This portfolio is not available.';
@@ -28,7 +34,7 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
   const { username } = useParams();
   const [state, setState] = useState({ loading: true, profile: null, error: '' });
   const [portfolio, setPortfolio] = useState({ loading: false, data: null, error: '' });
-  const [social, setSocial] = useState({ followerCount: 0, isFollowing: false }); // [Sprint 5 · M8]
+  const [social, setSocial] = useState({ followerCount: 0, followingCount: 0, isFollowing: false }); // [Sprint 5 · M8] [Sprint 7 · M4] + followingCount
 
   useEffect(() => {
     let active = true;
@@ -39,7 +45,7 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
         if (!active) return;
         const profile = result.profile;
         setState({ loading: false, profile, error: '' });
-        setSocial({ followerCount: profile?.followerCount ?? 0, isFollowing: Boolean(profile?.isFollowing) }); // [Sprint 5 · M8]
+        setSocial({ followerCount: profile?.followerCount ?? 0, followingCount: profile?.followingCount ?? 0, isFollowing: Boolean(profile?.isFollowing) }); // [Sprint 5 · M8] [Sprint 7 · M4]
         if (!profile?.portfolio?.available) return;
         setPortfolio({ loading: true, data: null, error: '' });
         portfolios.shared(profile.username)
@@ -92,6 +98,7 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
                   following={social.isFollowing}
                   api={api}
                   onChange={(next) => setSocial((current) => ({
+                    ...current, // [Sprint 7 · M4] keeps followingCount
                     isFollowing: next.following,
                     followerCount: Number.isFinite(next.followerCount) ? next.followerCount : current.followerCount,
                   }))}
@@ -102,6 +109,8 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
           </div>
           <div className="profile-stats" aria-label="Public stats">
             <b>{social.followerCount}<small><Users size={9} /> {social.followerCount === 1 ? 'Follower' : 'Followers'}</small></b>
+            {/* [Sprint 7 · M4] how many people this user follows */}
+            <b>{social.followingCount}<small><UserCheck size={9} /> Following</small></b>
             {/* [Sprint 5 · M8] FR-26: total vote score = sum of net post scores */}
             <b title="Sum of the net vote scores (upvotes minus downvotes) of this user's posts">{profile.publicScore}<small><Award size={9} /> Total vote score</small></b>
           </div>
@@ -114,9 +123,21 @@ export default function UserProfilePage({ api = profileApi, portfolios = portfol
             <div className="panel-head"><div><h2>Skills &amp; tools</h2><p>Skill tags on {profile.name}&rsquo;s profile.</p></div></div>
             <div className="skill-cloud">{profile.skills.length ? profile.skills.map((s) => <span key={s}>{s}</span>) : <small className="muted">No skills listed yet.</small>}</div>
           </section>
+          {/* [Sprint 7 · M4] Followers / following lists; reloads after Follow / Unfollow */}
+          <ProfileConnections
+            username={profile.username}
+            name={profile.name}
+            isMe={profile.isMe}
+            followerCount={social.followerCount}
+            followingCount={social.followingCount}
+            refreshKey={`${social.isFollowing}-${social.followerCount}`}
+            api={api}
+          />
         </div>
 
         <div className="stack-col">
+          {/* [Sprint 7 · M4] Public projects + Private ones the viewer is in too */}
+          <ProfileProjects username={profile.username} name={profile.name} isMe={profile.isMe} api={api} />
           <section className="panel" aria-label="Portfolio">
             <div className="panel-head"><div><div className="eyebrow">PORTFOLIO</div><h2 style={{ marginTop: 6 }}>Completed projects</h2><p>Roles and contributions in projects marked Completed.</p></div></div>
             {portfolioOff ? (

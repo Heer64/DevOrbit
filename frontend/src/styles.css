@@ -962,3 +962,15 @@ a.textbtn{text-decoration:none}
 .reset-hint{color:var(--muted);font-size:14px;line-height:1.6;margin:0}
 .reset-back{display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:14px}
 a.btn{text-decoration:none}
+
+/* [Sprint 7 · M4] Followers / following lists, projects on a profile, D6 About */
+.connection-tabs{margin-bottom:6px}
+.connection-tabs .pill{margin-left:4px;padding:2px 6px}
+.connection-row{color:var(--text);text-decoration:none}
+.connection-row:hover b{color:var(--accent)}
+.connection-more{margin-top:10px}
+a.profile-project{text-decoration:none}
+a.profile-project:hover b{color:var(--accent)}
+.about-empty{margin:4px 0 17px}
+.about-edit{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:760px){.about-edit{grid-template-columns:1fr}}

@@ -1,11 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, CalendarDays, Camera, Check, Code2, Edit3, ExternalLink, Github, Globe2, Linkedin, MapPin, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Camera, Check, Edit3, ExternalLink, Github, Lightbulb, Linkedin, MessageSquare, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { profileApi, projectApi, toProfileProject } from '../api';
 import { Avatar, Btn, Heading, tone } from '../components/ui';
 import MyPortfolioPanel from '../components/MyPortfolioPanel'; // [Sprint 5 · M5] US-49
 import PrivacySettings from '../components/PrivacySettings'; // [Sprint 5 · M3] US-07
+import ProfileConnections from '../components/ProfileConnections'; // [Sprint 7 · M4] followers / following lists
+
+/*
+ * [Sprint 7 · M4] D6: the "About" text and the "Contribution snapshot" numbers on My profile were fixed
+ * placeholders (and so were "Ahmedabad, India", "Joined September 2026" and "devorbit.community").
+ * Now:
+ *   About                  your own Focus / Exploring / Open to (User fields, edited in "Edit profile")
+ *   Contribution snapshot  real counts from GET /api/profile/me/snapshot (tasks done, this week, messages,
+ *                          decisions, collaborators, completed projects)
+ *   Joined                 the real sign-up month
+ *   Followers / Following  real counts, and the two lists (ProfileConnections)
+ */
+export const ABOUT_FIELDS = [
+  { key: 'focus', label: 'FOCUSED ON', editLabel: 'Focused on', placeholder: 'e.g. Realtime collaboration tools', max: 160 },
+  { key: 'exploring', label: 'EXPLORING', editLabel: 'Exploring', placeholder: 'e.g. Rust and WebAssembly', max: 200 },
+  { key: 'openTo', label: 'OPEN TO', editLabel: 'Open to', placeholder: 'e.g. Hackathon teams, open-source projects', max: 200 },
+];
+
+export function joinedText(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return `Joined ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+}
 
 const initialProjects = [
   { name: 'Orbit dashboard', role: 'Frontend & product', tech: ['React', 'CSS'], color: 'violet', status: 'In progress', progress: 72 },
@@ -24,6 +47,8 @@ export default function ProfilePage() {
   const [skills, setSkills] = useState(user?.skills?.length ? user.skills : (user?.isDemo ? initialSkills : []));
   const [githubUrl, setGithubUrl] = useState(user?.githubUrl || '');
   const [linkedinUrl, setLinkedinUrl] = useState(user?.linkedinUrl || '');
+  const [about, setAbout] = useState(() => aboutOf(user)); // [Sprint 7 · M4] D6
+  const [snapshot, setSnapshot] = useState(null); // [Sprint 7 · M4] D6 real numbers (null while loading / demo)
   const [newSkill, setNewSkill] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +63,20 @@ export default function ProfilePage() {
     setSkills(user?.skills?.length ? user.skills : (user?.isDemo ? initialSkills : []));
     setGithubUrl(user?.githubUrl || '');
     setLinkedinUrl(user?.linkedinUrl || '');
+    setAbout(aboutOf(user)); // [Sprint 7 · M4]
   }, [user?.id]);
+
+  // [Sprint 7 · M4] D6: real contribution numbers, follower counts and join date.
+  useEffect(() => {
+    let active = true;
+    if (!user || user.isDemo || typeof profileApi.snapshot !== 'function') { setSnapshot(null); return undefined; }
+    const loadSnapshot = () => profileApi.snapshot()
+      .then((result) => { if (active) setSnapshot(result.snapshot || null); })
+      .catch(() => { if (active) setSnapshot(null); });
+    loadSnapshot();
+    window.addEventListener('devorbit:projects-updated', loadSnapshot);
+    return () => { active = false; window.removeEventListener('devorbit:projects-updated', loadSnapshot); };
+  }, [user?.id, user?.isDemo]);
 
   useEffect(() => {
     let active = true;
@@ -61,7 +99,10 @@ export default function ProfilePage() {
   const addSkill = () => { const value = newSkill.trim(); if (value && !skills.includes(value) && skills.length < 10) setSkills([...skills, value]); setNewSkill(''); };
   const saveProfile = async () => {
     setProfileError(''); setSaving(true);
-    const payload = { bio: bio.trim(), headline: bio.trim().slice(0, 120), skills, githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim() };
+    const payload = {
+      bio: bio.trim(), headline: bio.trim().slice(0, 120), skills, githubUrl: githubUrl.trim(), linkedinUrl: linkedinUrl.trim(),
+      ...Object.fromEntries(ABOUT_FIELDS.map(({ key }) => [key, (about[key] || '').trim()])), // [Sprint 7 · M4] D6
+    };
     try {
       if (user?.isDemo) updateUser({ ...user, ...payload });
       else { const result = await profileApi.update(payload); updateUser(result.user); }
@@ -115,9 +156,8 @@ export default function ProfilePage() {
             <p>@{user?.username || fullName.toLowerCase().replace(/\s+/g, '.')} · Builder</p>
             <p className="bio">{bio || 'Add a short bio to introduce yourself to the DevOrbit community.'}</p>
             <div className="profile-links">
-              <span><MapPin size={14} /> Ahmedabad, India</span>
-              <span><CalendarDays size={14} /> Joined September 2026</span>
-              <span><Globe2 size={14} /> devorbit.community</span>
+              {/* [Sprint 7 · M4] D6: real join date (the fixed location and website were removed) */}
+              {joinedText(snapshot?.joinedAt) && <span><CalendarDays size={14} /> {joinedText(snapshot.joinedAt)}</span>}
               {githubUrl && <a href={githubHref} target="_blank" rel="noreferrer"><Github size={14} /> GitHub <ExternalLink size={11} /></a>}
               {linkedinUrl && <a href={linkedinHref} target="_blank" rel="noreferrer"><Linkedin size={14} /> LinkedIn <ExternalLink size={11} /></a>}
             </div>
@@ -125,6 +165,9 @@ export default function ProfilePage() {
           <div className="profile-stats">
             <b>{String(myProjects.length).padStart(2, '0')}<small>Projects</small></b>
             <b>{String(skills.length).padStart(2, '0')}<small>Skills</small></b>
+            {/* [Sprint 7 · M4] real follower / following counts */}
+            {snapshot && <b>{snapshot.followerCount}<small>{snapshot.followerCount === 1 ? 'Follower' : 'Followers'}</small></b>}
+            {snapshot && <b>{snapshot.followingCount}<small>Following</small></b>}
           </div>
         </div>
       </section>
@@ -155,6 +198,14 @@ export default function ProfilePage() {
             </div>
           </label>
           <div className="skill-cloud">{skills.map((s) => <button type="button" key={s} className="removable" onClick={() => setSkills(skills.filter((x) => x !== s))}>{s}<X size={12} /></button>)}</div>
+          {/* [Sprint 7 · M4] D6: what the About section shows */}
+          <div className="edit-grid about-edit" style={{ marginTop: 16 }}>
+            {ABOUT_FIELDS.map((field) => (
+              <label key={field.key}>{field.editLabel}
+                <input value={about[field.key]} maxLength={field.max} placeholder={field.placeholder} onChange={(e) => setAbout({ ...about, [field.key]: e.target.value })} />
+              </label>
+            ))}
+          </div>
           <div className="edit-grid" style={{ marginTop: 16 }}>
             <label>GitHub profile URL<input value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/username" maxLength={2048} /></label>
             <label>LinkedIn profile URL<input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/username" maxLength={2048} /></label>
@@ -180,8 +231,15 @@ export default function ProfilePage() {
       <div className="profile-columns">
         <div className="stack-col">
           <section className="panel">
-            <div className="panel-head"><div><h2>About</h2><p>A little about how I work.</p></div></div>
-            <p className="about-copy">I'm a developer who enjoys turning fuzzy ideas into clear, useful products. I like collaborating across the stack, learning in public, and making tools that help teams do their best work.</p>
+            <div className="panel-head"><div><h2>About</h2><p>What you're focused on, exploring and open to.</p></div><button className="iconbtn" onClick={() => setEditing(true)} title="Edit about" aria-label="Edit about"><Edit3 size={15} /></button></div>
+            {/* [Sprint 7 · M4] D6: your own words instead of the fixed text */}
+            {ABOUT_FIELDS.some(({ key }) => (user?.[key] || '').trim()) ? (
+              ABOUT_FIELDS.filter(({ key }) => (user?.[key] || '').trim()).map(({ key, label }) => (
+                <div className="about-row" key={key}><small>{label}</small><b>{user[key]}</b></div>
+              ))
+            ) : (
+              <p className="empty-inline about-empty">Tell people what you're focused on, exploring and open to. <button className="link" onClick={() => setEditing(true)}>Add details</button></p>
+            )}
             <div className="social-links">
               <a className="social-card" href={githubHref} target="_blank" rel="noreferrer"><span className="social-icon"><Github size={17} /></span><span><small>GITHUB</small><strong>{githubUrl ? cleanUrl(githubUrl) : 'Add your GitHub profile'}</strong></span><ArrowUpRight size={15} /></a>
               <a className="social-card" href={linkedinHref} target="_blank" rel="noreferrer"><span className="social-icon"><Linkedin size={17} /></span><span><small>LINKEDIN</small><strong>{linkedinUrl ? cleanUrl(linkedinUrl) : 'Add your LinkedIn profile'}</strong></span><ArrowUpRight size={15} /></a>
@@ -196,10 +254,12 @@ export default function ProfilePage() {
 
           <section className="panel">
             <div className="panel-head"><div><div className="eyebrow">MY ORBIT</div><h2 style={{ marginTop: 6 }}>Contribution snapshot</h2></div></div>
-            <div className="contrib-stat"><span className="event-icon purple"><Code2 size={17} /></span><div><b>18</b><small>Commits contributed</small></div><span className="contrib-change">+6 this week</span></div>
-            <div className="contrib-stat"><span className="event-icon green"><Check size={17} /></span><div><b>24</b><small>Tasks completed</small></div></div>
-            <div className="contrib-stat"><span className="event-icon blue"><Users size={17} /></span><div><b>12</b><small>Collaborators</small></div></div>
-            <div className="momentum"><div><b>86%</b><small>weekly momentum</small></div><div className="momentum-ring"><span>↗</span></div></div>
+            {/* [Sprint 7 · M4] D6: real numbers from GET /api/profile/me/snapshot ("—" while loading) */}
+            <div className="contrib-stat"><span className="event-icon green"><Check size={17} /></span><div><b>{shown(snapshot?.tasksCompleted)}</b><small>Tasks completed</small></div>{snapshot?.tasksCompletedThisWeek > 0 && <span className="contrib-change">+{snapshot.tasksCompletedThisWeek} this week</span>}</div>
+            <div className="contrib-stat"><span className="event-icon purple"><MessageSquare size={17} /></span><div><b>{shown(snapshot?.messagesPosted)}</b><small>Messages posted</small></div></div>
+            <div className="contrib-stat"><span className="event-icon orange"><Lightbulb size={17} /></span><div><b>{shown(snapshot?.decisionsRecorded)}</b><small>Decisions recorded</small></div></div>
+            <div className="contrib-stat"><span className="event-icon blue"><Users size={17} /></span><div><b>{shown(snapshot?.collaborators)}</b><small>Collaborators</small></div></div>
+            <div className="momentum"><div><b>{snapshot ? `${snapshot.completedProjects}/${snapshot.projects}` : '—'}</b><small>projects completed</small></div><div className="momentum-ring"><span>↗</span></div></div>
           </section>
         </div>
 
@@ -220,6 +280,16 @@ export default function ProfilePage() {
             {myProjects.length === 0 && <p className="empty-inline">No projects yet. Create or join a project to build your portfolio.</p>}
           </section>
 
+          {/* [Sprint 7 · M4] who follows me, whom I follow */}
+          {!user?.isDemo && user?.username && (
+            <ProfileConnections
+              username={user.username}
+              isMe
+              followerCount={snapshot?.followerCount || 0}
+              followingCount={snapshot?.followingCount || 0}
+            />
+          )}
+
           <section className="note-card">
             <div className="eyebrow"><Sparkles size={13} /> KEEP GROWING</div>
             <h3>Your work tells a story.</h3>
@@ -230,6 +300,15 @@ export default function ProfilePage() {
       </div>
     </>
   );
+}
+
+// [Sprint 7 · M4] D6 helpers
+function aboutOf(user) {
+  return Object.fromEntries(ABOUT_FIELDS.map(({ key }) => [key, user?.[key] || '']));
+}
+
+function shown(value) {
+  return Number.isFinite(value) ? value : '—';
 }
 
 function toExternalUrl(value, fallback) {

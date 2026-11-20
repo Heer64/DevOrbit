@@ -43,8 +43,8 @@ test('US-06 AC1: the profile shows photo, bio, skill tags, follower count and pu
 test('US-06 AC2: hidden fields are never in the view (allow-list only)', () => {
   const view = profileView(user(), {}, null);
   assert.deepEqual(Object.keys(view).sort(), [
-    'avatarUrl', 'bio', 'followerCount', 'headline', 'isMe', 'name', 'portfolio', 'publicScore', 'skills', 'username',
-  ]);
+    'avatarUrl', 'bio', 'followerCount', 'followingCount', 'headline', 'isMe', 'name', 'portfolio', 'publicScore', 'skills', 'username',
+  ]); // [Sprint 7 · M4] + followingCount
   const text = JSON.stringify(view);
   for (const secret of ['bob@example.com', 'secret-hash', USER_ID, 'Design systems', 'profileDiscoverable', 'portfolioPublic']) {
     assert.ok(!text.includes(secret), `${secret} must not be sent`);
