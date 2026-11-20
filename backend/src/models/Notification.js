@@ -12,10 +12,11 @@ import mongoose from 'mongoose';
 // [Sprint 6 · M7] US-56 (FR-27, FR-33 "moderation warning") and FR-20 (the requester is told the outcome of a
 // join request). These are about the recipient personally, so they are shown to them whether or not they are a
 // member of a project (a warned post belongs to no project; a declined requester never became a member).
-export const PERSONAL_NOTIFICATION_TYPES = ['moderation_warning', 'join_approved', 'join_rejected'];
+// [Sprint 7 · M3] post_reply: someone commented on your public post or replied to your comment (no project).
+export const PERSONAL_NOTIFICATION_TYPES = ['moderation_warning', 'join_approved', 'join_rejected', 'post_reply'];
 export const NOTIFICATION_TYPES = ['mention', 'assignment', 'deadline', ...PERSONAL_NOTIFICATION_TYPES]; // [Sprint 6 · M7] + personal types
 // Types that belong to no project (the project field stays empty).
-export const PROJECTLESS_NOTIFICATION_TYPES = ['moderation_warning'];
+export const PROJECTLESS_NOTIFICATION_TYPES = ['moderation_warning', 'post_reply']; // [Sprint 7 · M3] + post_reply
 
 // Label the UI shows for each type (US-30 acceptance criteria wording).
 export const NOTIFICATION_LABELS = {
@@ -25,6 +26,7 @@ export const NOTIFICATION_LABELS = {
   moderation_warning: 'Moderation warning', // [Sprint 6 · M7] US-56
   join_approved: 'Join request approved', // [Sprint 6 · M7] FR-20
   join_rejected: 'Join request declined', // [Sprint 6 · M7] FR-20
+  post_reply: 'Reply', // [Sprint 7 · M3] a comment on your post, or a reply to your comment
 };
 
 // What a notification points at. Same names as Activity TARGET_TYPES (shared event schema).

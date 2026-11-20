@@ -140,7 +140,8 @@ export function readPageLimit(raw) {
  * API shape of one post. The GridFS id of the image stays on the server.
  *   { _id, author { _id, name, username, avatarUrl } | null, text, imageUrl | null,
  *     image { contentType, size } | null, edited, editedAt, createdAt, updatedAt,
- *     upvotes, downvotes, score, isMine }
+ *     upvotes, downvotes, score, commentCount, isMine }
+ * [Sprint 7 · M3] commentCount = comments + replies on the post (routes/postComments.js).
  * upvotes / downvotes / score are kept up to date by the vote engine (Sprint 5 · M7, lib/postVotes.js).
  * The routes add myVote (the viewer's own vote: 1, -1 or 0) with attachMyVotes().
  */
@@ -168,6 +169,7 @@ export function postView(post, viewerId = null) {
     upvotes: post.upvotes || 0,
     downvotes: post.downvotes || 0,
     score: post.score || 0,
+    commentCount: Math.max(0, post.commentCount || 0), // [Sprint 7 · M3]
     isMine: isPostAuthor(post, viewerId),
   };
 }

@@ -25,6 +25,7 @@ import projectFileRoutes from './routes/projectFiles.js'; // [Sprint 4 · M5] US
 import docRoutes from './routes/docs.js'; // [Sprint 4 · M6] US-38
 import publicProjectRoutes from './routes/publicProjects.js'; // [Sprint 5 · M1] US-45 public Discover (no login)
 import { portfolioRoutes, publicPortfolioRoutes } from './routes/portfolio.js'; // [Sprint 5 · M5] US-49 portfolio
+import postCommentRoutes from './routes/postComments.js'; // [Sprint 7 · M3] comments and replies on posts
 import postRoutes from './routes/posts.js'; // [Sprint 5 · M6] US-50, US-51 public posts
 import postVoteRoutes from './routes/postVotes.js'; // [Sprint 5 · M7] US-52 vote on a post
 import postReportRoutes from './routes/postReports.js'; // [Sprint 6 · M6] US-55 report a post
@@ -165,6 +166,7 @@ export function createApp() {
   // [Sprint 5 · M7] US-52. Mounted before the post routes so only vote URLs reach it.
   app.use('/api/posts/trending', trendingRoutes); // [Sprint 5 · M8] US-53 (before /api/posts, so "trending" is not a post ID)
   app.use('/api/posts/:postId/vote', postVoteRoutes);
+  app.use('/api/posts/:postId/comments', postCommentRoutes); // [Sprint 7 · M3] comments + replies (before /api/posts)
   app.use('/api/posts/:postId/report', postReportRoutes); // [Sprint 6 · M6] US-55 (before /api/posts, so only report URLs reach it)
   app.use('/api/posts', postRoutes); // [Sprint 5 · M6] US-50/US-51 public posts (login; only /:postId/image is open)
   app.use('/api/direct-messages', directMessageRoutes); // [Sprint 6 · M2] US-19 direct messages (only the two participants)

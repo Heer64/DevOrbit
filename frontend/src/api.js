@@ -241,6 +241,29 @@ export const postApi = {
   },
 };
 
+// [Sprint 7 · M3] Comments and replies on a feed post. Contract: backend/src/routes/postComments.js
+//   list(postId, { after, limit })            -> { comments (oldest first, each with replies + replyCount), nextAfter, commentCount }
+//   create(postId, { text, parentId })        -> 201 { comment, commentCount, message }   (parentId = reply to that comment)
+//   update(postId, commentId, { text })       -> { comment, message }                     (author only, 403 otherwise)
+//   remove(postId, commentId)                 -> { commentId, deleted: 'removed' | 'placeholder', comment, commentCount, message }
+const postCommentPath = (postId, commentId = '') =>
+  `${postPath(postId)}/comments${commentId ? `/${encodeURIComponent(commentId)}` : ''}`;
+
+export const postCommentApi = {
+  list: (postId, { after, limit } = {}) => {
+    const query = new URLSearchParams();
+    if (after) query.set('after', after);
+    if (limit) query.set('limit', String(limit));
+    const text = query.toString();
+    return api(`${postCommentPath(postId)}${text ? `?${text}` : ''}`);
+  },
+  create: (postId, { text, parentId = null }) =>
+    api(postCommentPath(postId), { method: 'POST', body: JSON.stringify(parentId ? { text, parentId } : { text }) }),
+  update: (postId, commentId, { text }) =>
+    api(postCommentPath(postId, commentId), { method: 'PATCH', body: JSON.stringify({ text }) }),
+  remove: (postId, commentId) => api(postCommentPath(postId, commentId), { method: 'DELETE' }),
+};
+
 export const projectApi = {
   list: () => api('/projects'),
   create: (payload) => api('/projects', { method: 'POST', body: JSON.stringify(payload) }),

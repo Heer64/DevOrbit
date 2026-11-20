@@ -63,8 +63,9 @@ test('Notification types match US-30 (Mention, Assignment, Deadline)', () => {
   // [Sprint 6 · M7] US-56 and FR-20 add three personal types after the US-30 ones (moderation warning, join outcome).
   assert.deepEqual(NOTIFICATION_TYPES.slice(0, 3), ['mention', 'assignment', 'deadline']);
   assert.deepEqual(NOTIFICATION_TYPES.slice(0, 3).map((type) => NOTIFICATION_LABELS[type]), ['Mention', 'Assignment', 'Deadline']);
-  assert.deepEqual(NOTIFICATION_TYPES.slice(3), ['moderation_warning', 'join_approved', 'join_rejected']);
-  assert.deepEqual(NOTIFICATION_TYPES.slice(3).map((type) => NOTIFICATION_LABELS[type]), ['Moderation warning', 'Join request approved', 'Join request declined']);
+  // [Sprint 7 · M3] + post_reply (a comment on your post, or a reply to your comment).
+  assert.deepEqual(NOTIFICATION_TYPES.slice(3), ['moderation_warning', 'join_approved', 'join_rejected', 'post_reply']);
+  assert.deepEqual(NOTIFICATION_TYPES.slice(3).map((type) => NOTIFICATION_LABELS[type]), ['Moderation warning', 'Join request approved', 'Join request declined', 'Reply']);
 });
 
 test('A stored notification is unread by default and has timestamps', async () => {

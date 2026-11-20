@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom'; // [Sprint 5 · M8]
-import { Flag, Pencil, Trash2 } from 'lucide-react';
-import { assetUrl, postApi } from '../api';
+import { Flag, MessageCircle, Pencil, Trash2 } from 'lucide-react';
+import { assetUrl, postApi, postCommentApi } from '../api';
 import { Avatar, initialsOf } from './ui';
 import ConfirmDialog from './ConfirmDialog';
 import PostVotes from './PostVotes'; // [Sprint 5 · M7] US-52
 import ReportPostDialog from './ReportPostDialog'; // [Sprint 6 · M6] US-55
 import { POST_TEXT_MAX, checkPostText, postErrorMessage, postTextLength, postTimeAgo } from '../posts';
 import { REPORT_CREATED_MESSAGE } from '../reports'; // [Sprint 6 · M6] US-55
+import PostComments from './PostComments'; // [Sprint 7 · M3]
+import { commentCountLabel } from '../comments'; // [Sprint 7 · M3]
 
 /*
  * [Sprint 5 · M6] One public post, with US-51 Edit or delete my post.
@@ -25,8 +27,13 @@ import { REPORT_CREATED_MESSAGE } from '../reports'; // [Sprint 6 · M6] US-55
  * pick a reason and send it to the moderators. After sending, the card says so; reporting the same
  * post again says "You have already reported this post." Your own posts have Edit/Delete instead.
  *
- * Props: post (API shape, see api.js postApi), api, onUpdated(post) (also called after a vote),
- *        onDeleted(postId), now (tests).
+ * [Sprint 7 · M3] Under the post a "N comments" button opens the comments (PostComments): comment, reply
+ * one level deep, edit or delete your own. The comments load only when opened, and the button keeps the
+ * post's comment count up to date (it also reaches the list through onUpdated).
+ *
+ * Props: post (API shape, see api.js postApi), api, onUpdated(post) (also called after a vote or a comment),
+ *        onDeleted(postId), now (tests), commentApi (postCommentApi, swapped in tests),
+ *        commentsOpen (start with the comments open).
  */
 
 // [Sprint 5 · M8] A link to /people/:username. Uses the router when there is one (the app), and a
@@ -39,7 +46,7 @@ export function ProfileLink({ username, className, children, ...rest }) {
     ? <Link to={to} className={className} {...rest}>{children}</Link>
     : <a href={to} className={className} {...rest}>{children}</a>;
 }
-export default function PostCard({ post, api = postApi, onUpdated, onDeleted, now }) {
+export default function PostCard({ post, api = postApi, onUpdated, onDeleted, now, commentApi = postCommentApi, commentsOpen = false }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.text);
   const [saving, setSaving] = useState(false);
@@ -51,6 +58,16 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
   const [reportNotice, setReportNotice] = useState('');
+  // [Sprint 7 · M3] comments: closed until asked for; the count follows every change made here.
+  const [showComments, setShowComments] = useState(commentsOpen);
+  const [countHere, setCountHere] = useState(null);
+  useEffect(() => { setCountHere(null); }, [post.commentCount]);
+  const commentCount = countHere ?? Math.max(0, post.commentCount || 0);
+  const commentsChanged = (count) => {
+    if (count === commentCount) return;
+    setCountHere(count);
+    onUpdated?.({ ...post, commentCount: count });
+  };
 
   const author = post.author || { name: 'Deleted user', username: '' };
   const length = postTextLength(draft);
@@ -173,6 +190,25 @@ export default function PostCard({ post, api = postApi, onUpdated, onDeleted, no
       <footer className="post-foot">
         <PostVotes post={post} api={api} onVoted={onUpdated} />
       </footer>
+
+      {/* [Sprint 7 · M3] comments and replies */}
+      <div className="post-comments-bar">
+        <button
+          type="button"
+          className="post-comments-toggle"
+          aria-expanded={showComments}
+          aria-controls={`comments-${post._id}`}
+          onClick={() => setShowComments((open) => !open)}
+        >
+          <MessageCircle size={15} aria-hidden="true" />
+          <span>{commentCount === 0 ? 'Add a comment' : commentCountLabel(commentCount)}</span>
+        </button>
+      </div>
+      {showComments && (
+        <div id={`comments-${post._id}`}>
+          <PostComments postId={post._id} api={commentApi} onCountChange={commentsChanged} now={now} />
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirming}

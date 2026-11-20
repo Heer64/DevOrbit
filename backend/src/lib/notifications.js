@@ -63,8 +63,9 @@ async function publish(saved) {
  *   moderation_warning   a Content Moderator warned them about their post (no project)
  *   join_approved        their join request was approved (project = that project)
  *   join_rejected        their join request was declined (project = that project; they are NOT a member)
+ *   post_reply           [Sprint 7 · M3] someone commented on their post or replied to their comment (no project)
  * Unlike createNotification() there is no "must be a member" check, because these people may not be members.
- * Only these three types are accepted. Same rules otherwise: never to the actor themselves, idempotent with a
+ * Only these types (PERSONAL_NOTIFICATION_TYPES) are accepted. Same rules otherwise: never to the actor themselves, idempotent with a
  * dedupeKey, never throws (returns null), pushed live like every other notification.
  */
 export async function createPersonalNotification({
