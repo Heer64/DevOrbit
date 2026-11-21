@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, CalendarDays, Camera, Check, Edit3, ExternalLink, Github, Lightbulb, Linkedin, MessageSquare, Plus, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Camera, Check, Edit3, ExternalLink, Github, Lightbulb, Linkedin, Lock, MessageSquare, Plus, Sparkles, Trash2, Users, X } from 'lucide-react'; // [Sprint 7 · M5] + Lock
 import { useAuth } from '../context/AuthContext';
 import { profileApi, projectApi, toProfileProject } from '../api';
 import { Avatar, Btn, Heading, tone } from '../components/ui';
 import MyPortfolioPanel from '../components/MyPortfolioPanel'; // [Sprint 5 · M5] US-49
-import PrivacySettings from '../components/PrivacySettings'; // [Sprint 5 · M3] US-07
 import ProfileConnections from '../components/ProfileConnections'; // [Sprint 7 · M4] followers / following lists
 
 /*
@@ -219,8 +218,9 @@ export default function ProfilePage() {
       )}
       {saved && !editing && <p className="success-inline">Profile updated successfully.</p>}
 
-      {/* [Sprint 5 · M3] US-07: appear in collaborator search, public portfolio. */}
-      <PrivacySettings user={user} onSaved={updateUser} />
+      {/* [Sprint 5 · M3] US-07: appear in collaborator search, public portfolio.
+          [Sprint 7 · M5] The two switches moved to the Settings page; this line points there. */}
+      <p className="tiny-note profile-privacy-moved"><Lock size={12} aria-hidden="true" /> Privacy switches (collaborator search, public portfolio) are in <button type="button" className="link" onClick={() => navigate('/settings#settings-privacy')}>Settings <ArrowUpRight size={12} /></button></p>
       {/* [Sprint 5 · M3] How other people see me (US-06). */}
       {!user?.isDemo && user?.username && <p className="tiny-note profile-preview-link"><button className="link" onClick={() => navigate(`/people/${encodeURIComponent(user.username)}`)}>See how others view your profile <ArrowUpRight size={12} /></button></p>}
 

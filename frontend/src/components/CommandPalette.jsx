@@ -70,7 +70,7 @@ export function CommandPalette({ open, onClose, items, onSearch }) {
 export const SHORTCUTS = [
   ['Ctrl K', 'Open the command palette'], ['/', 'Search (command palette)'], ['N', 'Create a project'],
   ['G then D', 'Go to Overview'], ['G then E', 'Go to Discover'], ['G then F', 'Go to Community feed'],
-  ['G then M', 'Go to Messages'], ['G then P', 'Go to My profile'], ['T', 'Switch theme'], ['?', 'Show this list'], ['Esc', 'Close dialogs'],
+  ['G then M', 'Go to Messages'], ['G then P', 'Go to My profile'], ['G then S', 'Go to Settings'], ['T', 'Switch theme'], ['?', 'Show this list'], ['Esc', 'Close dialogs'],
 ];
 
 export function ShortcutSheet({ open, onClose }) {

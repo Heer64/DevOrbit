@@ -1010,3 +1010,40 @@ a.profile-project:hover b{color:var(--accent)}
 .pd-due-day.overdue b{color:var(--danger)}
 @media (max-width:1100px){.pd-stats.pd-stats-4{grid-template-columns:1fr 1fr}.pd-stats.pd-stats-4 .pd-stat:first-child{grid-column:auto}}
 @media (max-width:560px){.pd-stats.pd-stats-4{grid-template-columns:1fr}.pd-due-day.overdue{width:80px}}
+
+/* [Sprint 7 · M5] Settings page: account, change password, privacy (moved from My profile), theme */
+.settings-page{max-width:1080px}
+.settings-layout{display:grid;grid-template-columns:190px minmax(0,1fr);gap:18px;align-items:start}
+.settings-nav{position:sticky;top:88px;display:flex;flex-direction:column;gap:3px}
+.settings-nav button{display:flex;align-items:center;gap:9px;padding:10px 11px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:14px;text-align:left;cursor:pointer}
+.settings-nav button:hover{background:var(--panel);color:var(--text)}
+.settings-nav button svg{color:var(--accent)}
+.settings-sections{display:flex;flex-direction:column;gap:12px;min-width:0}
+.settings-sections>div{scroll-margin-top:88px}
+.settings-sections .privacy-settings{margin-bottom:0}
+.settings-card{scroll-margin-top:88px}
+.settings-account{display:flex;align-items:center;gap:13px}
+.settings-account-text{flex:1;min-width:0}
+.settings-account-text b,.settings-account-text small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-account-text b{font-size:15px}
+.settings-account-text small{font-size:12.5px;color:var(--muted);margin-top:4px}
+.settings-form{display:flex;flex-direction:column;gap:12px}
+.settings-form label{display:flex;flex-direction:column;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.settings-form-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.settings-form-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.settings-form .form-error,.settings-form .success-inline{margin:0}
+.settings-footer{display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
+.settings-demo-note{font-size:13px;color:var(--muted);margin:0}
+.settings-theme-note{font-size:12.5px;color:var(--muted);margin:12px 0 0}
+.theme-options{flex-wrap:wrap}
+.theme-options label{min-width:150px}
+.pw-strength{display:inline-flex;align-items:center;gap:4px}
+.pw-strength i{width:26px;height:4px;border-radius:4px;background:var(--line)}
+.pw-strength small{margin-left:6px;font-size:12px;color:var(--muted)}
+.pw-strength.level-1 i:nth-child(-n+1){background:var(--danger)}
+.pw-strength.level-2 i:nth-child(-n+2){background:#ffb347}
+.pw-strength.level-3 i:nth-child(-n+3){background:var(--accent2)}
+.pw-strength.level-4 i{background:var(--green)}
+.profile-privacy-moved{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:0 0 12px}
+@media (max-width:860px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;overflow:auto}.settings-nav button{white-space:nowrap}}
+@media (max-width:620px){.settings-form-pair{grid-template-columns:1fr}.theme-options{flex-direction:column}}

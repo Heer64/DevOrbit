@@ -26,10 +26,20 @@ function cookieOptions() {
   };
 }
 
-// [Sprint 6 · M1] US-04: a password reset ends every session, so it also drops this browser's refresh cookie.
+/*
+ * [Sprint 6 · M1] US-04: a password reset ends every session, so it also drops this browser's refresh cookie.
+ * [Sprint 7 · M5] O9: the ONLY place that clears the refresh cookie. Express 4.21 deprecates passing maxAge (or
+ * expires) to res.clearCookie ("res.clearCookie: Passing "options.maxAge" is deprecated") and Express 5 ignores
+ * it. Worse, in Express 4 a maxAge overrides the "already expired" date, so the browser kept an empty cookie for
+ * 7 days instead of deleting it. Same name, path, httpOnly, secure and sameSite as when it was set, and no maxAge.
+ */
+export function refreshCookieClearOptions() {
+  const { maxAge: _maxAge, expires: _expires, ...options } = cookieOptions();
+  return options;
+}
+
 export function clearRefreshCookie(res) {
-  const { maxAge: _maxAge, ...options } = cookieOptions();
-  res.clearCookie(REFRESH_COOKIE, options);
+  res.clearCookie(REFRESH_COOKIE, refreshCookieClearOptions());
 }
 
 function readRefreshCookie(req) {
@@ -183,21 +193,21 @@ router.post('/refresh', async (req, res, next) => {
     }).select('+tokenHash');
 
     if (!session) {
-      res.clearCookie(REFRESH_COOKIE, cookieOptions());
+      clearRefreshCookie(res); // [Sprint 7 · M5] O9
       return res.status(401).json({ message: 'Session expired. Please log in again.' });
     }
 
     const user = await User.findById(session.user);
     if (!user) {
       await Session.deleteOne({ _id: session._id });
-      res.clearCookie(REFRESH_COOKIE, cookieOptions());
+      clearRefreshCookie(res); // [Sprint 7 · M5] O9
       return res.status(401).json({ message: 'User account no longer exists.' });
     }
     // [Sprint 6 · M8] US-58 AC1: suspending deletes the sessions, so this is only a safety net (e.g. a login that
     // finished at the same moment as the suspension). The session ends here and no new token is issued.
     if (user.suspendedAt) {
       await Session.deleteOne({ _id: session._id });
-      res.clearCookie(REFRESH_COOKIE, cookieOptions());
+      clearRefreshCookie(res); // [Sprint 7 · M5] O9
       return res.status(403).json({ message: PLATFORM_MESSAGES.accountSuspended, code: 'account_suspended' });
     }
 
@@ -219,12 +229,7 @@ router.post('/logout', async (req, res, next) => {
   try {
     const refreshToken = readRefreshCookie(req);
     if (refreshToken) await Session.deleteOne({ tokenHash: hashToken(refreshToken) });
-    res.clearCookie(REFRESH_COOKIE, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: REFRESH_COOKIE_PATH,
-    });
+    clearRefreshCookie(res); // [Sprint 7 · M5] O9: same options as every other clear
     return res.json({ message: 'Logged out successfully.' });
   } catch (error) {
     return next(error);

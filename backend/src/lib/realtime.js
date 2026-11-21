@@ -48,7 +48,8 @@ export const memberRoom = (projectId) => `project:${projectId}:members`;
 export const userRoom = (userId) => `user:${userId}`;
 
 // Same checks as middleware/auth.js requireAuth: a valid JWT, a live, unrevoked session and (Sprint 6 · M8) an active account.
-async function userIdFromToken(token) {
+// [Sprint 7 · M5] Also returns the session ID, so a password change can close only the OTHER sessions' sockets.
+async function identityFromToken(token) {
   if (!token || typeof token !== 'string') return null;
 
   try {
@@ -64,7 +65,7 @@ async function userIdFromToken(token) {
 
     // [Sprint 6 · M8] US-58: a suspended (or removed) account gets no live connection either.
     const account = await User.findById(claims.id).select('suspendedAt').lean();
-    return account && !account.suspendedAt ? String(claims.id) : null;
+    return account && !account.suspendedAt ? { userId: String(claims.id), sessionId: String(claims.sid) } : null;
   } catch {
     return null;
   }
@@ -76,9 +77,10 @@ export function initRealtime(httpServer, { origins = [] } = {}) {
   });
 
   io.use(async (socket, next) => {
-    const userId = await userIdFromToken(socket.handshake.auth?.token);
-    if (!userId) return next(new Error('Authentication required.'));
-    socket.data.userId = userId;
+    const identity = await identityFromToken(socket.handshake.auth?.token);
+    if (!identity) return next(new Error('Authentication required.'));
+    socket.data.userId = identity.userId;
+    socket.data.sessionId = identity.sessionId; // [Sprint 7 · M5]
     return next();
   });
 
@@ -271,6 +273,25 @@ export function emitToUser(userId, eventName, payload) {
 export function disconnectUser(userId) {
   if (!io || !userId) return;
   io.in(userRoom(String(userId))).disconnectSockets(true);
+}
+
+/*
+ * [Sprint 7 · M5] After a password change: closes the live connections of the user's OTHER sessions (other
+ * browsers and devices) and keeps the ones of the session that made the change. Their reconnect is refused by
+ * io.use above, because those sessions no longer exist. Returns how many sockets were closed.
+ * Safe to call when the socket server is not running (tests, scripts): it does nothing.
+ */
+export async function disconnectOtherSessions(userId, keepSessionId) {
+  if (!io || !userId) return 0;
+  const keep = String(keepSessionId || '');
+  const sockets = await io.in(userRoom(String(userId))).fetchSockets();
+  let closed = 0;
+  for (const socket of sockets) {
+    if (String(socket.data?.sessionId || '') === keep) continue;
+    socket.disconnect(true);
+    closed += 1;
+  }
+  return closed;
 }
 
 export async function closeRealtime() {
