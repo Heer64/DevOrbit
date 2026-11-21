@@ -16,7 +16,9 @@ export default function ThemeSettings() {
     <section className="panel settings-card" aria-label="Appearance">
       <div className="panel-head">
         <div>
-          <div className="eyebrow"><Palette size={12} /> APPEARANCE</div>
+          <div className="eyebrow">
+            <Palette size={12} /> APPEARANCE
+          </div>
           <h2 style={{ marginTop: 6 }}>Theme</h2>
           <p>Choose how DevOrbit looks on this device. It changes straight away.</p>
         </div>
@@ -26,15 +28,26 @@ export default function ThemeSettings() {
           const Icon = ICONS[value];
           return (
             <label key={value} className={choice === value ? 'on' : ''}>
-              <input type="radio" name="theme" value={value} checked={choice === value} onChange={() => setTheme(value)} aria-label={label} />
+              <input
+                type="radio"
+                name="theme"
+                value={value}
+                checked={choice === value}
+                onChange={() => setTheme(value)}
+                aria-label={label}
+              />
               <Icon size={15} aria-hidden="true" />
-              <span>{label}<small>{hint}</small></span>
+              <span>
+                {label}
+                <small>{hint}</small>
+              </span>
             </label>
           );
         })}
       </div>
       <p className="tiny-note settings-theme-note" aria-live="polite">
-        {choice === 'system' ? `Following this device: ${theme} right now.` : `${theme === 'dark' ? 'Dark' : 'Light'} theme is on.`} Saved in this browser.
+        {choice === 'system' ? `Following this device: ${theme} right now.` : `${theme === 'dark' ? 'Dark' : 'Light'} theme is on.`} Saved
+        in this browser.
       </p>
     </section>
   );

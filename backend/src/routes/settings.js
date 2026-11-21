@@ -55,8 +55,7 @@ router.post('/password', wrongPasswordLimiter, async (req, res, next) => {
     const user = await User.findById(req.user.id).select('+passwordHash');
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
-    const currentIsRight = currentPasswordWorthChecking(currentPassword)
-      && (await bcrypt.compare(currentPassword, user.passwordHash));
+    const currentIsRight = currentPasswordWorthChecking(currentPassword) && (await bcrypt.compare(currentPassword, user.passwordHash));
     if (!currentIsRight) {
       return res.status(400).json({ message: PASSWORD_CHANGE_MESSAGES.currentWrong, code: 'current_password_wrong' });
     }

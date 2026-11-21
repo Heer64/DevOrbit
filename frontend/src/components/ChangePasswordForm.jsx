@@ -25,23 +25,35 @@ export default function ChangePasswordForm({ user, api = settingsApi }) {
   // Focus the current-password box after a wrong guess. Done in an effect, because the box is disabled while
   // the request runs and a disabled input cannot take focus.
   const [focusTick, setFocusTick] = useState(0);
-  useEffect(() => { if (focusTick) currentRef.current?.focus(); }, [focusTick]);
+  useEffect(() => {
+    if (focusTick) currentRef.current?.focus();
+  }, [focusTick]);
   const demo = Boolean(user?.isDemo);
   const strength = passwordStrength(next);
 
-  const edit = (setter) => (event) => { setter(event.target.value); setError(''); setNotice(''); };
+  const edit = (setter) => (event) => {
+    setter(event.target.value);
+    setError('');
+    setNotice('');
+  };
 
   const submit = async (event) => {
     event.preventDefault();
     if (saving || demo) return;
     setNotice('');
     const problem = changePasswordFormProblem({ current, next, confirm });
-    if (problem) { setError(problem); return; }
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setError('');
     setSaving(true);
     try {
       const result = await api.changePassword(current, next);
-      setCurrent(''); setNext(''); setConfirm(''); setShow(false);
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+      setShow(false);
       setNotice(result?.message || 'Your password has been changed.');
     } catch (e) {
       const code = e?.response?.data?.code || e?.code;
@@ -61,7 +73,9 @@ export default function ChangePasswordForm({ user, api = settingsApi }) {
     <section className="panel settings-card" aria-label="Change password">
       <div className="panel-head">
         <div>
-          <div className="eyebrow"><KeyRound size={12} /> SECURITY</div>
+          <div className="eyebrow">
+            <KeyRound size={12} /> SECURITY
+          </div>
           <h2 style={{ marginTop: 6 }}>Change password</h2>
           <p>You need your current password. Every other device signed in to this account will be signed out; this one stays signed in.</p>
         </div>
@@ -73,30 +87,76 @@ export default function ChangePasswordForm({ user, api = settingsApi }) {
         <form className="settings-form" onSubmit={submit} noValidate>
           {/* Helps password managers save the new password against the right account. */}
           <input type="email" name="username" autoComplete="username" value={user?.email || ''} readOnly hidden aria-hidden="true" />
-          <label>Current password
-            <input ref={currentRef} className="field-input" type={type} name="current-password" autoComplete="current-password" value={current} onChange={edit(setCurrent)} disabled={saving} maxLength={256} />
+          <label>
+            Current password
+            <input
+              ref={currentRef}
+              className="field-input"
+              type={type}
+              name="current-password"
+              autoComplete="current-password"
+              value={current}
+              onChange={edit(setCurrent)}
+              disabled={saving}
+              maxLength={256}
+            />
           </label>
           <div className="settings-form-pair">
-            <label>New password
-              <input className="field-input" type={type} name="new-password" autoComplete="new-password" value={next} onChange={edit(setNext)} disabled={saving} maxLength={128} aria-describedby="new-password-hint" />
+            <label>
+              New password
+              <input
+                className="field-input"
+                type={type}
+                name="new-password"
+                autoComplete="new-password"
+                value={next}
+                onChange={edit(setNext)}
+                disabled={saving}
+                maxLength={128}
+                aria-describedby="new-password-hint"
+              />
             </label>
-            <label>Confirm new password
-              <input className="field-input" type={type} name="confirm-password" autoComplete="new-password" value={confirm} onChange={edit(setConfirm)} disabled={saving} maxLength={128} />
+            <label>
+              Confirm new password
+              <input
+                className="field-input"
+                type={type}
+                name="confirm-password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={edit(setConfirm)}
+                disabled={saving}
+                maxLength={128}
+              />
             </label>
           </div>
           <div className="settings-form-meta">
             <span id="new-password-hint" className={`pw-strength level-${strength.level}`}>
-              <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
+              <i aria-hidden="true" />
+              <i aria-hidden="true" />
+              <i aria-hidden="true" />
+              <i aria-hidden="true" />
               <small>{strength.label ? `Strength: ${strength.label}` : '8 to 128 characters.'}</small>
             </span>
             <button type="button" className="link" onClick={() => setShow((value) => !value)} aria-pressed={show}>
-              {show ? <EyeOff size={14} /> : <Eye size={14} />}{show ? 'Hide passwords' : 'Show passwords'}
+              {show ? <EyeOff size={14} /> : <Eye size={14} />}
+              {show ? 'Hide passwords' : 'Show passwords'}
             </button>
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
-          {notice && <p className="success-inline" role="status">{notice}</p>}
+          {error && (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          )}
+          {notice && (
+            <p className="success-inline" role="status">
+              {notice}
+            </p>
+          )}
           <div className="settings-footer">
-            <Btn type="submit" icon={Check} disabled={saving || !current || !next || !confirm}>{saving ? 'Changing…' : 'Change password'}</Btn>
+            <Btn type="submit" icon={Check} disabled={saving || !current || !next || !confirm}>
+              {saving ? 'Changing…' : 'Change password'}
+            </Btn>
           </div>
         </form>
       )}

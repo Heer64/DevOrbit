@@ -40,7 +40,10 @@ export default function SettingsPage() {
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Settings sections">
           {SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button type="button" key={id} onClick={() => jump(id)}><Icon size={15} aria-hidden="true" />{label}</button>
+            <button type="button" key={id} onClick={() => jump(id)}>
+              <Icon size={15} aria-hidden="true" />
+              {label}
+            </button>
           ))}
         </nav>
 
@@ -49,14 +52,25 @@ export default function SettingsPage() {
             <Avatar initials={user?.avatar || initialsOf(user?.name)} src={user?.avatarSrc} />
             <div className="settings-account-text">
               <b>{user?.name || 'Demo user'}</b>
-              <small>{user?.email || 'demo@devorbit.app'}{user?.username ? ` · @${user.username}` : ''}</small>
+              <small>
+                {user?.email || 'demo@devorbit.app'}
+                {user?.username ? ` · @${user.username}` : ''}
+              </small>
             </div>
-            <button type="button" className="link" onClick={() => navigate('/profile')}>Edit profile <ArrowUpRight size={13} /></button>
+            <button type="button" className="link" onClick={() => navigate('/profile')}>
+              Edit profile <ArrowUpRight size={13} />
+            </button>
           </section>
 
-          <div id="settings-security"><ChangePasswordForm user={user} /></div>
-          <div id="settings-privacy"><PrivacySettings user={user} onSaved={updateUser} /></div>
-          <div id="settings-appearance"><ThemeSettings /></div>
+          <div id="settings-security">
+            <ChangePasswordForm user={user} />
+          </div>
+          <div id="settings-privacy">
+            <PrivacySettings user={user} onSaved={updateUser} />
+          </div>
+          <div id="settings-appearance">
+            <ThemeSettings />
+          </div>
         </div>
       </div>
     </div>
