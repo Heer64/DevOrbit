@@ -156,6 +156,17 @@ export const profileApi = {
   snapshot: () => api('/profile/me/snapshot'),
 };
 
+// [Sprint 7 · M5] Settings page. Contract: backend/src/routes/settings.js
+//   changePassword(currentPassword, newPassword) -> { message, signedOutSessions }
+//     400 { message, code: 'current_password_wrong' } when the old password is not right (400, so a typo never
+//     signs you out), 400 { message } for a missing/short/unchanged new password, 429 after too many wrong tries.
+//   Every OTHER session of the account is signed out; this browser stays signed in.
+//   Privacy switches are still profileApi.update({ profileDiscoverable, portfolioPublic }) (US-07).
+export const settingsApi = {
+  changePassword: (currentPassword, newPassword) =>
+    api('/settings/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+};
+
 // [Sprint 5 · M1] US-45: Discover for everyone, logged in or not. Contract: backend/src/routes/publicProjects.js
 //   projects({ q, domain, tag, status, page }) -> { projects, page, pageSize, total, filters }
 //     each project: { _id, name, description, domain, tags, status, memberCount, createdAt, updatedAt }

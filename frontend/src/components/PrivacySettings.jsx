@@ -5,7 +5,7 @@ import { Btn } from './ui';
 
 /*
  * [Sprint 5 · M3] US-07 Set privacy preferences (FR-19, FR-21).
- * Two switches on the Profile page, saved with PATCH /api/profile/me:
+ * Two switches, saved with PATCH /api/profile/me. [Sprint 7 · M5] Shown on the Settings page (moved from My profile):
  *   profileDiscoverable  "Appear in collaborator search": off = not returned by people search (AC1)
  *   portfolioPublic      "Public portfolio": off = the portfolio link shows "not available" (AC2)
  * Both default to on (User model). Saving shows a success or error message (NFR-26).

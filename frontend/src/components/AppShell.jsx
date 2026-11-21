@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Compass, Flag, FolderKanban, Globe2, Keyboard, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Rocket, Search, ShieldCheck, Sparkles, Sun, UserPlus, UserRound, X } from 'lucide-react';
+import { Bell, ChevronDown, Compass, Flag, FolderKanban, Globe2, Keyboard, LayoutDashboard, Lock, LogOut, Menu, MessageCircle, MessagesSquare, Moon, Plus, Rocket, Search, Settings, ShieldCheck, Sparkles, Sun, UserPlus, UserRound, X } from 'lucide-react'; // [Sprint 7 · M5] + Settings
 import { CommandPalette, ShortcutSheet } from './CommandPalette';
 import Logo from './Logo';
 import { Avatar, initialsOf, tone } from './ui';
@@ -128,6 +128,7 @@ export default function AppShell() {
     { to: '/feed', label: 'Community feed', icon: MessagesSquare, key: 'f' }, // [Sprint 5 · M6] US-50/US-51
     { to: '/messages', label: 'Messages', icon: MessageCircle, key: 'm' }, // [Sprint 6 · M2] US-19 direct messages
     { to: '/profile', label: 'My profile', icon: UserRound, key: 'p' },
+    { to: '/settings', label: 'Settings', icon: Settings, key: 's' }, // [Sprint 7 · M5] Settings page
   ];
   // [Sprint 6 · M8] US-57, US-58: only Platform Admins see the Admin panel link (the server checks the role again).
   // [Sprint 6 · M7] US-56: Content Moderators and Platform Admins see the moderator queue link (the server checks again).
@@ -243,6 +244,8 @@ export default function AppShell() {
                 <div className="account-head"><b>{displayName}</b><small>{user?.email || 'demo@devorbit.app'}</small></div>
                 <div className="account-list">
                   <button type="button" role="menuitem" onClick={() => navigate('/profile')}><UserRound size={16} />Profile</button>
+                  {/* [Sprint 7 · M5] Settings page */}
+                  <button type="button" role="menuitem" onClick={() => navigate('/settings')}><Settings size={16} />Settings</button>
                   {user?.username && <button type="button" role="menuitem" onClick={() => navigate(`/portfolio/${user.username}`)}><Sparkles size={16} />My portfolio</button>}
                   <button type="button" role="menuitem" onClick={() => navigate('/welcome')}><Globe2 size={16} />Intro page</button>
                   <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShortcutsOpen(true); }}><Keyboard size={16} />Keyboard shortcuts</button>
@@ -320,6 +323,7 @@ function pageTitle(path) {
   if (path.startsWith('/project')) return 'Project workspace';
   if (path === '/dashboard') return 'Dashboard';
   if (path === '/profile') return 'My profile';
+  if (path === '/settings') return 'Settings'; // [Sprint 7 · M5]
   if (path === '/discover') return 'Discover';
   if (path === '/feed') return 'Community feed'; // [Sprint 5 · M6]
   if (path.startsWith('/messages')) return 'Messages'; // [Sprint 6 · M2] US-19

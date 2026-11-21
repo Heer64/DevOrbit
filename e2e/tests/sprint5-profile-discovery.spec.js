@@ -4,7 +4,8 @@ import { signUp, unique } from './helpers.js';
 
 test('Sprint 5 M3/M5: privacy settings persist and control portfolio visibility', async ({ page }) => {
   await signUp(page);
-  await page.goto('/profile');
+  // [Sprint 7 · M5] The privacy switches moved from My profile to the Settings page.
+  await page.goto('/settings');
   const privacy = page.getByRole('region', { name: 'Privacy settings' });
   const discoverable = privacy.getByRole('switch', { name: 'Appear in collaborator search' });
   const publicPortfolio = privacy.getByRole('switch', { name: 'Public portfolio' });
@@ -18,9 +19,11 @@ test('Sprint 5 M3/M5: privacy settings persist and control portfolio visibility'
   await page.reload();
   await expect(discoverable).not.toBeChecked();
   await expect(publicPortfolio).not.toBeChecked();
+  await page.goto('/profile');
   await expect(page.getByRole('region', { name: 'My portfolio' }))
     .toContainText('Your portfolio is private');
 
+  await page.goto('/settings');
   await discoverable.check();
   await publicPortfolio.check();
   await privacy.getByRole('button', { name: 'Save privacy settings' }).click();
@@ -28,6 +31,7 @@ test('Sprint 5 M3/M5: privacy settings persist and control portfolio visibility'
   await page.reload();
   await expect(discoverable).toBeChecked();
   await expect(publicPortfolio).toBeChecked();
+  await page.goto('/profile');
   await expect(page.getByRole('region', { name: 'My portfolio' }).getByRole('textbox', { name: 'Portfolio link' })).toBeVisible();
 });
 

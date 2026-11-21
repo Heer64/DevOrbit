@@ -18,6 +18,7 @@ import MessagesPage from './pages/MessagesPage'; // [Sprint 6 · M2] US-19
 import AdminPage from './pages/AdminPage'; // [Sprint 6 · M8] US-57, US-58
 import ModerationPage from './pages/ModerationPage'; // [Sprint 6 · M7] US-56
 import IntroPage from './pages/IntroPage'; // Solar Ember redesign: public scroll-story intro
+import SettingsPage from './pages/SettingsPage'; // [Sprint 7 · M5] Settings page
 
 // [Sprint 5 · M1] US-45 (Actor: Visitor): public pages open without logging in. Logged-out
 // visitors get the light PublicShell; logged-in users keep the normal AppShell around the same page.
@@ -54,6 +55,8 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        {/* [Sprint 7 · M5] Settings: change password, privacy switches (moved from My profile), theme. */}
+        <Route path="settings" element={<SettingsPage />} />
         {/* [Sprint 5 · M1] US-45: /discover moved out of ProtectedRoute (below) so visitors can open it. */}
         <Route path="project/:id" element={<ProjectPage />} />
         {/* [Sprint 5 · M3] US-06 (Actor: Registered User): another user's read-only profile, login required. */}
