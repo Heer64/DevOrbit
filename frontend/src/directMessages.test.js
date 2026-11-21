@@ -1,8 +1,11 @@
 // [Sprint 6 · M2] US-19 direct message helpers (no React, no network).
 import { describe, expect, it, vi } from 'vitest';
 import {
+  DM_DELETED_TEXT,
   DM_UNREAD_EVENT,
   activityTime,
+  deliveryLabel,
+  laterTime,
   announceUnreadTotal,
   badgeText,
   idOf,
@@ -108,5 +111,66 @@ describe('small helpers', () => {
     window.removeEventListener(DM_UNREAD_EVENT, handler);
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail).toEqual({ unreadTotal: 5 });
+  });
+});
+
+// [Sprint 7 · M2] Edit / delete my own messages, and Sent / Seen.
+describe('[Sprint 7 · M2] deliveryLabel (Sent / Seen under my own messages)', () => {
+  const mine = { _id: 'm1', sender: { _id: 'me' }, createdAt: '2026-11-20T10:00:00.000Z', body: 'hi' };
+  it('is "Sent" until the other person has read at or after the message time, then "Seen"', () => {
+    expect(deliveryLabel(mine, 'me', null)).toBe('Sent');
+    expect(deliveryLabel(mine, 'me', '2026-11-20T09:59:59.999Z')).toBe('Sent');
+    expect(deliveryLabel(mine, 'me', '2026-11-20T10:00:00.000Z')).toBe('Seen');
+    expect(deliveryLabel(mine, 'me', '2026-11-20T11:00:00.000Z')).toBe('Seen');
+  });
+  it('trusts a "seen" status from the server', () => {
+    expect(deliveryLabel({ ...mine, status: 'seen' }, 'me', null)).toBe('Seen');
+  });
+  it("shows nothing on the other person's messages, on deleted ones, or without a signed-in user", () => {
+    expect(deliveryLabel({ ...mine, sender: { _id: 'them' } }, 'me', '2026-11-21T00:00:00Z')).toBe('');
+    expect(deliveryLabel({ ...mine, deleted: true }, 'me', '2026-11-21T00:00:00Z')).toBe('');
+    expect(deliveryLabel(mine, '', null)).toBe('');
+    expect(deliveryLabel(null, 'me', null)).toBe('');
+  });
+});
+
+describe('[Sprint 7 · M2] laterTime (read times only move forward)', () => {
+  it('keeps the later of two times, and ignores a missing one', () => {
+    expect(laterTime(null, '2026-11-20T10:00:00Z')).toBe('2026-11-20T10:00:00Z');
+    expect(laterTime('2026-11-20T10:00:00Z', null)).toBe('2026-11-20T10:00:00Z');
+    expect(laterTime('2026-11-20T10:00:00Z', '2026-11-20T09:00:00Z')).toBe('2026-11-20T10:00:00Z');
+    expect(laterTime('2026-11-20T09:00:00Z', '2026-11-20T10:00:00Z')).toBe('2026-11-20T10:00:00Z');
+    expect(laterTime(null, null)).toBe(null);
+  });
+});
+
+describe('[Sprint 7 · M2] mergeDirectMessages with edited and deleted copies', () => {
+  const base = { _id: 'm1', sender: { _id: 'me' }, createdAt: '2026-11-20T10:00:00Z', body: 'v1', edited: false, deleted: false };
+  it('an edited copy replaces the old one in place', () => {
+    const list = mergeDirectMessages([base], [{ ...base, body: 'v2', edited: true, editedAt: '2026-11-20T10:05:00Z' }]);
+    expect(list).toHaveLength(1);
+    expect(list[0].body).toBe('v2');
+    expect(list[0].edited).toBe(true);
+  });
+  it('a deleted message never comes back, even if an older copy arrives later (slow page answer)', () => {
+    const deleted = { ...base, body: '', deleted: true, deletedAt: '2026-11-20T10:06:00Z' };
+    expect(mergeDirectMessages([deleted], [base])[0].deleted).toBe(true);
+    expect(mergeDirectMessages([base], [deleted])[0].deleted).toBe(true);
+  });
+  it('an older edit does not overwrite a newer one', () => {
+    const newer = { ...base, body: 'v3', edited: true, editedAt: '2026-11-20T10:09:00Z' };
+    const older = { ...base, body: 'v2', edited: true, editedAt: '2026-11-20T10:05:00Z' };
+    expect(mergeDirectMessages([newer], [older])[0].body).toBe('v3');
+  });
+  it('a known "seen" status is kept when a copy without it arrives', () => {
+    const list = mergeDirectMessages(
+      [{ ...base, status: 'seen' }],
+      [{ ...base, body: 'v2', edited: true, editedAt: '2026-11-20T10:05:00Z', status: null }]
+    );
+    expect(list[0].body).toBe('v2');
+    expect(list[0].status).toBe('seen');
+  });
+  it('DM_DELETED_TEXT matches the server text', () => {
+    expect(DM_DELETED_TEXT).toBe('Message deleted');
   });
 });

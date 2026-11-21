@@ -830,6 +830,33 @@ textarea.field-input{resize:vertical;min-height:90px}
 .dm-message.mine .dm-bubble{border-radius:14px 14px 4px 14px;background:var(--accent2);border-color:transparent;color:#fff}
 .dm-bubble p{margin:0;font-size:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 .dm-message time{font-size:11.5px;color:var(--muted)}
+/* [Sprint 7 · M2] edited / deleted messages, Sent / Seen, edit and delete my own messages */
+.dm-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:11.5px;color:var(--muted)}
+.dm-message.mine .dm-meta{justify-content:flex-end}
+.dm-edited{font-style:italic}
+.dm-status{display:inline-flex;align-items:center;gap:3px}
+.dm-status.seen{color:var(--accent);font-weight:600}
+.dm-actions{display:inline-flex;gap:2px;margin-left:2px;opacity:0;transition:opacity .15s}
+.dm-message:hover .dm-actions,.dm-message:focus-within .dm-actions{opacity:1}
+@media (hover:none){.dm-actions{opacity:1}}
+/* With a mouse, Edit / Delete float as a small toolbar on the corner of my bubble (shown on hover or keyboard
+   focus), so the hidden buttons take no room and never stick out of the message list */
+@media (hover:hover){
+  .dm-messages{padding-top:14px}
+  .dm-message.mine{position:relative}
+  .dm-message.mine .dm-actions{position:absolute;top:-12px;right:8px;z-index:1;margin:0;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--panel);box-shadow:0 4px 14px #0000002b}
+}
+.dm-action{display:grid;place-items:center;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted)}
+.dm-action:hover,.dm-action:focus-visible{background:var(--soft);color:var(--accent)}
+.dm-action.danger:hover,.dm-action.danger:focus-visible{background:var(--danger-bg);color:var(--danger)}
+.dm-message.deleted .dm-bubble,.dm-message.mine.deleted .dm-bubble{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.dm-deleted-text{display:inline-flex;align-items:center;gap:5px;font-style:italic}
+.dm-edit{display:flex;flex-direction:column;gap:6px;width:min(460px,100%)}
+.dm-edit textarea{width:100%;resize:vertical;min-height:56px;border:1px solid var(--accent);border-radius:10px;background:var(--bg);color:var(--text);padding:9px 11px;font-size:14px;line-height:1.45}
+.dm-edit textarea:focus{outline:none;box-shadow:0 0 0 3px #ff8a3d1f}
+.dm-edit-actions{display:flex;justify-content:flex-end;gap:6px}
+.dm-edit-actions .btn{padding:7px 11px;font-size:13px}
+.dm-edit-actions .btn:disabled{opacity:.6;cursor:default}
 .dm-composer{display:flex;gap:8px;align-items:flex-end}
 .dm-composer textarea{flex:1;min-width:0;resize:none;min-height:40px;max-height:140px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);padding:10px 12px;font-size:14.5px;line-height:1.4}
 .dm-composer textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px #ff8a3d1f}

@@ -15,6 +15,7 @@ import { announceUnreadTotal, idOf, setUnread, upsertConversation } from '../dir
  * to do with any project: no channel list, no project name.
  * AC2: the inbox follows live messages ('dm:message') and reads in my other tabs ('dm:read'), so a new
  * message moves its conversation to the top within a second. Only the two participants receive them.
+ * [Sprint 7 · M2] It also follows edited and deleted messages ('dm:updated').
  * Contract: backend/src/routes/directMessages.js.
  *
  * Props (for tests): api = directMessageApi, currentUser = the signed-in user from AuthContext.
@@ -60,6 +61,11 @@ export default function MessagesPage({ api = directMessageApi, currentUser }) {
       }),
       api.onRead?.((payload) => {
         if (payload?.conversationId) setConversations((old) => setUnread(old, payload.conversationId, 0));
+      }),
+      // [Sprint 7 · M2] An edited or deleted message: the inbox line follows it ("Message deleted" when it was the
+      // newest one), and a deleted unread message no longer counts.
+      api.onUpdated?.((payload) => {
+        if (payload?.conversation) setConversations((old) => upsertConversation(old || [], payload.conversation));
       }),
     ];
     return () => stops.forEach((stop) => stop?.());

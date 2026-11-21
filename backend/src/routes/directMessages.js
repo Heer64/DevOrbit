@@ -10,11 +10,15 @@ import {
   createSendLimiter,
   conversationView,
   idOf,
+  isMessageSender,
   otherParticipant,
   readBody,
   readLimit,
 } from '../lib/directMessageRules.js';
 import {
+  deleteMessage,
+  editMessage,
+  findMessageIn,
   inboxFor,
   loadConversationFor,
   markRead,
@@ -40,14 +44,30 @@ import {
  *                                     400 empty / too long / not text, 429 after 30 messages in a minute
  *                                     (Retry-After header), 410 the other account no longer exists
  * POST   /:conversationId/read      -> { unreadCount: 0, unreadTotal }
+ *                                     [Sprint 7 · M2] also tells the other person 'dm:seen' { conversationId, readAt }
+ *                                     (their messages up to readAt now show "Seen"). The read time is saved in the
+ *                                     conversation, so "Seen" survives reloads (otherReadAt / status below).
+ * PATCH  /:conversationId/messages/:messageId  { body } -> 200 { message, conversation, changed, notice }
+ *                                     [Sprint 7 · M2] edit your own message ("edited"). Same text rules as sending.
+ *                                     Same text again -> 200 changed: false (no "edited" mark).
+ *                                     400 invalid ID / empty / too long, 403 not your message,
+ *                                     404 unknown message, 409 { code: 'message_deleted' } it was deleted.
+ * DELETE /:conversationId/messages/:messageId  -> 200 { message, conversation, changed, notice }
+ *                                     [Sprint 7 · M2] delete your own message. It stays in the conversation as
+ *                                     "Message deleted" (deleted: true, body ''); its text is removed.
+ *                                     Already deleted -> 200 changed: false. 403 not your message, 404 unknown.
  *
  * conversation = { _id, otherUser: { _id, name, username, avatarUrl }, lastMessage: { preview, at, fromMe } | null,
- *                  unreadCount, activityAt, createdAt }
- * message      = { _id, conversation, sender: { _id, name, username, avatarUrl }, body, createdAt }
+ *                  unreadCount, otherReadAt, activityAt, createdAt }
+ * message      = { _id, conversation, sender: { _id, name, username, avatarUrl }, body, createdAt,
+ *                  edited, editedAt, deleted, deletedAt, status }
+ *                status ('sent' | 'seen') is only on the caller's own messages; null on the other person's.
+ * GET /:conversationId/messages also returns otherReadAt (when the other person last read the conversation).
  *
  * AC2 privacy: only the two participants can read a conversation. Anyone else gets 404, the same answer as
  * for a conversation that does not exist, so its existence is not revealed either. Live events
- * ('dm:message', 'dm:read', lib/realtime.js) go only to the participants' own rooms.
+ * ('dm:message', 'dm:read', and [Sprint 7 · M2] 'dm:updated', 'dm:seen'; lib/realtime.js) go only to the
+ * participants' own rooms. [Sprint 7 · M2] The other participant trying to edit or delete my message gets 403.
  * Separate from project channels (AC1): nothing here touches projects, channels or the Activity Feed.
  */
 
@@ -125,7 +145,7 @@ router.get('/:conversationId/messages', async (req, res, next) => {
     const { before } = req.query;
     if (before !== undefined && !validId(before)) return res.status(400).json({ message: DM_MESSAGES.invalidBefore });
 
-    const page = await messagePage(conversation, { limit: readLimit(req.query.limit), before });
+    const page = await messagePage(conversation, { limit: readLimit(req.query.limit), before, viewerId: req.user.id });
     if (!page) return res.status(400).json({ message: DM_MESSAGES.invalidBefore });
     return res.json(page);
   } catch (error) {
@@ -159,6 +179,72 @@ router.post('/:conversationId/messages', async (req, res, next) => {
   }
 });
 
+/*
+ * [Sprint 7 · M2] The message in the URL, for its sender only.
+ * 400 bad ID, 404 not a message of this conversation, 403 someone else's message. Returns null after answering.
+ */
+async function ownMessageFromUrl(req, res, conversation) {
+  if (!validId(req.params.messageId)) {
+    res.status(400).json({ message: DM_MESSAGES.invalidMessage });
+    return null;
+  }
+  const message = await findMessageIn(conversation, req.params.messageId);
+  if (!message) {
+    res.status(404).json({ message: DM_MESSAGES.messageNotFound });
+    return null;
+  }
+  if (!isMessageSender(message, req.user.id)) {
+    res.status(403).json({ message: DM_MESSAGES.notSender, code: 'not_sender' });
+    return null;
+  }
+  return message;
+}
+
+// [Sprint 7 · M2] Edit my own message.
+router.patch('/:conversationId/messages/:messageId', async (req, res, next) => {
+  try {
+    const conversation = await conversationFromUrl(req, res);
+    if (!conversation) return undefined;
+    const message = await ownMessageFromUrl(req, res, conversation);
+    if (!message) return undefined;
+    if (message.deletedAt) return res.status(409).json({ message: DM_MESSAGES.editDeleted, code: 'message_deleted' });
+
+    const checked = readBody(req.body?.body);
+    if (!checked.ok) return res.status(400).json({ message: checked.message });
+
+    const result = await editMessage(conversation, message, req.user.id, checked.body);
+    if (result.deleted) return res.status(409).json({ message: DM_MESSAGES.editDeleted, code: 'message_deleted' });
+    return res.json({
+      message: result.message,
+      conversation: result.conversation,
+      changed: result.changed,
+      notice: result.changed ? DM_MESSAGES.edited : DM_MESSAGES.unchanged,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// [Sprint 7 · M2] Delete my own message (it stays as "Message deleted").
+router.delete('/:conversationId/messages/:messageId', async (req, res, next) => {
+  try {
+    const conversation = await conversationFromUrl(req, res);
+    if (!conversation) return undefined;
+    const message = await ownMessageFromUrl(req, res, conversation);
+    if (!message) return undefined;
+
+    const result = await deleteMessage(conversation, message, req.user.id);
+    return res.json({
+      message: result.message,
+      conversation: result.conversation,
+      changed: result.changed,
+      notice: result.changed ? DM_MESSAGES.deleted : DM_MESSAGES.alreadyDeleted,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.post('/:conversationId/read', async (req, res, next) => {
   try {
     const conversation = await conversationFromUrl(req, res);
@@ -178,5 +264,7 @@ export default router;
  * on a profile (open or create the conversation), reading and sending messages
  * and marking a conversation read. Only the two people in a conversation can
  * use it; everyone else gets 404.
+ * [Sprint 7 · M2] Also: edit and delete your own messages (the other person
+ * gets 403) and Sent / Seen marks on your own messages.
  * ---------------------------------------------------------------------------
  */

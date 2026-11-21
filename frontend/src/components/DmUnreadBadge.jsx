@@ -21,7 +21,8 @@ export default function DmUnreadBadge({ api = directMessageApi }) {
       .unreadCount()
       .then(take)
       .catch(() => {}); // the badge is a bonus; the Messages page still lists everything
-    const stops = [api.onMessage?.(take), api.onRead?.(take)];
+    // [Sprint 7 · M2] onUpdated: deleting a message I had not read yet lowers my unread total too.
+    const stops = [api.onMessage?.(take), api.onRead?.(take), api.onUpdated?.(take)];
     const onWindow = (event) => take(event.detail);
     window.addEventListener(DM_UNREAD_EVENT, onWindow);
     return () => {
