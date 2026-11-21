@@ -24,7 +24,23 @@ export const DM_MESSAGES = {
   empty: 'Message cannot be empty.',
   tooLong: `Message must be ${DM_BODY_MAX.toLocaleString('en-US')} characters or fewer.`,
   tooFast: 'You are sending messages too quickly. Wait a moment and try again.',
+  // [Sprint 7 · M2] Edit and delete your own direct messages
+  invalidMessage: 'Invalid message ID.',
+  messageNotFound: 'Message not found.',
+  notSender: 'You can only edit or delete your own messages.',
+  editDeleted: 'This message was deleted, so it can no longer be edited.',
+  edited: 'Message updated.',
+  unchanged: 'Nothing changed.',
+  deleted: 'Message deleted.',
+  alreadyDeleted: 'This message was already deleted.',
 };
+
+// [Sprint 7 · M2] What a deleted message shows instead of its text (in the conversation and the inbox).
+export const DM_DELETED_TEXT = 'Message deleted';
+
+// [Sprint 7 · M2] Delivery status of my own messages: 'sent' until the other person has opened the
+// conversation after it arrived, then 'seen'.
+export const DM_STATUS = Object.freeze({ sent: 'sent', seen: 'seen' });
 
 export const idOf = (value) => String(value?._id || value || '');
 
@@ -98,19 +114,66 @@ export function userView(user) {
   return { _id: idOf(user), name: user.name, username: user.username || '', avatarUrl: user.avatarUrl || '' };
 }
 
-export function messageView(message) {
+/*
+ * [Sprint 7 · M2] true when the message was sent before (or at) the moment the other person last read the
+ * conversation, i.e. they have seen it. `readAt` comes from conversation.reads (readAtFor), which only moves
+ * forward, so once a message is seen it stays seen.
+ */
+export function isSeenAt(message, readAt) {
+  if (!message?.createdAt || !readAt) return false;
+  const sent = new Date(message.createdAt).getTime();
+  const read = new Date(readAt).getTime();
+  return Number.isFinite(sent) && Number.isFinite(read) && sent <= read;
+}
+
+export function isMessageSender(message, userId) {
+  const sender = idOf(message?.sender);
+  return Boolean(sender) && sender === idOf(userId);
+}
+
+/*
+ * One message as the browser sees it:
+ *   { _id, conversation, sender, body, createdAt, edited, editedAt, deleted, deletedAt, status }
+ * [Sprint 7 · M2]
+ * - deleted: the text is never sent again (body ''); the browser shows "Message deleted" in its place.
+ * - edited / editedAt: the sender changed the text; shown as "edited". A deleted message is not "edited".
+ * - status: only on the viewer's own messages: 'sent' or 'seen' (otherReadAt = when the other person last
+ *   read the conversation). null on the other person's messages, and when no viewer is given.
+ * Messages saved before Sprint 7 (no editedAt / deletedAt) come out as not edited and not deleted.
+ */
+export function messageView(message, { viewerId = null, otherReadAt = null } = {}) {
+  const deleted = Boolean(message.deletedAt);
+  const mine = Boolean(viewerId) && isMessageSender(message, viewerId);
+  let status = null;
+  if (mine) status = isSeenAt(message, otherReadAt) ? DM_STATUS.seen : DM_STATUS.sent;
   return {
     _id: idOf(message),
     conversation: idOf(message.conversation),
     sender: userView(message.sender),
-    body: message.body,
+    body: deleted ? '' : message.body,
     createdAt: message.createdAt,
+    edited: !deleted && Boolean(message.editedAt),
+    editedAt: deleted ? null : message.editedAt || null,
+    deleted,
+    deletedAt: message.deletedAt || null,
+    status,
   };
+}
+
+// [Sprint 7 · M2] The inbox line for a message: its text, or "Message deleted".
+export function messagePreview(message) {
+  return message?.deletedAt ? DM_DELETED_TEXT : previewOf(message?.body);
+}
+
+// [Sprint 7 · M2] When the other person (not `meId`) last read the conversation, or null.
+export function otherReadAtFor(conversation, meId) {
+  const other = otherParticipant(conversation, meId);
+  return other ? readAtFor(conversation, other) : null;
 }
 
 /*
  * One inbox row / conversation header, as seen by `meId`:
- *   { _id, otherUser, lastMessage: { preview, at, fromMe } | null, unreadCount, activityAt, createdAt }
+ *   { _id, otherUser, lastMessage: { preview, at, fromMe } | null, unreadCount, otherReadAt, activityAt, createdAt }
  * The two participants each get their own view (different otherUser and unreadCount).
  */
 export function conversationView(conversation, meId, unreadCount = 0) {
@@ -126,6 +189,8 @@ export function conversationView(conversation, meId, unreadCount = 0) {
         }
       : null,
     unreadCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
+    // [Sprint 7 · M2] When the other person last read it: my messages up to this time show "Seen".
+    otherReadAt: otherReadAtFor(conversation, meId),
     activityAt: conversation.activityAt || conversation.createdAt || null,
     createdAt: conversation.createdAt || null,
   };
@@ -167,5 +232,7 @@ export function createSendLimiter({ limit = DM_SEND_LIMIT, windowMs = DM_SEND_WI
  * Small pure helpers for direct messages (US-19): one key per pair of users,
  * message checks (text, not empty, at most 4,000 characters), inbox previews,
  * the safe views sent to the browser and the per-user send limit.
+ * [Sprint 7 · M2] Also: edited / deleted messages ("edited", "Message deleted")
+ * and the Sent / Seen status of the viewer's own messages.
  * ---------------------------------------------------------------------------
  */

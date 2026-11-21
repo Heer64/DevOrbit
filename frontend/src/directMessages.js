@@ -18,11 +18,50 @@ const timeOf = (value) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+/*
+ * [Sprint 7 · M2] Which of two copies of the same message is newer. A deleted copy always wins (a message
+ * never comes back after being deleted), then the later edit. So a slow page answer cannot undo a live
+ * edit or delete that arrived first.
+ */
+function newerCopy(old, incoming) {
+  if (!old) return incoming;
+  if (old.deleted && !incoming.deleted) return old;
+  if (incoming.deleted && !old.deleted) return incoming;
+  if (timeOf(old.editedAt) > timeOf(incoming.editedAt)) return old;
+  // Keep a known "seen" status when the new copy does not carry one (e.g. a live copy without status).
+  if (old.status === 'seen' && incoming.status !== 'seen' && idOf(old.sender) === idOf(incoming.sender)) {
+    return { ...incoming, status: 'seen' };
+  }
+  return incoming;
+}
+
 // Adds or replaces messages by ID and keeps them oldest first (same order as the API).
 export function mergeDirectMessages(list, incoming) {
   const byId = new Map((list || []).map((message) => [idOf(message), message]));
-  for (const message of incoming || []) if (idOf(message)) byId.set(idOf(message), message);
+  for (const message of incoming || []) if (idOf(message)) byId.set(idOf(message), newerCopy(byId.get(idOf(message)), message));
   return [...byId.values()].sort((a, b) => timeOf(a.createdAt) - timeOf(b.createdAt) || idOf(a).localeCompare(idOf(b)));
+}
+
+// [Sprint 7 · M2] What a deleted message shows (same text as backend DM_DELETED_TEXT).
+export const DM_DELETED_TEXT = 'Message deleted';
+
+// [Sprint 7 · M2] The later of two read times (ISO strings or Dates); read times only ever move forward.
+export function laterTime(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return timeOf(b) > timeOf(a) ? b : a;
+}
+
+/*
+ * [Sprint 7 · M2] "Sent" / "Seen" under my own messages. Seen once the other person has read the conversation
+ * at or after the message was sent (otherReadAt), or when the server already said so. '' for their messages
+ * and for deleted ones.
+ */
+export function deliveryLabel(message, meId, otherReadAt) {
+  if (!message || message.deleted || !meId || idOf(message.sender) !== String(meId)) return '';
+  const sentAt = timeOf(message.createdAt);
+  const seen = message.status === 'seen' || (Boolean(otherReadAt) && sentAt > 0 && sentAt <= timeOf(otherReadAt));
+  return seen ? 'Seen' : 'Sent';
 }
 
 // When the conversation last had something happen, for the inbox order (newest first).

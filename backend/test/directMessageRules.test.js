@@ -20,6 +20,12 @@ import {
   readBody,
   readLimit,
   userView,
+  DM_DELETED_TEXT,
+  DM_STATUS,
+  isMessageSender,
+  isSeenAt,
+  messagePreview,
+  otherReadAtFor,
 } from '../src/lib/directMessageRules.js';
 
 const A = '64b000000000000000000001';
@@ -107,6 +113,12 @@ test('messageView: safe sender fields only', () => {
     sender: { _id: A, name: 'Alice', username: 'alice', avatarUrl: '/uploads/avatars/a.png' },
     body: 'Hi',
     createdAt: at,
+    // [Sprint 7 · M2] a message saved before Sprint 7 (no editedAt / deletedAt) is not edited and not deleted
+    edited: false,
+    editedAt: null,
+    deleted: false,
+    deletedAt: null,
+    status: null,
   });
 });
 
@@ -153,4 +165,89 @@ test('createSendLimiter: 30 messages per minute per user, then a wait time', () 
 
   limiter.reset();
   assert.equal(limiter.size, 0);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// [Sprint 7 · M2] Edit and delete your own direct messages, and Sent / Seen.
+
+test('[Sprint 7 · M2] messageView: an edited message says so; a deleted one never sends its text', () => {
+  const at = new Date('2026-11-20T10:00:00Z');
+  const editedAt = new Date('2026-11-20T10:05:00Z');
+  const edited = messageView({
+    _id: 'm1',
+    conversation: 'c1',
+    sender: alice,
+    body: 'Hi (fixed)',
+    createdAt: at,
+    editedAt,
+    deletedAt: null,
+  });
+  assert.equal(edited.body, 'Hi (fixed)');
+  assert.equal(edited.edited, true);
+  assert.equal(edited.editedAt, editedAt);
+  assert.equal(edited.deleted, false);
+
+  const deletedAt = new Date('2026-11-20T10:06:00Z');
+  const deleted = messageView({ _id: 'm2', conversation: 'c1', sender: alice, body: 'secret', createdAt: at, editedAt, deletedAt });
+  assert.equal(deleted.deleted, true);
+  assert.equal(deleted.deletedAt, deletedAt);
+  assert.equal(deleted.body, '', 'the old text is never sent');
+  assert.equal(deleted.edited, false, 'a deleted message is not shown as edited');
+  assert.equal(deleted.editedAt, null);
+  assert.equal(JSON.stringify(deleted).includes('secret'), false);
+  assert.equal(DM_DELETED_TEXT, 'Message deleted');
+});
+
+test('[Sprint 7 · M2] isSeenAt: seen once the other person read at or after the message time', () => {
+  const sent = { createdAt: new Date('2026-11-20T10:00:00.000Z') };
+  assert.equal(isSeenAt(sent, null), false);
+  assert.equal(isSeenAt(sent, new Date('2026-11-20T09:59:59.999Z')), false);
+  assert.equal(isSeenAt(sent, new Date('2026-11-20T10:00:00.000Z')), true, 'the same millisecond counts as seen');
+  assert.equal(isSeenAt(sent, '2026-11-20T10:00:01.000Z'), true, 'ISO strings work too');
+  assert.equal(isSeenAt({}, new Date()), false);
+  assert.equal(isSeenAt(sent, 'not a date'), false);
+});
+
+test('[Sprint 7 · M2] messageView status: "sent" / "seen" only on the viewer\'s own messages', () => {
+  const at = new Date('2026-11-20T10:00:00Z');
+  const mine = { _id: 'm1', conversation: 'c1', sender: alice, body: 'Hi', createdAt: at };
+  assert.equal(messageView(mine, { viewerId: A, otherReadAt: null }).status, DM_STATUS.sent);
+  assert.equal(messageView(mine, { viewerId: A, otherReadAt: new Date('2026-11-20T09:00:00Z') }).status, 'sent');
+  assert.equal(messageView(mine, { viewerId: A, otherReadAt: new Date('2026-11-20T10:00:00Z') }).status, 'seen');
+  assert.equal(messageView(mine, { viewerId: B, otherReadAt: at }).status, null, "not on the other person's messages");
+  assert.equal(messageView(mine).status, null, 'no viewer, no status');
+  // The sender can be a plain ID (not populated) too.
+  assert.equal(messageView({ ...mine, sender: A }, { viewerId: A }).status, 'sent');
+});
+
+test('[Sprint 7 · M2] isMessageSender: only the sender, whether populated or a plain ID', () => {
+  assert.equal(isMessageSender({ sender: alice }, A), true);
+  assert.equal(isMessageSender({ sender: A }, A), true);
+  assert.equal(isMessageSender({ sender: alice }, B), false);
+  assert.equal(isMessageSender({ sender: null }, A), false);
+  assert.equal(isMessageSender({ sender: alice }, null), false);
+});
+
+test('[Sprint 7 · M2] messagePreview: the inbox line, or "Message deleted"', () => {
+  assert.equal(messagePreview({ body: 'Hello\n\n  there' }), 'Hello there');
+  assert.equal(messagePreview({ body: '', deletedAt: new Date() }), 'Message deleted');
+  assert.equal(messagePreview(null), '');
+});
+
+test('[Sprint 7 · M2] conversationView.otherReadAt: when the OTHER person last read it', () => {
+  const aliceRead = new Date('2026-11-20T10:00:00Z');
+  const bobRead = new Date('2026-11-20T11:00:00Z');
+  const conversation = { _id: 'c1', participants: [alice, bob], reads: { [A]: aliceRead, [B]: bobRead }, lastMessageAt: bobRead };
+  assert.equal(conversationView(conversation, A).otherReadAt.getTime(), bobRead.getTime(), "Alice sees Bob's read time");
+  assert.equal(conversationView(conversation, B).otherReadAt.getTime(), aliceRead.getTime(), "Bob sees Alice's read time");
+  assert.equal(otherReadAtFor({ ...conversation, reads: undefined }, A), null, 'nobody has read yet');
+  assert.equal(otherReadAtFor({ ...conversation, reads: new Map([[B, bobRead]]) }, A).getTime(), bobRead.getTime(), 'Map on a document');
+  assert.equal(otherReadAtFor({ ...conversation, participants: [alice, null] }, A), null, 'the other account is gone');
+});
+
+test('[Sprint 7 · M2] messages for edit/delete answers', () => {
+  assert.equal(DM_MESSAGES.notSender, 'You can only edit or delete your own messages.');
+  assert.equal(DM_MESSAGES.messageNotFound, 'Message not found.');
+  assert.equal(DM_MESSAGES.invalidMessage, 'Invalid message ID.');
+  assert.match(DM_MESSAGES.editDeleted, /deleted/);
 });

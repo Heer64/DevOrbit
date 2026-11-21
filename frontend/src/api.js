@@ -646,10 +646,17 @@ export const userApi = {
 //   conversation(id)   -> { conversation }                 404 when it is not yours
 //   messages(id, { before, limit }) -> { messages (oldest first), nextBefore }   pass nextBefore back as `before`
 //   send(id, body)     -> { message, conversation }        429 when sending too fast
-//   markRead(id)       -> { unreadCount: 0, unreadTotal }
-//   conversation = { _id, otherUser: { _id, name, username, avatarUrl }, lastMessage: { preview, at, fromMe } | null, unreadCount, activityAt }
+//   markRead(id)       -> { unreadCount: 0, unreadTotal, readAt }
+//   edit(id, messageId, body) -> { message, conversation, changed, notice }   [Sprint 7 · M2] own messages only (403 otherwise),
+//                                                                            409 { code: 'message_deleted' }
+//   remove(id, messageId)     -> { message, conversation, changed, notice }   [Sprint 7 · M2] stays as "Message deleted"
+//   conversation = { _id, otherUser: { _id, name, username, avatarUrl }, lastMessage: { preview, at, fromMe } | null, unreadCount,
+//                    otherReadAt, activityAt }
+//   message = { _id, sender, body, createdAt, edited, editedAt, deleted, status ('sent' | 'seen' on my own messages) }
 //   onMessage(handler) gets { conversationId, message, conversation, unreadTotal }   only the two participants receive it
 //   onRead(handler)    gets { conversationId, unreadTotal }                          my other tabs, after I read
+//   onUpdated(handler) gets { conversationId, message, conversation, unreadTotal }   [Sprint 7 · M2] a message was edited/deleted
+//   onSeen(handler)    gets { conversationId, readAt }                               [Sprint 7 · M2] the other person read up to readAt
 const dmPath = (id = '') => `/direct-messages${id ? `/${encodeURIComponent(id)}` : ''}`;
 export const directMessageApi = {
   inbox: () => api(dmPath()),
@@ -663,8 +670,14 @@ export const directMessageApi = {
   },
   send: (id, body) => api(`${dmPath(id)}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   markRead: (id) => api(`${dmPath(id)}/read`, { method: 'POST', body: JSON.stringify({}) }),
+  // [Sprint 7 · M2] Edit / delete my own direct messages, and live edits, deletes and "Seen" marks.
+  edit: (id, messageId, body) =>
+    api(`${dmPath(id)}/messages/${encodeURIComponent(messageId)}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
+  remove: (id, messageId) => api(`${dmPath(id)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' }),
   onMessage: (handler) => liveApi.onUser('dm:message', handler),
   onRead: (handler) => liveApi.onUser('dm:read', handler),
+  onUpdated: (handler) => liveApi.onUser('dm:updated', handler),
+  onSeen: (handler) => liveApi.onUser('dm:seen', handler),
 };
 
 // [Sprint 6 · M8] US-57, US-58 Platform Admin panel. Contract: backend/src/routes/admin.js (Platform Admins only, else 403)
