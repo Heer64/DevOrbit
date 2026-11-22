@@ -436,6 +436,14 @@ export const channelApi = {
   },
   reply: (id, channelId, messageId, body) => api(`${channelPath(id, channelId)}/messages/${encodeURIComponent(messageId)}/replies`, { method: 'POST', body: JSON.stringify({ body }) }),
   onReply: (id, handler) => liveApi.onProject(id, 'message:reply', handler),
+
+  // [Sprint 7 · M1] Edit / delete your own message or thread reply (same URL for both). Contract: backend/src/routes/channels.js
+  //   edit   -> { message, changed, notice }   403 not yours / Viewer, 409 { code: 'message_deleted' }
+  //   remove -> { message, changed, notice }   the message comes back with deleted: true and body ''
+  //   onUpdated(handler) gets { projectId, channelId, parentId, message } (parentId null for a channel message)
+  edit: (id, channelId, messageId, body) => api(`${channelPath(id, channelId)}/messages/${encodeURIComponent(messageId)}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
+  remove: (id, channelId, messageId) => api(`${channelPath(id, channelId)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' }),
+  onUpdated: (id, handler) => liveApi.onProject(id, 'message:updated', handler),
 };
 
 // Milestones of one project. Each milestone comes back with taskCount, doneCount, progress (0-100) and completed.

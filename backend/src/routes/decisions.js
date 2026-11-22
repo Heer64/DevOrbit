@@ -63,7 +63,7 @@ async function toViews(decisions) {
 
   const [tasks, messages, channels] = await Promise.all([
     taskIds.length ? Task.find({ _id: { $in: taskIds } }).select('title').lean() : [],
-    messageIds.length ? Message.find({ _id: { $in: messageIds } }).select('body').lean() : [],
+    messageIds.length ? Message.find({ _id: { $in: messageIds } }).select('body deletedAt').lean() : [], // [Sprint 7 · M1] deletedAt
     channelIds.length ? Channel.find({ _id: { $in: channelIds } }).select('name').lean() : [],
   ]);
   const targets = {

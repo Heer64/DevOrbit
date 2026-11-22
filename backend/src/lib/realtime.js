@@ -20,6 +20,9 @@ import { memberRole, validId } from './projectAccess.js';
  *   listen     'activity:created' { projectId, activity }   [US-29] members only, activity = populated feed event
  *   listen     'project:access-removed' { projectId, reason }   [Sprint 3 · M3] sent to a person removed from / leaving a project
  *   listen     'message:reply' { projectId, channelId, parentId, reply, replyCount, lastReplyAt }   [US-17] members only
+ *   listen     'message:updated' { projectId, channelId, parentId, message }   [Sprint 7 · M1] members only. A channel
+ *              message or thread reply was edited or deleted by its author. parentId is null for a top-level
+ *              message; message = same shape as the REST API (message.deleted / message.edited)
  *   listen     'comment:created' { projectId, taskId, comment }   [US-20] members only
  *   listen     'notification:created' { notification, unreadCount }   [Sprint 3 · M7 Part 2] only to the recipient
  *   listen     'notification:read' { notificationId, unreadCount }    [Sprint 3 · M7 Part 2] only to the recipient
@@ -179,6 +182,22 @@ export function emitThreadReply(reply, { replyCount = 0, lastReplyAt = null } = 
   const parentId = String(reply.parentMessage?._id || reply.parentMessage || '');
   if (!projectId || !channelId || !parentId) return;
   io.to(memberRoom(projectId)).emit('message:reply', { projectId, channelId, parentId, reply, replyCount, lastReplyAt });
+}
+
+/*
+ * [Sprint 7 · M1] A channel message or thread reply was edited or deleted by its author.
+ * Members only, like 'message:created'. One event for both: message.deleted tells them apart.
+ * Payload: { projectId, channelId, parentId, message }
+ *   parentId = the thread's first message for a reply, null for a top-level channel message
+ *   message  = same shape as the REST API (lib/channelMessageRules.js channelMessageView); a deleted one has body ''
+ */
+export function emitMessageUpdated(message) {
+  if (!io || !message) return;
+  const projectId = String(message.project?._id || message.project || '');
+  const channelId = String(message.channel?._id || message.channel || '');
+  if (!projectId || !channelId) return;
+  const parentId = message.parentMessage ? String(message.parentMessage?._id || message.parentMessage) : null;
+  io.to(memberRoom(projectId)).emit('message:updated', { projectId, channelId, parentId, message });
 }
 
 /*
