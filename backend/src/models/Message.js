@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 export const MESSAGE_MAX = 4000;
 
+// [Sprint 7 · M1] A deleted message keeps its row (so the channel and its thread still read in order)
+// but not its text.
+function bodyRequired() {
+  return !this.deletedAt;
+}
+
 const messageSchema = new mongoose.Schema(
   {
     project: {
@@ -21,9 +27,10 @@ const messageSchema = new mongoose.Schema(
     },
     body: {
       type: String,
-      required: true,
+      required: bodyRequired, // [Sprint 7 · M1] was `true`; still required unless the message was deleted
       trim: true,
       maxlength: MESSAGE_MAX,
+      default: '',
     },
     // [Sprint 3 · US-17] Thread replies. null (or missing, for messages saved before threads
     // existed) = a normal channel message. Set = a reply inside that message's thread.
@@ -52,6 +59,11 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    // [Sprint 7 · M1] Edit and delete your own messages and thread replies (lib/channelMessageEdits.js).
+    // Messages saved before Sprint 7 have neither field, which reads as "not edited, not deleted"
+    // (a missing field matches `null` in MongoDB queries).
+    editedAt: { type: Date, default: null }, // set when the author changes the text ("edited")
+    deletedAt: { type: Date, default: null }, // set when the author deletes it; body and mentions are emptied
   },
   { timestamps: true }
 );

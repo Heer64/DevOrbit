@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Hash, Loader2, MessageSquare, Plus, RefreshCw, Reply, Send, X } from 'lucide-react';
 import { assetUrl, channelApi } from '../api';
 import { canManageChannels, canPostMessages } from '../roles';
@@ -6,16 +6,17 @@ import { Avatar, AVATAR_TONES, initialsOf } from './ui';
 import { timeAgo } from './activityDisplay';
 import ThreadPanel, { replyCountLabel } from './ThreadPanel'; // [Sprint 3] US-17
 import MentionTextarea from './MentionTextarea'; // [Sprint 3] US-18
-import MentionText from './MentionText'; // [Sprint 3] US-18
+// [Sprint 7 · M1] Edit / delete your own messages
+import { ChannelMessageActions, ChannelMessageEditForm, ChannelMessageText, DeleteMessageDialog, useChannelMessageEdits } from './ChannelMessageEdit';
+import { canDeleteMessage, canEditMessage, mergeChannelMessages, replaceChannelMessage } from '../channelMessages';
 
 const MESSAGE_MAX = 4000;
 const idOf = (value) => String(value?._id || value?.id || value || '');
 
 // Adds or replaces messages by id and keeps the list oldest-first.
+// [Sprint 7 · M1] A deleted or later-edited copy is never replaced by an older one (channelMessages.js).
 export function mergeMessages(list, incoming) {
-  const byId = new Map(list.map((message) => [idOf(message), message]));
-  for (const message of incoming) byId.set(idOf(message), message);
-  return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || idOf(a).localeCompare(idOf(b)));
+  return mergeChannelMessages(list, incoming);
 }
 
 /**
@@ -31,6 +32,10 @@ export function mergeMessages(list, incoming) {
  *   members            [Sprint 3 · US-18] [{ userId, name, username, avatarUrl }] for @ suggestions
  *   currentUserId      [Sprint 3 · US-18] left out of the @ suggestions
  *   threadId           [Sprint 3 · US-17] thread to open (from a link such as a mention notification)
+ *
+ * [Sprint 7 · M1] Your own messages have Edit (Owner/Admin/Contributor) and Delete (any role), when the api
+ * has edit() / remove(). Edited ones show "(edited)", deleted ones "Message deleted" in place, so their
+ * threads still make sense. Changes by others arrive live ('message:updated', api.onUpdated).
  */
 // [Sprint 3 · US-17] Sets a message's reply count. Counts only go up, so an older live event cannot undo a newer one.
 export function applyReplyCount(list, { _id, replyCount, lastReplyAt }) {
@@ -62,6 +67,15 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
   const canPost = canPostMessages(myRole);
   const canCreate = canManageChannels(myRole);
 
+  // [Sprint 7 · M1] A saved edit / delete of a channel message (from here, the thread panel or live).
+  // Thread replies are not in this list; ThreadPanel keeps those.
+  const applyChange = useCallback((message) => {
+    if (!message || message.parentMessage) return;
+    setMessages((old) => replaceChannelMessage(old, message));
+  }, []);
+  const edits = useChannelMessageEdits({ api, projectId, channelId: activeId, onChanged: applyChange });
+  const { cancelEdit, forget } = edits;
+
   // Channels.
   useEffect(() => {
     let active = true;
@@ -87,11 +101,12 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
     let active = true;
     setMessages(null); setNextBefore(null); stickToBottom.current = true;
     setThreadId(''); // [Sprint 3] US-17: a thread belongs to one channel
+    cancelEdit(); // [Sprint 7 · M1] an edit box belongs to one channel too
     api.messages(projectId, activeId)
       .then((result) => { if (active) { setMessages(result.messages || []); setNextBefore(result.nextBefore || null); } })
       .catch((error) => { if (active) { setMessages([]); setSendError(error.message || 'Could not load messages.'); } });
     return () => { active = false; };
-  }, [api, projectId, activeId]);
+  }, [api, projectId, activeId, cancelEdit]);
 
   // Live messages for this project; only the open channel's are shown.
   useEffect(() => {
@@ -110,6 +125,16 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
       setMessages((old) => applyReplyCount(old, { _id: payload.parentId, replyCount: payload.replyCount, lastReplyAt: payload.lastReplyAt }));
     });
   }, [api, projectId, activeId]);
+
+  // [Sprint 7 · M1] Live edits / deletes of this channel's messages (replies are handled by ThreadPanel).
+  useEffect(() => {
+    if (!api.onUpdated) return undefined;
+    return api.onUpdated(projectId, (payload) => {
+      if (payload?.channelId !== activeId || !payload.message) return;
+      forget(payload.message);
+      if (!payload.parentId) applyChange(payload.message);
+    });
+  }, [api, projectId, activeId, applyChange, forget]);
 
   // Keep the newest message in view unless the reader scrolled up to read history.
   useEffect(() => {
@@ -232,14 +257,22 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
           {(messages || []).map((message) => {
             const id = idOf(message);
             const author = message.author || {};
+            const editing = edits.editingId === id && canEditMessage(message, currentUserId, canPost); // [Sprint 7 · M1]
             return (
-              <article key={id} data-message-id={id} className={`chat-message ${id === highlightMessageId ? 'highlight' : ''}`}>
+              <article key={id} data-message-id={id} className={`chat-message ${id === highlightMessageId ? 'highlight' : ''}${message.deleted ? ' deleted' : ''}`}>
                 <Avatar initials={initialsOf(author.name)} src={assetUrl(author.avatarUrl)} tone={AVATAR_TONES[Math.max(authors.indexOf(idOf(author)), 0) % 4]} small />
                 <div>
-                  <div className="chat-message-head"><b>{author.name || 'Former member'}</b><time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString()}>{timeAgo(message.createdAt)}</time></div>
-                  <p><MentionText body={message.body} mentions={message.mentions} /></p>
-                  {/* [Sprint 3] US-17: reply count / open thread */}
-                  {threadsOn && (message.replyCount > 0 || canPost) && (
+                  <div className="chat-message-head">
+                    <b>{author.name || 'Former member'}</b><time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString()}>{timeAgo(message.createdAt)}</time>
+                    {/* [Sprint 7 · M1] Edit / Delete on my own messages */}
+                    <ChannelMessageActions message={message} edits={edits} canEdit={canEditMessage(message, currentUserId, canPost)} canDelete={canDeleteMessage(message, currentUserId)} />
+                  </div>
+                  {editing
+                    ? <ChannelMessageEditForm message={message} edits={edits} members={members} currentUserId={currentUserId} />
+                    : <ChannelMessageText message={message} />}
+                  {/* [Sprint 3] US-17: reply count / open thread. [Sprint 7 · M1] A deleted message keeps its thread,
+                      but a new thread cannot be started on it. */}
+                  {threadsOn && (message.replyCount > 0 || (canPost && !message.deleted)) && (
                     <button
                       type="button"
                       className={`chat-thread-link ${message.replyCount > 0 ? 'has-replies' : ''} ${threadId === id ? 'active' : ''}`}
@@ -293,9 +326,13 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
           members={members}
           currentUserId={currentUserId}
           onReplied={(counts) => setMessages((old) => applyReplyCount(old, counts))}
+          onMessageChanged={applyChange}
           onClose={() => setThreadId('')}
         />
       )}
+
+      {/* [Sprint 7 · M1] */}
+      <DeleteMessageDialog edits={edits} />
     </div>
   );
 }
@@ -309,5 +346,7 @@ export default function ChatPanel({ projectId, myRole, api = channelApi, channel
  * Viewers see a read-only note instead of the composer.
  * [Sprint 3 · US-17] Each message shows "Reply" / "N replies"; clicking opens its
  * thread (ThreadPanel) beside the channel.
+ * [Sprint 7 · M1] Edit / Delete on your own messages: "(edited)" and
+ * "Message deleted" (kept in place so threads still make sense), live for everyone.
  * ---------------------------------------------------------------------------
  */

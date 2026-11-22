@@ -430,6 +430,22 @@ textarea.field-input{resize:vertical;min-height:90px}
 .chat-thread-link:not(.has-replies){opacity:0;transition:opacity .12s}
 .chat-message:hover .chat-thread-link,.chat-message:focus-within .chat-thread-link,.chat-thread-link.active{opacity:1}
 @media (hover:none){.chat-thread-link:not(.has-replies){opacity:1}}
+/* [Sprint 7 · M1] edit / delete my own channel messages and thread replies: "(edited)", "Message deleted" */
+.chat-actions{display:inline-flex;gap:2px;margin-left:auto;opacity:0;transition:opacity .15s}
+.chat-message:hover .chat-actions,.chat-message:focus-within .chat-actions{opacity:1}
+@media (hover:none){.chat-actions{opacity:1}}
+.chat-action{display:grid;place-items:center;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted)}
+.chat-action:hover,.chat-action:focus-visible{background:var(--soft);color:var(--accent)}
+.chat-action.danger:hover,.chat-action.danger:focus-visible{background:var(--danger-bg);color:var(--danger)}
+.chat-edited{font-size:12px;font-style:italic;color:var(--muted);white-space:nowrap}
+.chat-message p.chat-deleted-text{display:inline-flex;align-items:center;gap:5px;font-style:italic;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:3px 8px}
+.chat-edit{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.chat-edit textarea{width:100%;resize:vertical;min-height:56px;border:1px solid var(--accent);border-radius:10px;background:var(--bg);color:var(--text);padding:9px 11px;font-size:14px;line-height:1.45}
+.chat-edit textarea:focus{outline:none;box-shadow:0 0 0 3px #ff8a3d1f}
+.chat-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.chat-edit-actions small{margin-right:auto;font-size:11.5px;color:var(--muted)}
+.chat-edit-actions .btn{padding:7px 11px;font-size:13px}
+.chat-edit-actions .btn:disabled{opacity:.6;cursor:default}
 .chat-thread{display:flex;flex-direction:column;gap:8px;min-width:0;border-left:1px solid var(--line);padding-left:12px}
 .chat-thread-head{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .chat-thread-head b{display:flex;align-items:center;gap:5px;font-size:15px}

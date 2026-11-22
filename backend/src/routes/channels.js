@@ -10,6 +10,8 @@ import { emitMessageCreated } from '../lib/realtime.js';
 import { logActivity, quote } from '../lib/activity.js'; // [US-29]
 import { findMentionedMembers, notifyMentions } from '../lib/mentions.js'; // [Sprint 3] US-18
 import { messageLink } from '../lib/notifications.js'; // [Sprint 3] US-18
+import { CHANNEL_EDIT_MESSAGES, channelMessageView, isMessageAuthor, readEditedBody } from '../lib/channelMessageRules.js'; // [Sprint 7 · M1]
+import { deleteChannelMessage, editChannelMessage, findMessageInChannel } from '../lib/channelMessageEdits.js'; // [Sprint 7 · M1]
 
 /*
  * Project channels and messages (US-16, FR-5). Mounted at /api/projects/:id/channels
@@ -28,6 +30,19 @@ import { messageLink } from '../lib/notifications.js'; // [Sprint 3] US-18
  *
  * [Sprint 3 · US-18] @username of a project member in a message: stored in message.mentions
  * ([{ _id, name, username }]) and the member gets a Mention notification linking to the message.
+ *
+ * [Sprint 7 · M1] Edit and delete your own messages (thread replies too: they are messages of the same channel).
+ * PATCH  /:channelId/messages/:messageId   author only, Owner/Admin/Contributor   { body }
+ *                                           -> 200 { message, changed, notice }
+ *                                           Same text again -> changed: false (no "edited" mark).
+ *                                           400 invalid ID / empty / too long, 403 not your message or you are a
+ *                                           Viewer, 404 unknown message, 409 { code: 'message_deleted' } it was deleted.
+ * DELETE /:channelId/messages/:messageId   author only, any role -> 200 { message, changed, notice }
+ *                                           It stays in place as "Message deleted" (deleted: true, body ''), so its
+ *                                           thread still makes sense. Already deleted -> changed: false.
+ *                                           403 not your message (the Owner too), 404 unknown message.
+ * Every message the API returns now also has { edited, editedAt, deleted, deletedAt }.
+ * Live: 'message:updated' { projectId, channelId, parentId, message } to members (lib/realtime.js).
  */
 
 const router = Router({ mergeParams: true });
@@ -57,8 +72,10 @@ export async function loadChannel(req, res, project) {
   return channel;
 }
 
+// [Sprint 7 · M1] Returned through channelMessageView: adds edited / deleted and hides a deleted message's text.
 export async function findPopulatedMessage(messageId) {
-  return Message.findById(messageId).populate('author', AUTHOR_FIELDS).populate('mentions', MENTION_FIELDS).lean();
+  const row = await Message.findById(messageId).populate('author', AUTHOR_FIELDS).populate('mentions', MENTION_FIELDS).lean();
+  return channelMessageView(row);
 }
 
 router.get('/', async (req, res, next) => {
@@ -147,7 +164,8 @@ router.get('/:channelId/messages', async (req, res, next) => {
     const nextBefore = rows.length > limit ? page[page.length - 1].createdAt : null;
 
     // The chat shows oldest at the top, so send this page oldest first.
-    return res.json({ messages: page.reverse(), nextBefore });
+    // [Sprint 7 · M1] channelMessageView: "edited" / "Message deleted" (a deleted message's text is never sent).
+    return res.json({ messages: page.reverse().map(channelMessageView), nextBefore });
   } catch (error) {
     return next(error);
   }
@@ -213,6 +231,84 @@ router.post('/:channelId/messages', async (req, res, next) => {
   }
 });
 
+/*
+ * [Sprint 7 · M1] The message in the URL, for its author only.
+ * 400 bad ID, 404 not a message of this channel, 403 someone else's message. Returns null after answering.
+ */
+async function ownMessageFromUrl(req, res, channel) {
+  if (!validId(req.params.messageId)) {
+    res.status(400).json({ message: CHANNEL_EDIT_MESSAGES.invalidMessage });
+    return null;
+  }
+  const message = await findMessageInChannel(channel, req.params.messageId);
+  if (!message) {
+    res.status(404).json({ message: CHANNEL_EDIT_MESSAGES.messageNotFound });
+    return null;
+  }
+  if (!isMessageAuthor(message, req.user.id)) {
+    res.status(403).json({ message: CHANNEL_EDIT_MESSAGES.notAuthor, code: 'not_author' });
+    return null;
+  }
+  return message;
+}
+
+// [Sprint 7 · M1] Edit my own channel message or thread reply.
+router.patch('/:channelId/messages/:messageId', async (req, res, next) => {
+  try {
+    const loaded = await loadProjectForMember(req, res);
+    if (!loaded) return undefined;
+    const channel = await loadChannel(req, res, loaded.project);
+    if (!channel) return undefined;
+    const message = await ownMessageFromUrl(req, res, channel);
+    if (!message) return undefined;
+
+    if (!canPostMessages(loaded.role)) {
+      return res.status(403).json({ message: CHANNEL_EDIT_MESSAGES.viewerEdit, code: 'viewer' });
+    }
+    if (message.deletedAt) return res.status(409).json({ message: CHANNEL_EDIT_MESSAGES.editDeleted, code: 'message_deleted' });
+
+    const checked = readEditedBody(req.body?.body);
+    if (!checked.ok) return res.status(400).json({ message: checked.message });
+
+    const result = await editChannelMessage({
+      project: loaded.project,
+      channel,
+      message,
+      editorId: req.user.id,
+      body: checked.body,
+    });
+    if (result.deleted) return res.status(409).json({ message: CHANNEL_EDIT_MESSAGES.editDeleted, code: 'message_deleted' });
+    return res.json({
+      message: result.message,
+      changed: result.changed,
+      notice: result.changed ? CHANNEL_EDIT_MESSAGES.edited : CHANNEL_EDIT_MESSAGES.unchanged,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// [Sprint 7 · M1] Delete my own channel message or thread reply (it stays as "Message deleted").
+router.delete('/:channelId/messages/:messageId', async (req, res, next) => {
+  try {
+    const loaded = await loadProjectForMember(req, res);
+    if (!loaded) return undefined;
+    const channel = await loadChannel(req, res, loaded.project);
+    if (!channel) return undefined;
+    const message = await ownMessageFromUrl(req, res, channel);
+    if (!message) return undefined;
+
+    const result = await deleteChannelMessage({ project: loaded.project, channel, message, userId: req.user.id });
+    return res.json({
+      message: result.message,
+      changed: result.changed,
+      notice: result.changed ? CHANNEL_EDIT_MESSAGES.deleted : CHANNEL_EDIT_MESSAGES.alreadyDeleted,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router;
 
 /*
@@ -221,5 +317,7 @@ export default router;
  * REST API for project channels (US-16): list/create channels and read/send
  * messages. Members only; Viewers are read-only (403 on send). New messages are
  * saved, then pushed live to every member viewing the project (target: < 1 s).
+ * [Sprint 7 · M1] Also: edit and delete your own messages and thread replies
+ * ("edited", "Message deleted"); anyone else gets 403. Changes are pushed live.
  * ---------------------------------------------------------------------------
  */

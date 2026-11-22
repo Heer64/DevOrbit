@@ -42,7 +42,9 @@ export async function loadCopilotRecords(project) {
   // neither used nor counted: only comments on this project's tasks, only messages in its channels.
   const [taskIds, channels] = await Promise.all([Task.distinct('_id', filter), Channel.find(filter).select('name').lean()]);
   const commentFilter = { project: project._id, task: { $in: taskIds } };
-  const messageFilter = { project: project._id, channel: { $in: channels.map((channel) => channel._id) } };
+  // [Sprint 7 · M1] Deleted messages are left out, so their text can never reach an AI answer.
+  // (`deletedAt: null` also matches messages saved before Sprint 7, which have no such field.)
+  const messageFilter = { project: project._id, channel: { $in: channels.map((channel) => channel._id) }, deletedAt: null };
 
   const [tasks, comments, decisions, messages, github, available] = await Promise.all([
     Task.find(filter)

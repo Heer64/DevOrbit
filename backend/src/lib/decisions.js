@@ -173,7 +173,8 @@ export function decisionLinkView(decision, targets = {}) {
       type: 'thread',
       id: messageId,
       channelId,
-      label: `#${channel.name}: ${shortText(message.body)}`,
+      // [Sprint 7 · M1] A linked message its author deleted shows "Message deleted", never its old text.
+      label: `#${channel.name}: ${message.deletedAt ? 'Message deleted' : shortText(message.body)}`,
       href: decisionThreadHref(projectId, channelId, messageId),
       missing: false,
     };

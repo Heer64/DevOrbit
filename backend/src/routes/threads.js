@@ -9,6 +9,7 @@ import { logActivity, quote } from '../lib/activity.js';
 import { AUTHOR_FIELDS, MENTION_FIELDS, findPopulatedMessage, loadChannel } from './channels.js';
 import { findMentionedMembers, notifyMentions } from '../lib/mentions.js';
 import { messageLink } from '../lib/notifications.js';
+import { channelMessageView } from '../lib/channelMessageRules.js'; // [Sprint 7 · M1]
 
 /*
  * [Sprint 3 · US-17] Reply in a thread.
@@ -29,6 +30,11 @@ import { messageLink } from '../lib/notifications.js';
  *
  * The parent's replyCount is increased with $inc in the same step as lastReplyAt, so two people
  * replying at the same moment both count. Live: 'message:reply' to members (lib/realtime.js).
+ *
+ * [Sprint 7 · M1] Editing / deleting a reply uses the same endpoint as a channel message:
+ * PATCH / DELETE /api/projects/:id/channels/:channelId/messages/:replyId (routes/channels.js).
+ * A deleted reply stays in the thread as "Message deleted" and still counts in replyCount, so the
+ * conversation keeps making sense. A thread whose first message was deleted stays open for replies.
  */
 
 const router = Router({ mergeParams: true });
@@ -86,7 +92,8 @@ router.get('/', async (req, res, next) => {
         .lean(),
     ]);
 
-    const replies = rows.slice(0, limit);
+    // [Sprint 7 · M1] channelMessageView: edited replies show "edited", deleted ones "Message deleted" (no text sent).
+    const replies = rows.slice(0, limit).map(channelMessageView);
     const nextAfter = rows.length > limit ? replies[replies.length - 1].createdAt : null;
     return res.json({ parent: populatedParent, replies, nextAfter });
   } catch (error) {
