@@ -1,8 +1,12 @@
+import { isGatewayStatus, isNetworkError, trackedFetch, waitForServer } from './serverWake.js'; // [Sprint 7 · M6]
+
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
 // [Deploy] Live updates (socket.io) can go to a different address than the API. On Vercel the API is reached
 // through a same-site rewrite (VITE_API_URL=/api, see frontend/vercel.json), but Vercel cannot forward WebSockets,
 // so VITE_SOCKET_URL points straight at the Render API. Unset (local development): same server as the API.
 const SOCKET_ORIGIN = (import.meta.env.VITE_SOCKET_URL || API_BASE.replace(/\/api$/, '')).replace(/\/$/, '');
+// [Sprint 7 · M6] Polled while the free Render server wakes up (serverWake.js, ServerWakeBanner).
+const HEALTH_URL = `${API_BASE}/health`;
 
 // Access tokens live only in memory. The HttpOnly refresh cookie is managed by the API.
 let currentAccessToken = null;
@@ -35,14 +39,54 @@ async function readJson(response) {
   return response.json().catch(() => ({}));
 }
 
+/*
+ * [Sprint 7 · M6] Cold start. Every request goes through trackedFetch, so a request that hangs while the free
+ * Render server wakes up shows "Server is waking up…". If the server could not be reached (network error) or
+ * the proxy answered 502/503/504 while it starts:
+ *   retryable (GET, and the session refresh): wait until /api/health answers, then send it once more;
+ *   anything else (POST, PATCH, …): never sent twice. The banner still shows until the server is back,
+ *   and the caller gets the original error, so the person can simply try again.
+ */
+async function sendRequest(url, init, { retryable = false } = {}) {
+  let failure = null;
+  try {
+    const response = await trackedFetch(url, init);
+    if (!isGatewayStatus(response.status)) return response;
+    failure = { response };
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    failure = { error };
+  }
+
+  const answered = () => {
+    if (failure.error) throw failure.error;
+    return failure.response;
+  };
+  if (!retryable) {
+    waitForServer(HEALTH_URL).catch(() => {});
+    return answered();
+  }
+  // Up again: send it once more. Still down after the wait: give the caller the original failure.
+  if (await waitForServer(HEALTH_URL)) return trackedFetch(url, init);
+  return answered();
+}
+
+const isSafeMethod = (method) => ['GET', 'HEAD'].includes(String(method || 'GET').toUpperCase());
+
+// [Sprint 7 · M6] For the banner's "Try again" button.
+export const serverWakeApi = {
+  waitForServer: () => waitForServer(HEALTH_URL),
+};
+
 async function refreshAccessToken() {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const response = await fetch(`${API_BASE}/auth/refresh`, {
+      // [Sprint 7 · M6] retryable: a refresh the sleeping server never received is safe to send again.
+      const response = await sendRequest(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },
-      });
+      }, { retryable: true });
       const data = await readJson(response);
       if (!response.ok || !data.accessToken) {
         currentAccessToken = null;
@@ -59,8 +103,12 @@ async function refreshAccessToken() {
   return refreshInFlight;
 }
 
+// [Sprint 7 · M6] What a 502/503/504 from the proxy means for the person: the server is starting.
+export const SERVER_WAKING_MESSAGE = 'The server is waking up. Please try again in a moment.';
+
 function makeApiError(data, status) {
-  const error = new Error(data?.message || `Request failed (${status}).`);
+  const fallback = isGatewayStatus(status) ? SERVER_WAKING_MESSAGE : `Request failed (${status}).`;
+  const error = new Error(data?.message || fallback);
   error.status = status;
   error.details = data?.details;
   // Keep compatibility with components written against Axios-style errors.
@@ -69,7 +117,9 @@ function makeApiError(data, status) {
 }
 
 export async function api(path, options = {}) {
-  const { skipAuthRefresh = false, ...fetchOptions } = options;
+  // [Sprint 7 · M6] retryWhenAsleep: send again once the server is up (only for requests that are safe to repeat).
+  const { skipAuthRefresh = false, retryWhenAsleep, ...fetchOptions } = options;
+  const retryable = retryWhenAsleep ?? isSafeMethod(fetchOptions.method);
   const authPathsWithoutRefresh = ['/auth/login', '/auth/signup', '/auth/refresh', '/auth/logout'];
 
   const request = async (accessToken) => {
@@ -81,11 +131,11 @@ export async function api(path, options = {}) {
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
     else headers.delete('Authorization');
 
-    return fetch(`${API_BASE}${path}`, {
+    return sendRequest(`${API_BASE}${path}`, {
       ...fetchOptions,
       headers,
       credentials: 'include',
-    });
+    }, { retryable });
   };
 
   let response = await request(currentAccessToken);
@@ -106,7 +156,9 @@ export async function api(path, options = {}) {
 
 export function restoreSession() {
   if (!restoreSessionInFlight) {
-    restoreSessionInFlight = api('/auth/refresh', { method: 'POST', skipAuthRefresh: true }).finally(() => { restoreSessionInFlight = null; });
+    // [Sprint 7 · M6] retryWhenAsleep: opening the site while the server sleeps keeps you signed in
+    // ("Opening your orbit…" + the waking banner) instead of sending you to the login page.
+    restoreSessionInFlight = api('/auth/refresh', { method: 'POST', skipAuthRefresh: true, retryWhenAsleep: true }).finally(() => { restoreSessionInFlight = null; });
   }
   return restoreSessionInFlight;
 }
@@ -320,7 +372,7 @@ export const taskApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToProjectTasks(
-          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
+          liveConfig, // [Sprint 7 · M6] same config everywhere: whichever page opens the socket first decides it
           id,
           onTaskUpdated,
           onTaskDeleted
@@ -349,6 +401,15 @@ export const taskApi = {
 
 const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
 
+// [Sprint 7 · M6] refreshToken: when the server refuses the socket because the 15-minute access token ran out
+// while the connection was away (Render restart or sleep, laptop asleep, Wi-Fi drop), realtime.js gets a fresh
+// token and reconnects, instead of retrying the old one forever.
+const liveConfig = {
+  origin: SOCKET_ORIGIN,
+  getToken: () => currentAccessToken,
+  refreshToken: () => refreshAccessToken(),
+};
+
 // [Sprint 2 final] Generic live updates for one project. Calls handler(payload) for each
 // `eventName` event ('message:created', ...). Returns an unsubscribe function.
 export const liveApi = {
@@ -359,7 +420,7 @@ export const liveApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToProjectEvent(
-          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
+          liveConfig,
           id,
           eventName,
           handler
@@ -379,10 +440,26 @@ export const liveApi = {
       .then((module) => {
         if (cancelled) return;
         stop = module.subscribeToUserEvent(
-          { origin: SOCKET_ORIGIN, getToken: () => currentAccessToken },
+          liveConfig,
           eventName,
           handler
         );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  },
+  // [Sprint 7 · M6] Calls handler() each time the live connection comes back after a drop, so a page can load
+  // what it missed meanwhile (events sent while it was offline are not replayed).
+  onReconnect: (handler) => {
+    let stop = null;
+    let cancelled = false;
+    loadRealtime()
+      .then((module) => {
+        if (cancelled) return;
+        stop = module.subscribeToReconnect(liveConfig, handler);
       })
       .catch(() => {});
     return () => {
@@ -396,6 +473,7 @@ export const liveApi = {
 //   list      -> { notifications (newest first), nextBefore, unreadCount }   pass nextBefore back as `before`
 //   markRead  -> { notification, unreadCount }
 //   onCreated -> live { notification, unreadCount };  onRead -> live { notificationId, unreadCount }
+//   onReconnect -> handler() when the live connection is back after a drop   [Sprint 7 · M6]
 export const notificationApi = {
   list: ({ limit = 20, before, unread } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
@@ -406,6 +484,8 @@ export const notificationApi = {
   markRead: (notificationId) => api(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PATCH' }),
   onCreated: (handler) => liveApi.onUser('notification:created', handler),
   onRead: (handler) => liveApi.onUser('notification:read', handler),
+  // [Sprint 7 · M6] reload after the live connection was lost (Render restart or sleep, network drop).
+  onReconnect: (handler) => liveApi.onReconnect(handler),
 };
 
 // [Sprint 2 final] Project channels (US-16). Contract: backend/src/routes/channels.js
@@ -535,10 +615,10 @@ export const healthApi = {
 // [Sprint 4 · M5] Like api(), but for a file download: same sign-in and token refresh, returns a Blob.
 // Downloads need the access token in the Authorization header, so a plain <a href> cannot be used.
 async function apiBlob(path) {
-  const request = (accessToken) => fetch(`${API_BASE}${path}`, {
+  const request = (accessToken) => sendRequest(`${API_BASE}${path}`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     credentials: 'include',
-  });
+  }, { retryable: true }); // [Sprint 7 · M6] a download is a GET
 
   let response = await request(currentAccessToken);
   if (response.status === 401) {

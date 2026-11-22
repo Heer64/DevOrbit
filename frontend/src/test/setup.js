@@ -1,6 +1,11 @@
 // Vitest setup for the frontend tests (Sprint 2 Pair D).
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { setServerWaitEnabled } from '../serverWake';
+
+// [Sprint 7 · M6] There is no API server in unit tests: a request that cannot reach it must fail at once,
+// not wait for the server to "wake up" (serverWake.test.js turns this back on to test the waiting).
+setServerWaitEnabled(false);
 
 // jsdom has no ResizeObserver; @dnd-kit measures droppable columns with it.
 if (typeof globalThis.ResizeObserver === 'undefined') {

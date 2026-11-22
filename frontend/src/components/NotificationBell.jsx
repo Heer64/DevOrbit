@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AtSign, Bell, Clock3, MessageCircle, ShieldAlert, UserCheck, UserX } from 'lucide-react'; // [Sprint 6 · M7] + ShieldAlert, UserX; [Sprint 7 · M3] + MessageCircle
 import { notificationApi } from '../api';
 import { timeAgo } from './activityDisplay';
+import NotificationToasts, { addToast } from './NotificationToasts'; // [Sprint 7 · M6] popup
 
 /*
  * [Sprint 3 · M7 Part 2] The notification bell in the top bar (US-30, FR-33, NFR-6).
@@ -11,6 +12,10 @@ import { timeAgo } from './activityDisplay';
  *   one read in another tab updates this one too ('notification:read').
  * - Opening the bell lists the newest notifications, labelled Mention, Assignment or Deadline.
  * - Selecting one marks it read and opens the related task or message (its in-app link).
+ * - [Sprint 7 · M6] A new live notification also pops up for a few seconds (NotificationToasts); selecting the
+ *   popup does the same as selecting it here. No popup while this list is open (it is already in view), and a
+ *   popup closes when the notification is read in another tab. After the live connection was lost and comes
+ *   back (api.onReconnect), the list reloads, so notifications sent meanwhile still show up (without popups).
  *
  * Contract: backend/src/routes/notifications.js. `api` can be replaced in tests.
  */
@@ -51,7 +56,10 @@ export default function NotificationBell({ api = notificationApi }) {
   const [nextBefore, setNextBefore] = useState(null);
   const [error, setError] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
+  const [toasts, setToasts] = useState([]); // [Sprint 7 · M6] popups for notifications that just arrived
   const wrapRef = useRef(null);
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
 
   const load = useCallback(async () => {
     try {
@@ -80,14 +88,22 @@ export default function NotificationBell({ api = notificationApi }) {
       if (!payload?.notification) return;
       setItems((old) => mergeNotifications(old || [], [payload.notification]));
       if (typeof payload.unreadCount === 'number') setUnreadCount(payload.unreadCount);
+      // [Sprint 7 · M6] popup, unless the list is open (then it is already in view)
+      if (!openRef.current && !payload.notification.read) setToasts((old) => addToast(old, payload.notification));
     });
     const stopRead = api.onRead?.((payload) => {
       if (!payload?.notificationId) return;
       setItems((old) => (old || []).map((item) => (item._id === payload.notificationId ? { ...item, read: true } : item)));
       if (typeof payload.unreadCount === 'number') setUnreadCount(payload.unreadCount);
+      setToasts((old) => old.filter((item) => item._id !== payload.notificationId)); // [Sprint 7 · M6]
     });
-    return () => { stopCreated?.(); stopRead?.(); };
-  }, [api]);
+    // [Sprint 7 · M6] Events sent while the connection was down are not replayed: load what was missed.
+    const stopReconnect = api.onReconnect?.(() => load());
+    return () => { stopCreated?.(); stopRead?.(); stopReconnect?.(); };
+  }, [api, load]);
+
+  // [Sprint 7 · M6]
+  const dismissToast = useCallback((id) => setToasts((old) => old.filter((item) => item._id !== id)), []);
 
   // Close on Escape or a click outside.
   useEffect(() => {
@@ -100,6 +116,7 @@ export default function NotificationBell({ api = notificationApi }) {
   }, [open]);
 
   const toggle = () => {
+    if (!open) setToasts([]); // [Sprint 7 · M6] the list now shows them
     setOpen((value) => !value);
     if (!open && error) load();
   };
@@ -130,6 +147,12 @@ export default function NotificationBell({ api = notificationApi }) {
         .catch(() => load()); // put the real state back if it failed
     }
     if (isInAppLink(item.link)) navigate(item.link);
+  };
+
+  // [Sprint 7 · M6] Selecting a popup = selecting that notification in the list.
+  const openToast = (item) => {
+    dismissToast(item._id);
+    openNotification(item);
   };
 
   const badge = badgeText(unreadCount);
@@ -195,6 +218,8 @@ export default function NotificationBell({ api = notificationApi }) {
           )}
         </div>
       )}
+
+      <NotificationToasts toasts={toasts} kinds={NOTIFICATION_KINDS} onOpen={openToast} onDismiss={dismissToast} />
     </div>
   );
 }
