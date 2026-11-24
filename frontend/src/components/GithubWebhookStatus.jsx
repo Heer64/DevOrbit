@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Webhook } from 'lucide-react';
+import { RefreshCw, Webhook } from 'lucide-react'; // RefreshCw: [Sprint 7 · M8] missed events
 import { timeAgo } from './activityDisplay';
 
 /*
@@ -9,6 +9,11 @@ import { timeAgo } from './activityDisplay';
  *   - "Recent deliveries": the last 20 deliveries GitHub sent, for troubleshooting (metadata only)
  * The API decides the status (backend/src/lib/githubWebhookSetup.js); the browser never sees the
  * webhook secret or the hook ID.
+ *
+ * [Sprint 7 · M8] Missed events: "Check for missed events" (active webhook only) asks the server to read
+ * the webhook's delivery log on GitHub and have GitHub send again what never reached DevOrbit, e.g.
+ * while the server was asleep (POST /api/projects/:id/github/webhook/recheck). The server also does
+ * this by itself every 15 minutes.
  */
 
 export const WEBHOOK_LABELS = {
@@ -36,6 +41,9 @@ function deliveryDetail(delivery) {
 export default function GithubWebhookStatus({ projectId, webhook, api }) {
   const [deliveries, setDeliveries] = useState(null);
   const [error, setError] = useState('');
+  // [Sprint 7 · M8] missed events
+  const [rechecking, setRechecking] = useState(false);
+  const [recheck, setRecheck] = useState(null); // { ok, text }
 
   const label = WEBHOOK_LABELS[webhook?.status] || { tone: 'orange', text: 'Webhook not set up' };
   const message = webhook?.message
@@ -49,6 +57,22 @@ export default function GithubWebhookStatus({ projectId, webhook, api }) {
       .catch((e) => setError(e.message || 'Could not load webhook deliveries.'));
   };
 
+  // [Sprint 7 · M8] missed events
+  const canRecheck = webhook?.status === 'active' && typeof api?.recheckMissedEvents === 'function';
+  const checkMissed = async () => {
+    setRecheck(null);
+    setRechecking(true);
+    try {
+      const result = await api.recheckMissedEvents(projectId);
+      setRecheck({ ok: true, text: result?.message || 'Checked for missed events.' });
+      if (result?.redelivered > 0) setDeliveries(null); // reloaded the next time "Recent deliveries" is opened
+    } catch (e) {
+      setRecheck({ ok: false, text: e.message || 'Could not check for missed events.' });
+    } finally {
+      setRechecking(false);
+    }
+  };
+
   return (
     <div className="github-webhook" aria-label="GitHub webhook">
       <p className="github-webhook-state">
@@ -56,6 +80,16 @@ export default function GithubWebhookStatus({ projectId, webhook, api }) {
         <span className={`pill ${label.tone}`}>{label.text}</span>
       </p>
       <p className="team-note">{message}</p>
+
+      {/* [Sprint 7 · M8] missed events */}
+      {canRecheck && (
+        <div className="github-recheck">
+          <button type="button" className="link github-recheck-button" onClick={checkMissed} disabled={rechecking}>
+            <RefreshCw size={11} aria-hidden="true" /> {rechecking ? 'Checking GitHub…' : 'Check for missed events'}
+          </button>
+          {recheck && <p className={recheck.ok ? 'success-inline' : 'form-error'} role={recheck.ok ? 'status' : 'alert'}>{recheck.text}</p>}
+        </div>
+      )}
 
       {api?.deliveries && (
         <details onToggle={(event) => { if (event.currentTarget.open && deliveries === null) load(); }}>

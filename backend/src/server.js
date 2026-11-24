@@ -9,6 +9,7 @@ import { startTrendingRanker, stopTrendingRanker } from './lib/trending.js'; // 
 import { missingLlmSettings } from './lib/llmClient.js'; // [Sprint 6 · M3] US-41
 import { ADMIN_BOOTSTRAP_LOG, ensurePlatformAdminFromEnv } from './lib/platformAdmin.js'; // [Sprint 6 · M8] FR-27
 import { mailConfig } from './lib/mailer.js'; // [Sprint 6 · M1] US-04
+import { startMissedEventsCheck, stopMissedEventsCheck } from './lib/githubMissedEvents.js'; // [Sprint 7 · M8] missed GitHub events
 
 const port = Number(process.env.PORT || 5000);
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/devorbit';
@@ -74,6 +75,9 @@ try {
   startDeadlineNotifier();
   // [Sprint 5 · M8] US-53: recalculate trending scores now and every 4 minutes (NFR-15: at least every 5).
   startTrendingRanker();
+  // [Sprint 7 · M8] GitHub deliveries missed while the server was asleep or down are sent again:
+  // 30 s after start-up, then every 15 minutes (lib/githubMissedEvents.js).
+  startMissedEventsCheck();
 } catch (error) {
   console.error('MongoDB connection failed:', error.message);
   console.error('Check that MongoDB is running and that MONGODB_URI in backend/.env is correct.');
@@ -85,6 +89,7 @@ async function shutdown(signal) {
   console.log(`${signal} received. Shutting down DevOrbit API...`);
   stopDeadlineNotifier(); // [Sprint 3 · M7 Part 2]
   stopTrendingRanker(); // [Sprint 5 · M8]
+  stopMissedEventsCheck(); // [Sprint 7 · M8]
   // Closing Socket.IO also closes the HTTP server it is attached to.
   await closeRealtime();
   await mongoose.connection.close();

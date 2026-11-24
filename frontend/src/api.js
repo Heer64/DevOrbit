@@ -501,6 +501,12 @@ export const githubApi = {
   deliveries: (id) => api(`${projectPath(id)}/github/deliveries`), // [Sprint 4 · M4] US-34 recent webhook deliveries (Owner/Admin)
   disconnect: (id) => api(`${projectPath(id)}/github/disconnect`, { method: 'POST', body: JSON.stringify({ confirm: true }) }), // [Sprint 4 · M3]
   verify: (id) => api(`${projectPath(id)}/github/verify`, { method: 'POST' }), // [Sprint 4 · M3]
+  // [Sprint 7 · M8] D3: real repository numbers + top-level files for "Code & files" (any member).
+  //   -> { state, reason, message, repository, stats, files, filesTotal, moreFiles, empty }
+  code: (id) => api(`${projectPath(id)}/github/code`),
+  // [Sprint 7 · M8] Missed events: ask GitHub to resend deliveries that never arrived (Owner/Admin).
+  //   -> { checked, redelivered, message }
+  recheckMissedEvents: (id) => api(`${projectPath(id)}/github/webhook/recheck`, { method: 'POST' }),
 };
 
 // [Sprint 4 · M7] Project dashboard (US-39). Contract: backend/src/routes/dashboard.js

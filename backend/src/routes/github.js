@@ -21,7 +21,7 @@ import {
   revokeGithubToken,
   verifyConnection,
 } from '../lib/githubConnection.js';
-import { webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34
+import { leftWebhookView, webhookLeftAfterDisconnect, webhookView } from '../lib/githubWebhooks.js'; // [Sprint 4 · M4] US-34; [Sprint 7 · M8] D4 leftWebhookView, webhookLeftAfterDisconnect
 import { removeProjectWebhook, setupProjectWebhook } from '../lib/githubWebhookSetup.js'; // [Sprint 4 · M4] US-34, used by US-33
 import {
   STATE_TTL_MS,
@@ -129,6 +129,9 @@ export function githubStatusBody({ connection, configured, role }) {
     // M1 canAuthorize · M2 { repository, connectionState, active, canSelectRepository } · M3 the rest
     ...connectionStatus({ connection, configured, role }),
     webhook: webhookView(connection), // [Sprint 4 · M4] US-34: { status, message, events, updatedAt } or null
+    // [Sprint 7 · M8] D4: a webhook Disconnect could not remove from GitHub (shown until GitHub is connected again).
+    webhookLeftOnGithub: Boolean(leftWebhookView(connection)),
+    leftWebhook: leftWebhookView(connection), // { repositoryFullName, settingsUrl, reason, at, message } or null
   };
 }
 
@@ -290,11 +293,20 @@ projectGithubRoutes.post('/disconnect', async (req, res, next) => {
     // (M4's removeProjectWebhook(); it keeps a hook another project still uses, never throws).
     // Even if this fails, the event gate (lib/githubEventGate.js) drops every later delivery.
     let webhookRemoved = false;
+    let removal = null; // [Sprint 7 · M8] D4: why it was (not) removed
     if (previous.webhook?.hookId && accessToken) {
-      webhookRemoved = (await removeProjectWebhook({ connection: previous, accessToken })).removed === true;
+      removal = await removeProjectWebhook({ connection: previous, accessToken });
+      webhookRemoved = removal.removed === true;
     }
-    if (previous.webhook) {
-      await GithubConnection.updateOne({ _id: previous._id, status: 'disconnected' }, { $set: { webhook: null } });
+    // [Sprint 7 · M8] D4: GitHub refused (e.g. 401) or there was no usable token: the hook is still on
+    // GitHub. Remember it so the Owner/Admin is told to delete it, also after a reload.
+    const left = webhookLeftAfterDisconnect({ hadHook: Boolean(previous.webhook?.hookId), hasToken: Boolean(accessToken), removal });
+    const leftRepository = previous.repository?.fullName || '';
+    const webhookLeft = left.left && leftRepository
+      ? { hookId: previous.webhook.hookId, repositoryFullName: leftRepository, reason: left.reason, at: new Date() }
+      : null;
+    if (previous.webhook || webhookLeft) {
+      await GithubConnection.updateOne({ _id: previous._id, status: 'disconnected' }, { $set: { webhook: null, webhookLeft } });
     }
 
     // Revoke the token on GitHub too (best effort; it is already gone from the database).
@@ -508,6 +520,7 @@ githubCallbackRoutes.get('/callback', async (req, res) => {
         reauthorizationReason: '',
         lastCheckedAt: repositoryCheck ? repositoryCheck.checkedAt : null,
         repositoryCheck,
+        webhookLeft: null, // [Sprint 7 · M8] D4: connected again; the webhook is set up (or reused) again below
       },
       { upsert: true, setDefaultsOnInsert: true, runValidators: true }
     );

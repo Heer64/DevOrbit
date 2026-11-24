@@ -228,3 +228,114 @@ export const WEBHOOK_MESSAGES = {
   rate_limited: 'Webhook not set up: GitHub\'s rate limit was reached. Choose the repository again in a few minutes.',
   reauthorize: 'Webhook not set up: GitHub no longer accepts this project\'s authorization. Re-authorize GitHub, then choose the repository again.',
 };
+
+// ---------------------------------------------------------------------------------------------
+// [Sprint 7 · M8] D4: Disconnect could not take the webhook off GitHub.
+// ---------------------------------------------------------------------------------------------
+
+const FULL_NAME = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
+
+// Where the Owner deletes a webhook by hand: the repository's Settings -> Webhooks. null for a bad name.
+export function webhookSettingsUrl(fullName) {
+  return typeof fullName === 'string' && FULL_NAME.test(fullName) ? `https://github.com/${fullName}/settings/hooks` : null;
+}
+
+export const LEFT_WEBHOOK_MESSAGE = 'We couldn\'t remove the webhook from GitHub. Delete it in the repository\'s Settings → Webhooks.';
+
+/*
+ * After Disconnect: was a webhook left on GitHub? -> { left: false } | { left: true, reason }
+ *   hadHook       the connection had a webhook (hookId) when it was disconnected
+ *   hasToken      a usable token was there to remove it with
+ *   removal       what removeProjectWebhook() returned ({ removed, reason }) or null when not called
+ * Only a real failure counts. Normal cases are not warnings: no webhook, a hook another project still
+ * uses ('shared'), or a stored hook for an earlier repository ('other_repository').
+ */
+export function webhookLeftAfterDisconnect({ hadHook, hasToken, removal }) {
+  if (!hadHook) return { left: false };
+  if (!hasToken) return { left: true, reason: 'no_token' };
+  if (removal && removal.removed !== true && removal.reason === 'error') return { left: true, reason: 'github_refused' };
+  return { left: false };
+}
+
+// What the panel shows (Owner/Admin only, never the hook ID). null when nothing was left behind.
+export function leftWebhookView(connection) {
+  const left = connection?.webhookLeft;
+  if (!left || !left.repositoryFullName) return null;
+  return {
+    repositoryFullName: left.repositoryFullName,
+    settingsUrl: webhookSettingsUrl(left.repositoryFullName),
+    reason: left.reason || 'github_refused',
+    at: left.at || null,
+    message: LEFT_WEBHOOK_MESSAGE,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// [Sprint 7 · M8] Missed events: GitHub's delivery log for our webhook, and "Redeliver".
+// GitHub keeps every delivery it tried to send (also the ones our server never answered, e.g. while
+// Render's free server was asleep) and can send one again with the SAME X-GitHub-Delivery ID.
+// lib/githubMissedEvents.js decides which ones were missed (lib/githubMissedEventsRules.js).
+// ---------------------------------------------------------------------------------------------
+
+export const DELIVERIES_PER_PAGE = 100;
+export const MAX_DELIVERY_PAGES = 3;
+
+function cursorFromLink(link) {
+  const next = String(link || '').split(',').find((part) => /rel="next"/.test(part));
+  const url = next ? /<([^>]+)>/.exec(next)?.[1] : null;
+  if (!url) return null;
+  try {
+    const cursor = new URL(url).searchParams.get('cursor');
+    return cursor && /^[A-Za-z0-9_=+/-]{1,200}$/.test(cursor) ? cursor : null;
+  } catch {
+    return null;
+  }
+}
+
+/*
+ * The webhook's recent deliveries, newest first (raw GitHub objects:
+ * { id, guid, delivered_at, redelivery, status_code, event, action, ... }).
+ * Stops at `since` (ms) or after MAX_DELIVERY_PAGES pages.
+ * Throws GithubApiError: 'not_admin' when GitHub answers 403/404 (the account cannot manage the hook,
+ * or the hook is gone), 'unauthorized', 'rate_limited', 'unavailable'.
+ */
+export async function listHookDeliveries({ accessToken, fullName, hookId, since = 0, maxPages = MAX_DELIVERY_PAGES, fetchImpl = globalThis.fetch }) {
+  if (!Number.isSafeInteger(hookId) || hookId <= 0) throw new GithubApiError('not_admin', 'No webhook to read.');
+  const base = `${repoPath(fullName)}/hooks/${hookId}/deliveries`;
+  const all = [];
+  let cursor = null;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const query = new URLSearchParams({ per_page: String(DELIVERIES_PER_PAGE) });
+    if (cursor) query.set('cursor', cursor);
+    const response = await githubRequest('GET', `${base}?${query}`, accessToken, { fetchImpl });
+    if (response.status === 404 || (response.status === 403 && response.headers.get('x-ratelimit-remaining') !== '0' && !response.headers.has('retry-after'))) {
+      throw new GithubApiError('not_admin', 'The GitHub account cannot read this webhook\'s deliveries.', { status: response.status });
+    }
+    if (!response.ok) throw githubError(response);
+    const data = await readJson(response);
+    if (!Array.isArray(data)) throw new GithubApiError('unavailable', 'GitHub sent an unexpected delivery list.');
+    all.push(...data);
+    const oldest = data.length ? Date.parse(data[data.length - 1]?.delivered_at) : NaN;
+    cursor = cursorFromLink(response.headers.get('link'));
+    if (!cursor || data.length < DELIVERIES_PER_PAGE || (Number.isFinite(oldest) && oldest < since)) break;
+  }
+  return all;
+}
+
+/*
+ * Asks GitHub to send one delivery again (POST .../deliveries/{id}/attempts -> 202).
+ * GitHub sends it to our normal, signed POST /api/github/webhook with the same delivery ID, so
+ * WebhookDelivery's unique deliveryId still makes sure it is processed at most once. -> true
+ * Throws GithubApiError like listHookDeliveries().
+ */
+export async function redeliverHookDelivery({ accessToken, fullName, hookId, deliveryId, fetchImpl = globalThis.fetch }) {
+  if (!Number.isSafeInteger(hookId) || hookId <= 0 || !Number.isSafeInteger(deliveryId) || deliveryId <= 0) {
+    throw new GithubApiError('not_admin', 'No delivery to send again.');
+  }
+  const response = await githubRequest('POST', `${repoPath(fullName)}/hooks/${hookId}/deliveries/${deliveryId}/attempts`, accessToken, { fetchImpl });
+  if (response.status === 202 || response.status === 200 || response.status === 201) return true;
+  if (response.status === 404 || (response.status === 403 && response.headers.get('x-ratelimit-remaining') !== '0' && !response.headers.has('retry-after'))) {
+    throw new GithubApiError('not_admin', 'GitHub refused to send the delivery again.', { status: response.status });
+  }
+  throw githubError(response);
+}

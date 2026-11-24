@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import { rateLimitKey } from '../lib/rateLimitKey.js'; // [Sprint 7 · M8] D5 fix
 import User from '../models/User.js';
 import Session from '../models/Session.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
@@ -43,6 +44,7 @@ const limiter = (limit) =>
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => process.env.NODE_ENV === 'test',
+    keyGenerator: rateLimitKey, // [Sprint 7 · M8] D5: one bucket per client address, port or not
     message: { message: RESET_MESSAGES.tooMany },
   });
 

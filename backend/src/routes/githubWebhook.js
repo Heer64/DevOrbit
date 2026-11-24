@@ -1,5 +1,6 @@
 import express, { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { rateLimitKey } from '../lib/rateLimitKey.js'; // [Sprint 7 · M8] D5 fix
 
 import GithubConnection from '../models/GithubConnection.js';
 import GithubFeedKey from '../models/GithubFeedKey.js';
@@ -161,6 +162,7 @@ githubWebhookRoutes.post(
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => process.env.NODE_ENV === 'test',
+    keyGenerator: rateLimitKey, // [Sprint 7 · M8] D5: smee sends "ip:port"; one bucket per sender, not per port
   }),
   // Raw bytes for every content type, so the HMAC is computed on exactly what GitHub signed.
   express.raw({ type: () => true, limit: '1mb' }),

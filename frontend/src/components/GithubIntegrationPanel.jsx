@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Github, Lock, RefreshCw, Unlink } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Github, Lock, RefreshCw, Unlink } from 'lucide-react'; // AlertTriangle, ExternalLink: [Sprint 7 · M8] D4
 import { githubApi } from '../api';
 import { Btn } from './ui';
 import GithubRepositoryPicker from './GithubRepositoryPicker'; // [Sprint 4 · M2] US-32
@@ -86,6 +86,18 @@ export function checkResultText(check, repositoryName = 'the repository') {
 }
 
 const DISCONNECTED_TEXT = 'No new GitHub events are added to the Activity Feed. Earlier entries stay.';
+
+// [Sprint 7 · M8] D4: Disconnect could not take the webhook off GitHub (GitHub refused, e.g. HTTP 401).
+export const LEFT_WEBHOOK_TEXT = 'We couldn\'t remove the webhook from GitHub. Delete it in the repository\'s Settings → Webhooks.';
+export function leftWebhookFrom(status) {
+  const left = status?.leftWebhook;
+  if (!left || !left.repositoryFullName) return null;
+  // Only ever a github.com settings link (the API builds it; checked again here).
+  const url = typeof left.settingsUrl === 'string' && /^https:\/\/github\.com\/[^\s]+\/settings\/hooks$/.test(left.settingsUrl)
+    ? left.settingsUrl
+    : null;
+  return { repositoryFullName: left.repositoryFullName, settingsUrl: url };
+}
 
 export default function GithubIntegrationPanel({
   projectId,
@@ -191,6 +203,7 @@ export default function GithubIntegrationPanel({
   const canDisconnect = Boolean(connection && status?.canDisconnect);
   const canVerify = Boolean(connection && status?.canVerify);
   const actionsBusy = busy || checking || disconnecting;
+  const leftWebhook = disconnected ? leftWebhookFrom(status) : null; // [Sprint 7 · M8] D4
 
   const repositorySelected = (next) => {
     setStatus(next);
@@ -304,6 +317,23 @@ export default function GithubIntegrationPanel({
       )}
       {disconnected && (
         <p className="team-note github-next-step">{DISCONNECTED_TEXT}{canReauthorize ? ' Re-authorize GitHub to connect it again.' : ''}</p>
+      )}
+      {/* [Sprint 7 · M8] D4: the webhook is still on GitHub. Its deliveries are ignored, but the Owner should delete it. */}
+      {leftWebhook && (
+        <div className="form-error github-webhook-left" role="alert" data-testid="github-webhook-left">
+          <p className="with-icon"><AlertTriangle size={14} aria-hidden="true" /> {LEFT_WEBHOOK_TEXT}</p>
+          <small>
+            Repository: <b>{leftWebhook.repositoryFullName}</b>.
+            {leftWebhook.settingsUrl && (
+              <>
+                {' '}
+                <a href={leftWebhook.settingsUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', fontWeight: 600 }}>
+                  Open webhook settings on GitHub <ExternalLink size={11} aria-hidden="true" />
+                </a>
+              </>
+            )}
+          </small>
+        </div>
       )}
 
       {picking && canSelectRepository && (
