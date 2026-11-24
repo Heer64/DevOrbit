@@ -24,6 +24,7 @@ import DocsPanel from '../components/DocsPanel'; // [Sprint 4 · M6] US-38
 import { publicProjectPath } from '../lib/publicLinks'; // [Sprint 5 · M2] US-46
 import CopilotPanel from '../components/CopilotPanel'; // [Sprint 6 · M3] US-41
 import CatchMeUpPanel from '../components/CatchMeUpPanel'; // [Sprint 6 · M5] US-44
+import ProjectCodePanel from '../components/ProjectCodePanel'; // [Sprint 7 · M8] D3 real Code & files
 
 const projects = {
   'orbit-dashboard': { name: 'Orbit dashboard', description: 'A shared home for project progress and team momentum.', domain: 'Developer tools', repo: 'devorbit/orbit-dashboard', color: 'violet', members: ['AM', 'RK', 'JS', 'NK', '+1'], health: 'On track', goal: 'Make team work feel clear, connected, and calm.', progress: 72 },
@@ -395,8 +396,13 @@ export default function ProjectPage() {
           {liveProject && canManageMembers(membershipRole) && (
             <GithubIntegrationPanel projectId={id} onChange={refreshProgress} />
           )}
-          <section className="panel">
-            <div className="panel-head"><div><div className="eyebrow">DEVELOPMENT</div><h2 className="with-icon" style={{ marginTop: 6 }}><Code2 size={17} /> Code &amp; files</h2></div><button className="iconbtn" onClick={() => setNotice('Repository actions are demo-only until GitHub OAuth is configured.')} aria-label="Repository actions"><MoreHorizontal size={17} /></button></div>
+          {/* [Sprint 7 · M8] D3: real projects show only their connected repository's real numbers and files. */}
+          {isLive && membershipRole && (
+            <ProjectCodePanel key={`code-${project.repo || 'none'}`} projectId={id} canManage={canManageMembers(membershipRole)} />
+          )}
+          {/* [Sprint 7 · M8] D3: demo / sample projects keep the sample panel (layout preview only), marked SAMPLE. */}
+          {!isLive && <section className="panel">
+            <div className="panel-head"><div><div className="eyebrow">DEVELOPMENT</div><h2 className="with-icon" style={{ marginTop: 6 }}><Code2 size={17} /> Code &amp; files</h2></div><span className="ai-chip sample-chip">SAMPLE</span><button className="iconbtn" onClick={() => setNotice('Repository actions are demo-only until GitHub OAuth is configured.')} aria-label="Repository actions"><MoreHorizontal size={17} /></button></div>
             <div className="repo-box"><Github size={19} /><div><b>{repoLabel}</b><small>Repository reference</small></div><span className="pill"><GitBranch size={11} /> main</span></div>
             <div className="repo-stats"><span><GitFork size={13} /> 12 forks</span><span><GitPullRequest size={13} /> 4 open PRs</span><span><GitCommitHorizontal size={13} /> 128 commits</span></div>
             <div>
@@ -409,7 +415,7 @@ export default function ProjectPage() {
               ))}
             </div>
             <Btn secondary className="repo-link-btn" onClick={() => setNotice('Connect GitHub OAuth and configure a repository to open live code here.')}>Connect / open repository <ExternalLink size={14} /></Btn>
-          </section>
+          </section>}
 
           {/* [Sprint 6 · M3] US-41: real projects, members of any role, ask the Copilot. */}
           {/* [Sprint 6 · M5] US-44: members catch up on what happened since their previous login. */}

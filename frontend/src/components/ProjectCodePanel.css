@@ -1,0 +1,19 @@
+/* [Sprint 7 · M8] D3: real "Code & files" panel. Reuses .repo-box, .repo-stats, .file-row, .file-icon from styles.css. */
+.project-code-panel .code-files { list-style: none; margin: 0; padding: 0; }
+.project-code-panel a.file-row { text-decoration: none; }
+/* styles.css paints every span in .file-row peach (#ffc98f), which is hard to read on the light theme. */
+.project-code-panel .file-row .file-copy { color: var(--text); }
+.project-code-panel .file-row .file-copy small { color: var(--muted); }
+.project-code-panel a.file-row:hover .file-copy b { color: var(--accent); }
+.project-code-panel a.file-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.project-code-panel .repo-box a { color: inherit; text-decoration: none; }
+.project-code-panel .repo-box a:hover b { color: var(--accent); }
+.project-code-panel .repo-box small { display: flex; align-items: center; gap: 4px; }
+.project-code-panel .repo-link-btn { display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
+.project-code-panel .code-empty { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 18px 10px; color: var(--muted); }
+.project-code-panel .code-empty p { margin: 0; color: var(--text); }
+.project-code-panel .code-empty small { line-height: 1.6; }
+.project-code-panel .code-unavailable { margin-top: 10px; }
+.project-code-panel .code-more { margin-top: 8px; }
+/* Sample panel on demo projects (ProjectPage.jsx) */
+.sample-chip { margin-left: auto; }

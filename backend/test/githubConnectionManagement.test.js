@@ -6,6 +6,7 @@ import { test, before, after, beforeEach, afterEach } from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import mongoose from 'mongoose'; // [Sprint 7 · M8] D4 tests (a second project's connection)
 import { setup, teardown, signup, authed } from './helpers.js';
 import Activity from '../src/models/Activity.js';
 import GithubConnection from '../src/models/GithubConnection.js';
@@ -597,4 +598,96 @@ test('M4: reconnecting sets the webhook up again so events flow back in', async 
   assert.equal((await deliverPush('after-reconnect')).status, 202);
   await waitForWebhookWork();
   assert.equal((await WebhookDelivery.findOne({ deliveryId: 'after-reconnect' }).lean()).status, 'processed');
+});
+
+// --- [Sprint 7 · M8] D4: Disconnect tells the Owner when the webhook is still on GitHub ----------
+// Sprint 4 re-test: "If GitHub rejects the stored token (HTTP 401), Disconnect cannot remove the webhook.
+// It logs a warning, deletes the token and shows a normal 'Disconnected' screen."
+
+const HOOKS_SETTINGS = `https://github.com/${REPO.fullName}/settings/hooks`;
+
+test('D4: GitHub refuses to delete the webhook (401) -> the answer and every reload say it is still there', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  fakeGithub({ deleteHook: json({ message: 'Bad credentials' }, 401) });
+
+  const res = await disconnect(owner);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.connectionState, 'disconnected');
+  assert.equal(res.body.webhookRemoved, false);
+  assert.equal(res.body.webhookLeftOnGithub, true);
+  assert.equal(res.body.leftWebhook.repositoryFullName, REPO.fullName);
+  assert.equal(res.body.leftWebhook.settingsUrl, HOOKS_SETTINGS);
+  assert.equal(res.body.leftWebhook.reason, 'github_refused');
+  assert.match(res.body.leftWebhook.message, /couldn't remove the webhook from GitHub/);
+  assert.equal(JSON.stringify(res.body).includes('"hookId"'), false, 'the hook ID never reaches the browser');
+
+  // Still shown after a reload, to the Owner and to Admins.
+  for (const account of [owner, admin]) {
+    const status = await as(account).get(base());
+    assert.equal(status.body.webhookLeftOnGithub, true);
+    assert.equal(status.body.leftWebhook.settingsUrl, HOOKS_SETTINGS);
+  }
+  const stored = await GithubConnection.findOne({ project: projectId }).lean();
+  assert.equal(stored.webhookLeft.hookId, ACTIVE_HOOK.hookId, 'kept on the server for reference');
+  noSecretAnywhere(res.body);
+});
+
+test('D4: a token that can no longer be read also leaves the webhook -> warning (reason no_token)', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK, encryptedToken: 'not-a-readable-token' } });
+  const res = await disconnect(admin);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.webhookLeftOnGithub, true);
+  assert.equal(res.body.leftWebhook.reason, 'no_token');
+  assert.equal(githubCalls.some((call) => call.options.method === 'DELETE' && call.url.includes('/hooks/')), false);
+});
+
+test('D4: no warning when the webhook was removed, when there was none, or when another project still uses it', async () => {
+  setWebhookEnv(true);
+  // Removed normally.
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  let res = await disconnect(owner);
+  assert.equal(res.body.webhookRemoved, true);
+  assert.equal(res.body.webhookLeftOnGithub, false);
+  assert.equal(res.body.leftWebhook, null);
+
+  // No webhook at all.
+  await connectWithRepository();
+  res = await disconnect(owner);
+  assert.equal(res.body.webhookLeftOnGithub, false);
+
+  // Shared: another project's connection uses the same repository, so the hook is kept on purpose.
+  const other = await GithubConnection.collection.insertOne({
+    project: new mongoose.Types.ObjectId(),
+    authorizedBy: owner.user.id,
+    githubUserId: GITHUB_USER.id,
+    githubLogin: GITHUB_USER.login,
+    status: 'connected',
+    repository: { githubId: REPO.githubId, fullName: REPO.fullName },
+  });
+  try {
+    await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+    res = await disconnect(owner);
+    assert.equal(res.body.webhookRemoved, false);
+    assert.equal(res.body.webhookLeftOnGithub, false, 'kept for the other project, not a failure');
+  } finally {
+    await GithubConnection.deleteOne({ _id: other.insertedId });
+  }
+});
+
+test('D4: re-authorizing clears the warning (the webhook is set up or reused again)', async () => {
+  setWebhookEnv(true);
+  await connectWithRepository({ extra: { webhook: ACTIVE_HOOK } });
+  fakeGithub({ deleteHook: json({ message: 'Bad credentials' }, 401) });
+  assert.equal((await disconnect(owner)).body.webhookLeftOnGithub, true);
+
+  fakeGithub();
+  const flow = await startFlow(admin);
+  const cb = await callback({ code: 'again', state: flow.state }, flow.cookie);
+  assert.equal(cb.headers.location, `http://localhost:5173/project/${projectId}?github=reauthorized`);
+  const status = await as(owner).get(base());
+  assert.equal(status.body.webhookLeftOnGithub, false);
+  assert.equal(status.body.leftWebhook, null);
+  assert.equal((await GithubConnection.findOne({ project: projectId }).lean()).webhookLeft, null);
 });

@@ -60,6 +60,20 @@ const repositoryCheckSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// [Sprint 7 · M8] D4: Disconnect could not take the webhook off GitHub (GitHub refused, e.g. HTTP 401, or
+// the stored token could not be used). The Owner/Admin is told to delete it by hand; kept here so the
+// warning is still shown after a reload. Cleared when GitHub is connected or re-authorized again.
+export const LEFT_WEBHOOK_REASONS = ['github_refused', 'no_token'];
+const leftWebhookSchema = new mongoose.Schema(
+  {
+    hookId: { type: Number, default: null }, // never sent to the browser
+    repositoryFullName: { type: String, trim: true, maxlength: 200, required: true },
+    reason: { type: String, enum: LEFT_WEBHOOK_REASONS, required: true },
+    at: { type: Date, required: true, default: Date.now },
+  },
+  { _id: false }
+);
+
 const githubConnectionSchema = new mongoose.Schema(
   {
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, unique: true },
@@ -92,6 +106,7 @@ const githubConnectionSchema = new mongoose.Schema(
     reauthorizationReason: { type: String, enum: ['', 'token_rejected', 'token_unreadable'], default: '' },
     lastCheckedAt: { type: Date, default: null },
     repositoryCheck: { type: repositoryCheckSchema, default: null },
+    webhookLeft: { type: leftWebhookSchema, default: null }, // [Sprint 7 · M8] D4
   },
   { timestamps: true }
 );

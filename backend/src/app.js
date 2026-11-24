@@ -38,8 +38,11 @@ import catchUpRoutes from './routes/catchUp.js'; // [Sprint 6 · M5] US-44 Catch
 import adminRoutes from './routes/admin.js'; // [Sprint 6 · M8] US-57, US-58 Platform Admin
 import moderationRoutes from './routes/moderation.js'; // [Sprint 6 · M8] moderator-only routes (M7 adds the queue)
 import settingsRoutes from './routes/settings.js'; // [Sprint 7 · M5] Settings page: change password
+import githubCodeRoutes from './routes/githubCode.js'; // [Sprint 7 · M8] D3 real Code & files
+import githubMissedEventsRoutes from './routes/githubMissedEvents.js'; // [Sprint 7 · M8] missed GitHub events
 import { uploadRoot, findAvatar, openAvatar, avatarMimeType } from './lib/avatar.js';
 import { trustProxySetting } from './lib/trustProxy.js'; // [Sprint 6 · M1] D1 fix
+import { rateLimitKey } from './lib/rateLimitKey.js'; // [Sprint 7 · M8] D5 fix
 
 export function createApp() {
   const app = express();
@@ -69,6 +72,7 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     skip,
+    keyGenerator: rateLimitKey, // [Sprint 7 · M8] D5: same client = same bucket, whatever port X-Forwarded-For shows
   }));
 
   app.use('/api/auth/login', rateLimit({
@@ -77,6 +81,7 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     skip,
+    keyGenerator: rateLimitKey, // [Sprint 7 · M8] D5: same client = same bucket, whatever port X-Forwarded-For shows
   }));
 
   app.use('/api/auth/signup', rateLimit({
@@ -85,6 +90,7 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     skip,
+    keyGenerator: rateLimitKey, // [Sprint 7 · M8] D5: same client = same bucket, whatever port X-Forwarded-For shows
   }));
 
   app.use('/uploads', (_req, res, next) => {
@@ -153,6 +159,8 @@ export function createApp() {
   app.use('/api/projects/:id/github/repositories', githubRepositoriesRoutes);
   app.use('/api/projects/:id/github/repository', githubRepositoryRoutes);
   app.use('/api/projects/:id/github/deliveries', githubDeliveriesRoutes); // [Sprint 4 · M4] US-34 webhook delivery log
+  app.use('/api/projects/:id/github/code', githubCodeRoutes); // [Sprint 7 · M8] D3: real repository stats + top-level files (members)
+  app.use('/api/projects/:id/github/webhook', githubMissedEventsRoutes); // [Sprint 7 · M8] POST /recheck: missed events (Owner/Admin)
   app.use('/api/projects/:id/github', projectGithubRoutes); // [Sprint 4 · M1] US-31 integration settings
   app.use('/api/github', githubCallbackRoutes); // [Sprint 4 · M1] US-31 OAuth callback from GitHub
   app.use('/api/projects/:id/dashboard', dashboardRoutes); // [Sprint 4 · M7] US-39 project dashboard
